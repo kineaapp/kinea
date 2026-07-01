@@ -1,0 +1,74 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+*, *::before, *::after { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body { font-family: 'Libre Franklin', sans-serif; }
+
+@keyframes kspin { to { transform: rotate(360deg); } }
+@keyframes kfade { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes kbar { from { width: 6%; } to { width: 100%; } }
+
+/* ── Sidebar nav item ─────────────────────────────────────── */
+.k-navitem {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  text-decoration: none;
+  color: #aeb9cc;
+  font-family: 'Libre Franklin', sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 11px 13px;
+  border-radius: 9px;
+  cursor: pointer;
+  text-align: left;
+  border: none;
+  background: none;
+  transition: background .12s, color .12s;
+}
+.k-navitem:hover { background: rgba(255,255,255,.06); color: #fff; }
+.k-navitem:hover svg { stroke: #fff; }
+.k-navitem.active {
+  background: rgba(232,84,42,.16) !important;
+  color: #fff !important;
+  box-shadow: inset 3px 0 0 #E8542A !important;
+}
+.k-navitem.active svg { stroke: #E8542A !important; }
+
+/* ── Input focus ──────────────────────────────────────────── */
+.k-input:focus {
+  outline: none;
+  border-color: #E8542A !important;
+  box-shadow: 0 0 0 3px rgba(232,84,42,.13) !important;
+}
+
+/* ── Responsive: sidebar (≤900px) ────────────────────────── */
+@media (max-width: 900px) {
+  .k-sidebar { transform: translateX(-100%); }
+  .k-sidebar.k-open { transform: translateX(0) !important; box-shadow: 0 0 50px rgba(0,0,0,.35) !important; }
+  .k-main { margin-left: 0 !important; }
+  .k-mobilebar { display: flex !important; }
+  .k-cgrid { flex-direction: column !important; }
+  .k-kpis { grid-template-columns: 1fr 1fr !important; }
+  .k-aside { width: auto !important; }
+  .k-pagepad { padding: 20px 18px 60px !important; }
+}
+@media (max-width: 560px) {
+  .k-kpis { grid-template-columns: 1fr !important; }
+  .k-hidesm { display: none !important; }
+}
+
+/* ── Responsive: login (≤840px) ──────────────────────────── */
+@media (max-width: 840px) {
+  .k-split { flex-direction: column !important; }
+  .k-brand { width: auto !important; min-height: 0 !important; padding: 24px 24px 26px !important; }
+  .k-brand-mid { margin: 18px 0 0 !important; }
+  .k-login-head { font-size: 26px !important; line-height: 1.12 !important; }
+  .k-login-sub { font-size: 13px !important; margin-top: 6px !important; }
+  .k-brand-foot { display: none !important; }
+  .k-brand-motif { opacity: .05 !important; transform: rotate(8deg) scale(.7) !important; }
+  .k-formwrap { padding: 30px 22px !important; }
+}
