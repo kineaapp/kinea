@@ -422,7 +422,7 @@ export default function Avaliacoes() {
   const [newOpen, setNewOpen] = useState(false)
   const [newInitial, setNewInitial] = useState('')
   const [toast, setToast] = useState('')
-  const toastRef = useRef<ReturnType<typeof setTimeout>>()
+  const toastRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
   function showToast(msg: string) {
     setToast(msg)

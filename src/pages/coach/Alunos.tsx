@@ -231,7 +231,7 @@ export default function Alunos() {
   const [newOpen,     setNewOpen]     = useState(false)
   const [toast,       setToast]       = useState('')
   const { students, addStudent }      = useStudentsStore()
-  const toastRef = useRef<ReturnType<typeof setTimeout>>()
+  const toastRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const sortRef  = useRef<HTMLDivElement>(null)
 
   function showToast(msg: string) {

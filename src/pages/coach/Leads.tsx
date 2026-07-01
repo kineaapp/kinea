@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, DragEvent } from 'react'
+import { useState, useRef, useEffect, type DragEvent } from 'react'
 import { getInitials } from '../../data/mock'
 
 const FF = '"Libre Franklin",sans-serif'
@@ -485,7 +485,7 @@ export default function Leads() {
   const [toast,       setToast]       = useState('')
   const dragIdRef = useRef<number | null>(null)
   const nextId    = useRef(SEED.length + 1)
-  const toastRef  = useRef<ReturnType<typeof setTimeout>>()
+  const toastRef  = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
   useEffect(() => () => clearTimeout(toastRef.current), [])
 

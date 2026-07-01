@@ -1,4 +1,4 @@
-import { useState, CSSProperties } from 'react'
+import { useState, type CSSProperties } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useStudentsStore } from '../../store/students'
 import { NewStudentModal } from '../../components/coach/NewStudentModal'

@@ -73,7 +73,7 @@ export default function Configuracoes() {
   const { user, setUser, logout } = useAuthStore()
   const navigate = useNavigate()
   const [toast, setToast] = useState('')
-  const toastRef = useRef<ReturnType<typeof setTimeout>>()
+  const toastRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
   // Profile
   const [name, setName] = useState(user?.name ?? 'Rafael Dias')

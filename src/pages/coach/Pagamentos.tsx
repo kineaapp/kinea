@@ -277,7 +277,7 @@ export default function Pagamentos() {
   const [openId,    setOpenId]    = useState<number | null>(null)
   const [newOpen,   setNewOpen]   = useState(false)
   const [toast,     setToast]     = useState('')
-  const toastRef = useRef<ReturnType<typeof setTimeout>>()
+  const toastRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const nextId   = useRef(SEED.length + 1)
 
   useEffect(() => () => clearTimeout(toastRef.current), [])

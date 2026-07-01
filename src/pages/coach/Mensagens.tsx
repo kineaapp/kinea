@@ -131,14 +131,14 @@ export default function Mensagens() {
   const [recording,   setRecording]   = useState(false)
   const [recSecs,     setRecSecs]     = useState(0)
 
-  const toastRef     = useRef<ReturnType<typeof setTimeout>>()
-  const autoReplyRef = useRef<ReturnType<typeof setTimeout>>()
+  const toastRef     = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const autoReplyRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const threadRef    = useRef<HTMLDivElement>(null)
   const photoRef     = useRef<HTMLInputElement>(null)
   const fileRef      = useRef<HTMLInputElement>(null)
   const recRef       = useRef<MediaRecorder | null>(null)
   const chunksRef    = useRef<Blob[]>([])
-  const timerRef     = useRef<ReturnType<typeof setInterval>>()
+  const timerRef     = useRef<ReturnType<typeof setInterval> | undefined>(undefined)
   const cancelRef    = useRef(false)
   const recSecsRef   = useRef(0)
 

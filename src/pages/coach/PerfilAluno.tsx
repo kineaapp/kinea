@@ -86,7 +86,7 @@ export default function PerfilAluno() {
   const navigate  = useNavigate()
   const [tab, setTab]   = useState<Tab>('overview')
   const [toast, setToast] = useState('')
-  const toastRef = useRef<ReturnType<typeof setTimeout>>()
+  const toastRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
   const studentId = parseInt(id ?? '0', 10)
   const student   = ROSTER[studentId] ?? ROSTER[0]

@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, DragEvent } from 'react'
+import { useState, useRef, useEffect, type DragEvent } from 'react'
 import { getInitials, avatarPalette } from '../../data/mock'
 
 const FF = '"Libre Franklin",sans-serif'
@@ -432,7 +432,7 @@ function TreinoDrawer({ treino, library, onClose, onOpenAssign, onDuplicate, onU
 }) {
   const g = GOAL_STYLE[treino.goal] ?? { color: '#1B2A4A', bg: '#eef1f6' }
   const [exercises,   setExercises]   = useState<Exercise[]>(treino.ex)
-  const [dragId,      setDragId]      = useState<number | null>(null)
+  const [_dragId,     setDragId]      = useState<number | null>(null)
   const [dragOver,    setDragOver]    = useState<number | null>(null)
   const [pickerOpen,    setPickerOpen]    = useState(false)
   const [exModalOpen,   setExModalOpen]   = useState(false)
@@ -712,7 +712,7 @@ export default function Treinos() {
   const [selected,   setSelected]   = useState<Set<number>>(new Set())
   const [newOpen,    setNewOpen]    = useState(false)
   const [toast,      setToast]      = useState('')
-  const toastRef = useRef<ReturnType<typeof setTimeout>>()
+  const toastRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const nextId   = useRef(SEED_TREINOS.length + 1)
   const nextK    = useRef(9000)
 
