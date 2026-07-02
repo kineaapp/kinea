@@ -1,21 +1,10 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import type { CSSProperties } from 'react'
 import { useNavigate } from 'react-router-dom'
 import KineaLogo from '../components/KineaLogo'
-import { useAuthStore } from '../store/auth'
+import { useAuthStore, type AuthUser } from '../store/auth'
 import { useSettingsStore } from '../store/settings'
-
-// ── Demo accounts ──────────────────────────────────────────
-const ACCOUNTS: Record<string, { pass: string; name: string; role: 'coach' | 'student' | 'super_admin'; route: string; first: boolean }> = {
-  'coach@kinea.app':  { pass: 'coach123',  name: 'Rafael Dias', role: 'coach',       route: '/coach/dashboard', first: false },
-  'aluno@kinea.app':  { pass: 'aluno123',  name: 'June',        role: 'student',     route: '/aluno/home',      first: false },
-  'novato@kinea.app': { pass: 'novato123', name: 'Lucas',       role: 'student',     route: '/aluno/anamnese',  first: true  },
-  'admin@kinea.app':  { pass: 'admin123',  name: 'Admin',       role: 'super_admin', route: '/coach/dashboard', first: false },
-}
-
-const ROLE_LABEL: Record<string, string> = {
-  coach: 'Coach', student: 'Aluno', super_admin: 'Super Admin',
-}
+import { supabase } from '../lib/supabase'
 
 // ── Shared styles ──────────────────────────────────────────
 const FF = '"Libre Franklin",sans-serif'
@@ -43,6 +32,10 @@ const labelStyle: CSSProperties = {
   color: '#6b6657', marginBottom: 7,
 }
 
+const ROLE_LABEL: Record<string, string> = {
+  coach: 'Coach', student: 'Aluno', super_admin: 'Super Admin',
+}
+
 // ── Component ──────────────────────────────────────────────
 type View = 'login' | 'forgot' | 'sent' | 'invite' | 'success'
 
@@ -65,51 +58,92 @@ export default function Login() {
   const [success,      setSuccess]      = useState<SuccessData | null>(null)
   const [hovBtn,       setHovBtn]       = useState(false)
 
+  const pendingUser = useRef<AuthUser | null>(null)
+
   const validEmail = (v: string) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v)
 
-  // Auto-navigate after success animation
+  // Navigate after success animation
   useEffect(() => {
     if (view !== 'success' || !success) return
     const t = setTimeout(() => {
-      setUser({
-        email,
-        name: success.name,
-        role: ACCOUNTS[email]?.role ?? 'coach',
-        initials: success.name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase(),
-      })
+      if (pendingUser.current) setUser(pendingUser.current)
       navigate(success.route)
     }, 2000)
     return () => clearTimeout(t)
   }, [view, success])
 
-  function onSubmit(e: React.FormEvent) {
+  async function onSubmit(e: React.FormEvent) {
     e.preventDefault()
     const em = email.trim().toLowerCase()
-    if (!em)              return setError('Informe seu e-mail.')
-    if (!validEmail(em))  return setError('Digite um e-mail válido.')
-    if (!password)        return setError('Informe sua senha.')
+    if (!em)             return setError('Informe seu e-mail.')
+    if (!validEmail(em)) return setError('Digite um e-mail válido.')
+    if (!password)       return setError('Informe sua senha.')
+
     setError(''); setLoading(true)
-    setTimeout(() => {
-      const acc = ACCOUNTS[em]
-      if (!acc || acc.pass !== password) {
-        setLoading(false); setError('E-mail ou senha incorretos.')
+
+    try {
+      const { data, error: authError } = await supabase.auth.signInWithPassword({ email: em, password })
+
+      if (authError || !data.user) {
+        setLoading(false)
+        setError('E-mail ou senha incorretos.')
         return
       }
+
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', data.user.id)
+        .single()
+
+      if (profileError || !profile) {
+        setLoading(false)
+        setError('Perfil não encontrado. Contate o suporte.')
+        return
+      }
+
+      const role = profile.role as 'coach' | 'student' | 'super_admin'
+      const first = role === 'student' && !profile.anamnese_completed
+      const route = role === 'student'
+        ? (profile.anamnese_completed ? '/aluno/home' : '/aluno/anamnese')
+        : '/coach/dashboard'
+
+      pendingUser.current = {
+        id:                data.user.id,
+        email:             profile.email,
+        name:              profile.name,
+        role,
+        initials:          profile.name.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase(),
+        anamneseCompleted: profile.anamnese_completed,
+        phone:             profile.phone ?? undefined,
+        photo:             profile.photo_url ?? undefined,
+      }
+
       setLoading(false)
-      setSuccess({ name: acc.name, roleLabel: ROLE_LABEL[acc.role] ?? 'Coach', route: acc.route, first: acc.first })
+      setSuccess({ name: profile.name, roleLabel: ROLE_LABEL[role] ?? 'Coach', route, first })
       setView('success')
-    }, 850)
+
+    } catch {
+      setLoading(false)
+      setError('Erro de conexão. Tente novamente.')
+    }
   }
 
-  function onSubmitForgot(e: React.FormEvent) {
+  async function onSubmitForgot(e: React.FormEvent) {
     e.preventDefault()
     const v = forgotEmail.trim().toLowerCase()
     if (!v || !validEmail(v)) return setForgotError('Digite um e-mail válido.')
-    setView('sent')
-  }
 
-  function fillAccount(em: string) {
-    setEmail(em); setPassword(ACCOUNTS[em]?.pass ?? ''); setError('')
+    const { error } = await supabase.auth.resetPasswordForEmail(v, {
+      redirectTo: `${window.location.origin}/reset-password`,
+    })
+
+    if (error) {
+      setForgotError('Não foi possível enviar o e-mail. Tente novamente.')
+      return
+    }
+
+    setView('sent')
   }
 
   // ── Render ─────────────────────────────────────────────────
@@ -121,12 +155,10 @@ export default function Login() {
         className="k-brand"
         style={{ width: '46%', background: '#1B2A4A', color: '#FAEEDA', padding: '52px 56px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', position: 'relative', overflow: 'hidden' }}
       >
-        {/* Watermark motif */}
         <div className="k-brand-motif" style={{ position: 'absolute', right: -90, bottom: -70, opacity: .07, transform: 'rotate(-8deg)', pointerEvents: 'none' }}>
           <KineaLogo width={440} height={532} />
         </div>
 
-        {/* Logo row */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 11, position: 'relative' }}>
           {customLogoDataUrl
             ? <img src={customLogoDataUrl} alt="Logo" style={{ height: 36, maxWidth: 180, objectFit: 'contain' }} />
@@ -137,7 +169,6 @@ export default function Login() {
           }
         </div>
 
-        {/* Headline */}
         <div className="k-brand-mid" style={{ position: 'relative' }}>
           <h1 className="k-login-head" style={{ font: `800 42px/1.08 ${FF}`, color: '#fff', margin: 0, letterSpacing: '-1px' }}>
             Treine.<br />Acompanhe.<br />Evolua.
@@ -147,7 +178,6 @@ export default function Login() {
           </p>
         </div>
 
-        {/* Feature bullets */}
         <div className="k-brand-foot" style={{ position: 'relative', display: 'flex', flexDirection: 'column', gap: 13 }}>
           {['Treinos montados pelo seu coach', 'Acompanhamento de avaliações e progresso', 'Comunicação direta, sem ruído'].map(t => (
             <div key={t} style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
@@ -223,29 +253,6 @@ export default function Login() {
                   }
                 </button>
               </form>
-
-              {/* Demo accounts */}
-              <div style={{ marginTop: 22, border: '1px dashed #d2ccbb', borderRadius: 12, padding: '13px 14px', background: '#fbf7ec' }}>
-                <div style={{ font: `600 10px ${FF}`, letterSpacing: '.6px', textTransform: 'uppercase', color: '#9a948a', marginBottom: 9 }}>
-                  Contas de demonstração — clique para entrar
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
-                  {[
-                    { em: 'coach@kinea.app',  label: 'Coach',      color: '#1B2A4A', bg: '#eef1f6' },
-                    { em: 'aluno@kinea.app',  label: 'Aluno',      color: '#1B7a4a', bg: '#e7f3ea' },
-                    { em: 'novato@kinea.app', label: '1º acesso',  color: '#b06a12', bg: '#f7ecd9' },
-                    { em: 'admin@kinea.app',  label: 'Super Admin',color: '#5a4ea0', bg: '#eceaf6' },
-                  ].map(({ em, label, color, bg }) => (
-                    <button
-                      key={em} type="button" onClick={() => fillAccount(em)}
-                      style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', border: '1px solid #e7e0cf', background: '#fff', borderRadius: 9, padding: '9px 11px', cursor: 'pointer', textAlign: 'left' }}
-                    >
-                      <span style={{ font: `600 13px ${FF}`, color: '#1B2A4A' }}>{em}</span>
-                      <span style={{ font: `600 10px ${FF}`, color, background: bg, borderRadius: 20, padding: '3px 9px' }}>{label}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
 
               <div style={{ textAlign: 'center', marginTop: 22, font: `400 13px ${FF}`, color: '#7c7869' }}>
                 Tem um convite do seu coach?{' '}
