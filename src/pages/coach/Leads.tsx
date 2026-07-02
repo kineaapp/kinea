@@ -477,14 +477,14 @@ function NewLeadModal({ initialStage, onClose, onAdd }: {
 
 // ── Main ────────────────────────────────────────────────────
 export default function Leads() {
-  const [leads,       setLeads]       = useState<Lead[]>(() => SEED.map(l => ({ ...l })))
+  const [leads,       setLeads]       = useState<Lead[]>([])
   const [openId,      setOpenId]      = useState<number | null>(null)
   const [newOpen,     setNewOpen]     = useState(false)
   const [newStage,    setNewStage]    = useState<Stage>('novo')
   const [dragOverCol, setDragOverCol] = useState<Stage | null>(null)
   const [toast,       setToast]       = useState('')
   const dragIdRef = useRef<number | null>(null)
-  const nextId    = useRef(SEED.length + 1)
+  const nextId    = useRef(1)
   const toastRef  = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
   useEffect(() => () => clearTimeout(toastRef.current), [])

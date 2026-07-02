@@ -271,14 +271,14 @@ function NewChargeModal({ onClose, onAdd }: {
 
 // ── Main ─────────────────────────────────────────────────────
 export default function Pagamentos() {
-  const [charges,   setCharges]   = useState<Charge[]>(() => SEED.map(c => ({ ...c })))
+  const [charges,   setCharges]   = useState<Charge[]>([])
   const [tab,       setTab]       = useState<Tab>('all')
   const [query,     setQuery]     = useState('')
   const [openId,    setOpenId]    = useState<number | null>(null)
   const [newOpen,   setNewOpen]   = useState(false)
   const [toast,     setToast]     = useState('')
   const toastRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
-  const nextId   = useRef(SEED.length + 1)
+  const nextId   = useRef(1)
 
   useEffect(() => () => clearTimeout(toastRef.current), [])
 
@@ -402,8 +402,6 @@ export default function Pagamentos() {
         </div>
       </div>
 
-      {/* Revenue chart */}
-      <RevenueChart />
 
       {/* Charges table */}
       <div style={{ marginTop: 8, background: '#fff', border: '1px solid #ece7d9', borderRadius: 16, overflow: 'hidden' }}>

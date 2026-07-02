@@ -9,6 +9,7 @@ export interface AuthUser {
   role: 'coach' | 'student' | 'super_admin'
   initials: string
   anamneseCompleted?: boolean
+  assessmentCompleted?: boolean
   phone?: string
   photo?: string
 }

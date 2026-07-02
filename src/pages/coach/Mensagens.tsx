@@ -122,8 +122,8 @@ function Toast({ msg }: { msg: string }) {
 // ── Page ───────────────────────────────────────────────────────────────────────
 export default function Mensagens() {
   const navigate = useNavigate()
-  const [convs,       setConvs]       = useState<Conv[]>(SEED)
-  const [activeId,    setActiveId]    = useState(1)
+  const [convs,       setConvs]       = useState<Conv[]>([])
+  const [activeId,    setActiveId]    = useState<number | null>(null)
   const [query,       setQuery]       = useState('')
   const [draft,       setDraft]       = useState('')
   const [toast,       setToast]       = useState('')
@@ -142,8 +142,8 @@ export default function Mensagens() {
   const cancelRef    = useRef(false)
   const recSecsRef   = useRef(0)
 
-  const active = convs.find(c => c.id === activeId) ?? convs[0]
-  const pal    = AVATAR_PALETTE[active.id % AVATAR_PALETTE.length]
+  const active = convs.find(c => c.id === activeId) ?? convs[0] ?? null
+  const pal    = active ? AVATAR_PALETTE[active.id % AVATAR_PALETTE.length] : AVATAR_PALETTE[0]
 
   function showToast(msg: string) {
     setToast(msg)
@@ -157,7 +157,7 @@ export default function Mensagens() {
     }, 30)
   }
 
-  useEffect(() => { scrollBottom() }, [active.msgs.length])
+  useEffect(() => { if (active) scrollBottom() }, [active?.msgs.length])
 
   function openConv(id: number) {
     setConvs(prev => prev.map(c => c.id === id ? { ...c, unread: 0 } : c))
@@ -242,6 +242,20 @@ export default function Mensagens() {
 
   const filtered    = query.trim() ? convs.filter(c => c.name.toLowerCase().includes(query.trim().toLowerCase())) : convs
   const totalUnread = convs.reduce((a, c) => a + c.unread, 0)
+
+  if (!active) {
+    return (
+      <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 14 }}>
+        <div style={{ width: 60, height: 60, borderRadius: 18, background: '#eef1f6', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#C5BFB0" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+          </svg>
+        </div>
+        <p style={{ font: `500 14px ${FF}`, color: '#a89f8e', margin: 0 }}>Nenhuma conversa ainda.</p>
+        <p style={{ font: `400 12px ${FF}`, color: '#c5bfb0', margin: 0 }}>As mensagens dos alunos aparecerão aqui.</p>
+      </div>
+    )
+  }
 
   return (
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>

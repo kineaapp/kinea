@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, type DragEvent } from 'react'
 import { getInitials, avatarPalette } from '../../data/mock'
+import { useStudentsStore } from '../../store/students'
 
 const FF = '"Libre Franklin",sans-serif'
 
@@ -594,8 +595,9 @@ function TreinoDrawer({ treino, library, onClose, onOpenAssign, onDuplicate, onU
 }
 
 // ── Assign modal ─────────────────────────────────────────────
-function AssignModal({ treinoName, selected, onToggle, onConfirm, onClose }: {
+function AssignModal({ treinoName, students, selected, onToggle, onConfirm, onClose }: {
   treinoName: string
+  students:   { id: number; name: string; goal: string }[]
   selected:   Set<number>
   onToggle:   (id: number) => void
   onConfirm:  () => void
@@ -617,7 +619,12 @@ function AssignModal({ treinoName, selected, onToggle, onConfirm, onClose }: {
           <strong style={{ color: '#1B2A4A' }}>{treinoName}</strong> — selecione os alunos
         </p>
         <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 7 }}>
-          {STUDENT_SEED.map(s => {
+          {students.length === 0 && (
+            <div style={{ padding: '30px 16px', textAlign: 'center', font: `400 13px ${FF}`, color: '#a89f8e' }}>
+              Nenhum aluno cadastrado ainda.
+            </div>
+          )}
+          {students.map(s => {
             const sel = selected.has(s.id)
             const pal = avatarPalette(s.id)
             return (
@@ -703,8 +710,9 @@ function NewTreinoModal({ onClose, onAdd }: {
 
 // ── Main ─────────────────────────────────────────────────────
 export default function Treinos() {
-  const [treinos,    setTreinos]    = useState<Treino[]>(() => SEED_TREINOS.map(t => ({ ...t, ex: t.ex.map(e => ({ ...e })) })))
-  const [library,    setLibrary]    = useState<LibraryExercise[]>(buildInitialLibrary)
+  const { students } = useStudentsStore()
+  const [treinos,    setTreinos]    = useState<Treino[]>([])
+  const [library,    setLibrary]    = useState<LibraryExercise[]>([])
   const [query,      setQuery]      = useState('')
   const [filter,     setFilter]     = useState<Goal | 'all'>('all')
   const [openId,     setOpenId]     = useState<number | null>(null)
@@ -713,7 +721,7 @@ export default function Treinos() {
   const [newOpen,    setNewOpen]    = useState(false)
   const [toast,      setToast]      = useState('')
   const toastRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
-  const nextId   = useRef(SEED_TREINOS.length + 1)
+  const nextId   = useRef(1)
   const nextK    = useRef(9000)
 
   function handleAddToLibrary(ex: LibraryExercise) {
@@ -880,6 +888,7 @@ export default function Treinos() {
       {assignOpen && openTreino && (
         <AssignModal
           treinoName={openTreino.name}
+          students={students}
           selected={selected}
           onToggle={handleToggleStudent}
           onConfirm={handleConfirmAssign}

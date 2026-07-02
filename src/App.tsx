@@ -19,6 +19,7 @@ import AlunoChat from './pages/aluno/Chat'
 import AlunoPerfil from './pages/aluno/Perfil'
 import AlunoPagamentos from './pages/aluno/Pagamentos'
 import Anamnese from './pages/aluno/Anamnese'
+import PrimeiraAvaliacao from './pages/aluno/PrimeiraAvaliacao'
 import AlunoNotificacoes from './pages/aluno/Notificacoes'
 import AlunoConfiguracoes from './pages/aluno/Configuracoes'
 
@@ -42,7 +43,8 @@ export default function App() {
       </Route>
       <Route path="/aluno" element={<AlunoLayout />}>
         <Route index element={<Navigate to="home" replace />} />
-        <Route path="anamnese"           element={<Anamnese />} />
+        <Route path="anamnese"             element={<Anamnese />} />
+        <Route path="primeira-avaliacao"  element={<PrimeiraAvaliacao />} />
         <Route path="home"              element={<AlunoHome />} />
         <Route path="treinos"           element={<AlunoTreinos />} />
         <Route path="treinos/exec"      element={<Execucao />} />

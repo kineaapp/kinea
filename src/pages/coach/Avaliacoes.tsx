@@ -415,8 +415,8 @@ function NewAssessmentModal({ initial, onClose, onSave }: {
 type Tab = 'all' | 'em-dia' | 'pendente'
 
 export default function Avaliacoes() {
-  const [students, setStudents] = useState<Student[]>(SEED)
-  const [nextId, setNextId] = useState(9)
+  const [students, setStudents] = useState<Student[]>([])
+  const [nextId, setNextId] = useState(1)
   const [tab, setTab] = useState<Tab>('all')
   const [openId, setOpenId] = useState<number | null>(null)
   const [newOpen, setNewOpen] = useState(false)
@@ -579,6 +579,11 @@ export default function Avaliacoes() {
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(330px,1fr))', gap: 16 }}>
+          {visible.length === 0 && (
+            <div style={{ gridColumn: '1 / -1', padding: '50px 20px', textAlign: 'center', font: `500 14px ${FF}`, color: '#a89f8e', border: '1.5px dashed #d8d1c0', borderRadius: 14 }}>
+              Nenhuma avaliação registrada ainda.
+            </div>
+          )}
           {visible.map(s => (
             <div
               key={s.id}

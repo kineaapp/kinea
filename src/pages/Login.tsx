@@ -103,20 +103,23 @@ export default function Login() {
       }
 
       const role = profile.role as 'coach' | 'student' | 'super_admin'
-      const first = role === 'student' && !profile.anamnese_completed
+      const anamneseDone   = !!profile.anamnese_completed
+      const assessmentDone = !!profile.assessment_completed
+      const first = role === 'student' && (!anamneseDone || !assessmentDone)
       const route = role === 'student'
-        ? (profile.anamnese_completed ? '/aluno/home' : '/aluno/anamnese')
+        ? (!anamneseDone ? '/aluno/anamnese' : !assessmentDone ? '/aluno/primeira-avaliacao' : '/aluno/home')
         : '/coach/dashboard'
 
       pendingUser.current = {
-        id:                data.user.id,
-        email:             profile.email,
-        name:              profile.name,
+        id:                  data.user.id,
+        email:               profile.email,
+        name:                profile.name,
         role,
-        initials:          profile.name.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase(),
-        anamneseCompleted: profile.anamnese_completed,
-        phone:             profile.phone ?? undefined,
-        photo:             profile.photo_url ?? undefined,
+        initials:            profile.name.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase(),
+        anamneseCompleted:   anamneseDone,
+        assessmentCompleted: assessmentDone,
+        phone:               profile.phone ?? undefined,
+        photo:               profile.photo_url ?? undefined,
       }
 
       setLoading(false)
@@ -348,7 +351,7 @@ export default function Login() {
               <div style={{ font: `600 15px ${FF}`, color: '#E8542A', marginBottom: 8 }}>sua área</div>
               {success.first && (
                 <p style={{ font: `400 13px/1.5 ${FF}`, color: '#b06a12', background: '#f7ecd9', borderRadius: 9, padding: '9px 12px', margin: '0 0 4px' }}>
-                  Primeiro acesso — você vai completar sua anamnese antes de liberar o app.
+                  Primeiro acesso — você vai preencher sua anamnese e avaliação inicial antes de liberar o app.
                 </p>
               )}
               <div style={{ height: 5, background: '#eadfca', borderRadius: 3, overflow: 'hidden', margin: '18px 0 22px' }}>

@@ -13,12 +13,19 @@ const TABS = [
 export default function AlunoLayout() {
   const { pathname } = useLocation()
   const { user } = useAuthStore()
-  const isAnamnese = pathname.includes('/anamnese')
-  const hideTabBar  = pathname.includes('/exec') || pathname.includes('/pagamentos') || pathname.includes('/notificacoes') || pathname.includes('/configuracoes') || isAnamnese
+  const isAnamnese          = pathname.includes('/anamnese')
+  const isPrimeiraAvaliacao = pathname.includes('/primeira-avaliacao')
+  const hideTabBar = pathname.includes('/exec') || pathname.includes('/pagamentos') || pathname.includes('/notificacoes') || pathname.includes('/configuracoes') || isAnamnese || isPrimeiraAvaliacao
 
   if (!user || user.role !== 'student') return <Navigate to="/login" replace />
-  // Se já completou a anamnese e tenta acessá-la novamente, vai para home
-  if (isAnamnese && user.anamneseCompleted)  return <Navigate to="/aluno/home" replace />
+
+  // Block going back to already completed onboarding pages
+  if (isAnamnese && user.anamneseCompleted)                     return <Navigate to="/aluno/home" replace />
+  if (isPrimeiraAvaliacao && user.assessmentCompleted)           return <Navigate to="/aluno/home" replace />
+
+  // Enforce onboarding order: anamnese first, then assessment
+  if (!user.anamneseCompleted && !isAnamnese)                   return <Navigate to="/aluno/anamnese" replace />
+  if (user.anamneseCompleted && !user.assessmentCompleted && !isPrimeiraAvaliacao) return <Navigate to="/aluno/primeira-avaliacao" replace />
 
   return (
     <div style={{ minHeight: '100dvh', background: '#C8C2B2', display: 'flex', justifyContent: 'center' }}>

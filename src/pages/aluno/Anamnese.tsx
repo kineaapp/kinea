@@ -5,6 +5,7 @@ import { ChevronLeft, Check } from 'lucide-react'
 import jsPDF from 'jspdf'
 import { useAuthStore } from '../../store/auth'
 import { useChatStore } from '../../store/chat'
+import { supabase } from '../../lib/supabase'
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -303,7 +304,7 @@ export default function Anamnese() {
   function finish() {
     setLoading(true)
     const nomeAluno = user?.name ?? 'Aluno'
-    setTimeout(() => {
+    setTimeout(async () => {
       const dataUri = buildPDF(data, nomeAluno)
       const agora   = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
       const filename = `Anamnese_${nomeAluno.replace(/\s+/g, '_')}.pdf`
@@ -315,8 +316,11 @@ export default function Anamnese() {
         time: agora,
       })
 
+      if (user?.id) {
+        await supabase.from('profiles').update({ anamnese_completed: true }).eq('id', user.id)
+      }
       if (user) setUser({ ...user, anamneseCompleted: true })
-      navigate('/aluno/home')
+      navigate('/aluno/primeira-avaliacao')
     }, 1200)
   }
 
