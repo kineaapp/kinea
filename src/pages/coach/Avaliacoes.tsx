@@ -33,53 +33,6 @@ interface Student {
   hist: Assessment[]
 }
 
-const SEED: Student[] = [
-  { id: 1, name: 'Tatiane Ribeiro', goal: 'Emagrecimento', loss: true, days: 6, status: 'em-dia',
-    hist: [
-      { date: '10 mar', weight: 74.8, bf: 31.2, m: { Peito: 96, Cintura: 84, Quadril: 104, 'Braço': 30, Coxa: 58, 'Abdômen': 88 } },
-      { date: '12 abr', weight: 72.1, bf: 29.4, m: { Peito: 95, Cintura: 81, Quadril: 102, 'Braço': 30, Coxa: 57, 'Abdômen': 84 } },
-      { date: '16 mai', weight: 70.3, bf: 27.8, m: { Peito: 94, Cintura: 78, Quadril: 101, 'Braço': 29, Coxa: 56, 'Abdômen': 81 } },
-      { date: '22 jun', weight: 68.6, bf: 26.1, m: { Peito: 93, Cintura: 75, Quadril: 99,  'Braço': 29, Coxa: 55, 'Abdômen': 78 } },
-    ] },
-  { id: 2, name: 'Rafael Antunes', goal: 'Hipertrofia', loss: false, days: 11, status: 'em-dia',
-    hist: [
-      { date: '05 abr', weight: 78.2, bf: 16.5, m: { Peito: 101, Cintura: 82, Quadril: 98, 'Braço': 37, Coxa: 60, 'Abdômen': 84 } },
-      { date: '10 mai', weight: 80.4, bf: 15.8, m: { Peito: 104, Cintura: 82, Quadril: 99, 'Braço': 38, Coxa: 61, 'Abdômen': 83 } },
-      { date: '17 jun', weight: 82.1, bf: 15.2, m: { Peito: 106, Cintura: 81, Quadril: 100, 'Braço': 40, Coxa: 63, 'Abdômen': 82 } },
-    ] },
-  { id: 3, name: 'Beatriz Camargo', goal: 'Condicionamento', loss: true, days: 9, status: 'em-dia',
-    hist: [
-      { date: '02 mai', weight: 63.5, bf: 25.1, m: { Peito: 88, Cintura: 72, Quadril: 96, 'Braço': 27, Coxa: 54, 'Abdômen': 75 } },
-      { date: '19 jun', weight: 62.0, bf: 23.6, m: { Peito: 87, Cintura: 70, Quadril: 95, 'Braço': 27, Coxa: 53, 'Abdômen': 72 } },
-    ] },
-  { id: 4, name: 'Eduardo Nunes', goal: 'Força', loss: false, days: 38, status: 'pendente',
-    hist: [
-      { date: '14 mar', weight: 88.0, bf: 19.8, m: { Peito: 108, Cintura: 90, Quadril: 104, 'Braço': 39, Coxa: 64, 'Abdômen': 92 } },
-      { date: '21 mai', weight: 89.5, bf: 18.9, m: { Peito: 110, Cintura: 89, Quadril: 105, 'Braço': 41, Coxa: 66, 'Abdômen': 90 } },
-    ] },
-  { id: 5, name: 'Larissa Fonseca', goal: 'Recomposição', loss: true, days: 42, status: 'pendente',
-    hist: [
-      { date: '08 abr', weight: 67.2, bf: 28.0, m: { Peito: 90, Cintura: 76, Quadril: 99, 'Braço': 28, Coxa: 56, 'Abdômen': 80 } },
-      { date: '16 mai', weight: 65.8, bf: 26.4, m: { Peito: 89, Cintura: 74, Quadril: 98, 'Braço': 28, Coxa: 55, 'Abdômen': 77 } },
-    ] },
-  { id: 6, name: 'Marcelo Vieira', goal: 'Emagrecimento', loss: true, days: 14, status: 'em-dia',
-    hist: [
-      { date: '01 mai', weight: 95.4, bf: 30.5, m: { Peito: 112, Cintura: 98, Quadril: 108, 'Braço': 36, Coxa: 65, 'Abdômen': 100 } },
-      { date: '14 jun', weight: 91.2, bf: 28.2, m: { Peito: 109, Cintura: 93, Quadril: 106, 'Braço': 36, Coxa: 64, 'Abdômen': 95  } },
-    ] },
-  { id: 7, name: 'Priscila Matos', goal: 'Hipertrofia', loss: false, days: 5, status: 'em-dia',
-    hist: [
-      { date: '12 abr', weight: 58.4, bf: 24.2, m: { Peito: 85, Cintura: 68, Quadril: 94, 'Braço': 26, Coxa: 52, 'Abdômen': 72 } },
-      { date: '15 mai', weight: 59.1, bf: 23.5, m: { Peito: 86, Cintura: 68, Quadril: 95, 'Braço': 27, Coxa: 53, 'Abdômen': 71 } },
-      { date: '23 jun', weight: 60.0, bf: 22.8, m: { Peito: 87, Cintura: 67, Quadril: 96, 'Braço': 27, Coxa: 54, 'Abdômen': 70 } },
-    ] },
-  { id: 8, name: 'Henrique Alves', goal: 'Condicionamento', loss: true, days: 51, status: 'pendente',
-    hist: [
-      { date: '20 mar', weight: 82.5, bf: 22.0, m: { Peito: 100, Cintura: 86, Quadril: 101, 'Braço': 34, Coxa: 60, 'Abdômen': 88 } },
-      { date: '08 mai', weight: 80.1, bf: 20.6, m: { Peito: 99,  Cintura: 83, Quadril: 100, 'Braço': 34, Coxa: 59, 'Abdômen': 84 } },
-    ] },
-]
-
 function getInitials(name: string) {
   const p = name.trim().split(/\s+/)
   return ((p[0]?.[0] ?? '') + (p[1]?.[0] ?? '')).toUpperCase()

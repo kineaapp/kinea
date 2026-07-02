@@ -40,21 +40,6 @@ const AV_PALETTE: [string, string][] = [
   ['#f7ecd9', '#b06a12'], ['#ece9f6', '#5a4ea0'], ['#fbe6f3', '#b8338a'],
 ]
 
-const SEED: Lead[] = [
-  { id:1,  name:'Tatiane Ribeiro', goal:'Emagrecimento',   source:'Instagram', plan:'Mensal',     value:'R$ 390',   when:'há 2h',     contact:'@tatiane.fit',     stage:'novo' },
-  { id:2,  name:'Rafael Antunes',  goal:'Hipertrofia',     source:'Indicação', plan:'Trimestral', value:'R$ 1.050', when:'há 5h',     contact:'(11) 99234-5678',  stage:'novo' },
-  { id:3,  name:'Beatriz Camargo', goal:'Condicionamento', source:'Site',      plan:'Mensal',     value:'R$ 390',   when:'ontem',     contact:'bea.camargo@gmail.com', stage:'novo' },
-  { id:4,  name:'Eduardo Nunes',   goal:'Força',           source:'Tráfego',   plan:'Mensal',     value:'R$ 390',   when:'há 2 dias', contact:'(21) 98765-4321',  stage:'novo' },
-  { id:5,  name:'Larissa Fonseca', goal:'Recomposição',    source:'WhatsApp',  plan:'Semestral',  value:'R$ 1.890', when:'há 1 dia',  contact:'(11) 91234-0000',  stage:'contactado' },
-  { id:6,  name:'Marcelo Vieira',  goal:'Emagrecimento',   source:'Instagram', plan:'Trimestral', value:'R$ 1.050', when:'há 2 dias', contact:'@marcelofit',       stage:'contactado' },
-  { id:7,  name:'Priscila Matos',  goal:'Hipertrofia',     source:'Indicação', plan:'Mensal',     value:'R$ 390',   when:'há 3 dias', contact:'(31) 99000-1111',  stage:'contactado' },
-  { id:8,  name:'Gabriel Souza',   goal:'Força',           source:'Site',      plan:'Trimestral', value:'R$ 1.050', when:'há 4 dias', contact:'gabriel.s@gmail.com', stage:'interessado' },
-  { id:9,  name:'Carolina Dias',   goal:'Emagrecimento',   source:'WhatsApp',  plan:'Semestral',  value:'R$ 1.890', when:'há 1 dia',  contact:'(11) 97777-2222',  stage:'interessado' },
-  { id:10, name:'Henrique Alves',  goal:'Condicionamento', source:'Indicação', plan:'Mensal',     value:'R$ 390',   when:'há 6 dias', contact:'(41) 98888-3333',  stage:'fechado' },
-  { id:11, name:'Juliana Reis',    goal:'Hipertrofia',     source:'Instagram', plan:'Semestral',  value:'R$ 1.890', when:'há 8 dias', contact:'@juliana.treina',   stage:'fechado' },
-  { id:12, name:'Fábio Cardoso',   goal:'Força',           source:'Tráfego',   plan:'Mensal',     value:'R$ 390',   when:'há 10 dias',contact:'(51) 96666-4444',  stage:'perdido' },
-]
-
 function avPalette(id: number): [string, string] {
   return AV_PALETTE[id % AV_PALETTE.length]
 }

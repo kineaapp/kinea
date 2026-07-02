@@ -29,62 +29,6 @@ interface Conv {
   msgs: MsgEntry[]
 }
 
-// ── Seed data ──────────────────────────────────────────────────────────────────
-const SEED: Conv[] = [
-  { id: 1, name: 'Tatiane Ribeiro', online: true, time: '09:42', unread: 2,
-    msgs: [
-      { type: 'day', text: 'Ontem' },
-      { type: 'msg', from: 'them', text: 'Oi Rafa! Terminei o treino A hoje 💪', time: '08:30' },
-      { type: 'msg', from: 'them', text: 'Mas senti um desconforto no ombro na última série de supino', time: '08:31' },
-      { type: 'msg', from: 'me', text: 'Boa, Tati! Vamos com calma então. Reduz a carga em 10% no supino inclinado e foca na execução.', time: '08:45' },
-      { type: 'day', text: 'Hoje' },
-      { type: 'msg', from: 'them', text: 'Combinado! E sobre a dieta, posso trocar o arroz por batata doce no almoço?', time: '09:40' },
-      { type: 'msg', from: 'them', text: 'Mesma quantidade?', time: '09:42' },
-    ] },
-  { id: 2, name: 'Rafael Antunes', online: true, time: '08:15', unread: 0,
-    msgs: [
-      { type: 'day', text: 'Hoje' },
-      { type: 'msg', from: 'me', text: 'Bom dia! Subi seu novo treino de costas, dá uma olhada.', time: '07:50' },
-      { type: 'msg', from: 'them', text: 'Vi sim, ficou top! Já testo hoje à tarde 🔥', time: '08:15' },
-    ] },
-  { id: 3, name: 'Beatriz Camargo', online: false, time: 'Ontem', unread: 1,
-    msgs: [
-      { type: 'day', text: 'Ontem' },
-      { type: 'msg', from: 'them', text: 'Professor, não vou conseguir treinar quarta. Consigo repor quinta?', time: '19:20' },
-    ] },
-  { id: 4, name: 'Eduardo Nunes', online: false, time: 'Ontem', unread: 0,
-    msgs: [
-      { type: 'day', text: 'Ontem' },
-      { type: 'msg', from: 'me', text: 'Eduardo, está na hora da sua reavaliação. Quando consegue passar aqui?', time: '15:10' },
-      { type: 'msg', from: 'them', text: 'Pode ser sexta de manhã?', time: '16:02' },
-      { type: 'msg', from: 'me', text: 'Fechado, 8h. Traz roupa de treino.', time: '16:05' },
-    ] },
-  { id: 5, name: 'Larissa Fonseca', online: false, time: 'Seg', unread: 0,
-    msgs: [
-      { type: 'day', text: 'Segunda' },
-      { type: 'msg', from: 'them', text: 'Adorei o resultado da última avaliação! Obrigada 🙏', time: '11:00' },
-      { type: 'msg', from: 'me', text: 'Você que se dedicou, Larissa! Bora manter o ritmo 👏', time: '11:12' },
-    ] },
-  { id: 6, name: 'Marcelo Vieira', online: false, time: 'Seg', unread: 0,
-    msgs: [
-      { type: 'day', text: 'Segunda' },
-      { type: 'msg', from: 'them', text: 'Bati 91kg hoje na balança!', time: '07:30' },
-      { type: 'msg', from: 'me', text: 'Excelente, Marcelo! 4kg em 6 semanas. Tá voando 🚀', time: '07:35' },
-    ] },
-  { id: 7, name: 'Priscila Matos', online: true, time: 'Dom', unread: 0,
-    msgs: [
-      { type: 'day', text: 'Domingo' },
-      { type: 'msg', from: 'them', text: 'Qual o foco da semana que vem?', time: '18:00' },
-      { type: 'msg', from: 'me', text: 'Vamos aumentar volume de pernas. Segunda já te mando o ajuste.', time: '18:20' },
-    ] },
-  { id: 8, name: 'Henrique Alves', online: false, time: 'Sex', unread: 0,
-    msgs: [
-      { type: 'day', text: 'Sexta' },
-      { type: 'msg', from: 'them', text: 'Voltei a treinar essa semana, faltou disciplina antes 😅', time: '12:00' },
-      { type: 'msg', from: 'me', text: 'O importante é voltar! Marquei sua reavaliação, bora retomar com tudo.', time: '12:30' },
-    ] },
-]
-
 const QUICK_REPLIES = ['👍 Perfeito!', 'Pode trocar sim, mesma porção.', 'Vamos ajustar no treino.', 'Manda foto da execução']
 
 // ── Helpers ────────────────────────────────────────────────────────────────────

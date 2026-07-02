@@ -27,30 +27,6 @@ const STATUS_MAP: Record<Status, { label: string; color: string; bg: string }> =
 
 const PLANS: Record<string, number> = { Mensal: 390, Trimestral: 1050, Semestral: 1890 }
 
-const MONTH_DATA = [
-  { month: 'Jan', value: 14200 },
-  { month: 'Fev', value: 15600 },
-  { month: 'Mar', value: 16100 },
-  { month: 'Abr', value: 17400 },
-  { month: 'Mai', value: 18200 },
-  { month: 'Jun', value: 19500 },
-]
-
-const SEED: Charge[] = [
-  { id:1,  name:'Tatiane Ribeiro',  plan:'Mensal',     value:390,  method:'Pix',               due:'05 jun', status:'pago',     paidOn:'04 jun' },
-  { id:2,  name:'Rafael Antunes',   plan:'Trimestral', value:1050, method:'Cartão de crédito', due:'08 jun', status:'pago',     paidOn:'08 jun' },
-  { id:3,  name:'Beatriz Camargo',  plan:'Mensal',     value:390,  method:'Pix',               due:'10 jun', status:'pago',     paidOn:'09 jun' },
-  { id:4,  name:'Larissa Fonseca',  plan:'Semestral',  value:1890, method:'Cartão de crédito', due:'12 jun', status:'pago',     paidOn:'11 jun' },
-  { id:5,  name:'Eduardo Nunes',    plan:'Mensal',     value:390,  method:'Boleto',            due:'28 jun', status:'pendente', paidOn:null },
-  { id:6,  name:'Marcelo Vieira',   plan:'Trimestral', value:1050, method:'Boleto',            due:'30 jun', status:'pendente', paidOn:null },
-  { id:7,  name:'Priscila Matos',   plan:'Mensal',     value:390,  method:'Pix',               due:'02 jul', status:'pendente', paidOn:null },
-  { id:8,  name:'Henrique Alves',   plan:'Mensal',     value:390,  method:'Boleto',            due:'15 jun', status:'atrasado', paidOn:null },
-  { id:9,  name:'Carolina Dias',    plan:'Semestral',  value:1890, method:'Cartão de crédito', due:'18 jun', status:'atrasado', paidOn:null },
-  { id:10, name:'Gabriel Souza',    plan:'Mensal',     value:390,  method:'Pix',               due:'06 jun', status:'pago',     paidOn:'06 jun' },
-  { id:11, name:'Juliana Reis',     plan:'Trimestral', value:1050, method:'Pix',               due:'07 jun', status:'pago',     paidOn:'07 jun' },
-  { id:12, name:'Fábio Cardoso',    plan:'Mensal',     value:390,  method:'Boleto',            due:'14 jun', status:'pago',     paidOn:'13 jun' },
-]
-
 function brl(n: number) {
   return 'R$ ' + Number(n).toLocaleString('pt-BR')
 }
@@ -61,35 +37,6 @@ function Toast({ msg }: { msg: string }) {
   return (
     <div style={{ position: 'fixed', left: '50%', bottom: 28, transform: 'translateX(-50%)', zIndex: 80, background: '#1B2A4A', color: '#FAEEDA', font: `600 13.5px ${FF}`, padding: '13px 20px', borderRadius: 11, boxShadow: '0 10px 30px rgba(0,0,0,.28)', whiteSpace: 'nowrap' }}>
       {msg}
-    </div>
-  )
-}
-
-// ── Revenue bar chart ────────────────────────────────────────
-function RevenueChart() {
-  const max = Math.max(...MONTH_DATA.map(m => m.value))
-  const total = MONTH_DATA.reduce((a, m) => a + m.value, 0)
-  return (
-    <div style={{ background: '#fff', border: '1px solid #ece7d9', borderRadius: 16, padding: '20px 22px 16px', marginBottom: 8 }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
-        <div style={{ font: `700 14px ${FF}`, color: '#1B2A4A' }}>Receita dos últimos 6 meses</div>
-        <div style={{ font: `700 14px ${FF}`, color: '#1B7a4a' }}>{brl(total)}</div>
-      </div>
-      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 14, height: 140 }}>
-        {MONTH_DATA.map((m, i) => {
-          const last = i === MONTH_DATA.length - 1
-          const hPct = Math.round((m.value / max) * 100)
-          return (
-            <div key={m.month} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, height: '100%', justifyContent: 'flex-end' }}>
-              <div style={{ font: `700 11px ${FF}`, color: '#6b6657' }}>
-                {brl(Math.round(m.value / 1000))}k
-              </div>
-              <div style={{ width: '100%', maxWidth: 46, height: `${hPct}%`, background: last ? '#E8542A' : '#d8d1c0', borderRadius: '7px 7px 3px 3px', transition: 'height .4s cubic-bezier(.2,.7,.3,1)' }} />
-              <div style={{ font: `600 11px ${FF}`, color: '#9a948a' }}>{m.month}</div>
-            </div>
-          )
-        })}
-      </div>
     </div>
   )
 }
