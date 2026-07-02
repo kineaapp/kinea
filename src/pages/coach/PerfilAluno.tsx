@@ -90,8 +90,9 @@ export default function PerfilAluno() {
   const [toast, setToast] = useState('')
   const toastRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
-  const { students, fetchStudents } = useStudentsStore()
+  const { students, fetchStudents, deleteStudent } = useStudentsStore()
   const { user } = useAuthStore()
+  const [confirmDelete, setConfirmDelete] = useState(false)
 
   const studentId = parseInt(id ?? '0', 10)
 
@@ -130,15 +131,29 @@ export default function PerfilAluno() {
       {/* ── Outer pad ──────────────────────────────────────── */}
       <div className="k-pagepad" style={{ padding: '30px 34px 64px', maxWidth: 1180 }}>
 
-        {/* Back link */}
-        <button
-          type="button"
-          onClick={() => navigate('/coach/alunos')}
-          style={{ display: 'inline-flex', alignItems: 'center', gap: 7, font: `600 13px ${FF}`, color: '#7c7869', background: 'none', border: 'none', cursor: 'pointer', marginBottom: 16, padding: '0 4px' }}
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
-          Voltar para Alunos
-        </button>
+        {/* Back link + delete */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+          <button
+            type="button"
+            onClick={() => navigate('/coach/alunos')}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 7, font: `600 13px ${FF}`, color: '#7c7869', background: 'none', border: 'none', cursor: 'pointer', padding: '0 4px' }}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+            Voltar para Alunos
+          </button>
+
+          {!confirmDelete
+            ? <button type="button" onClick={() => setConfirmDelete(true)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 36, padding: '0 14px', border: '1.5px solid #e8c5bb', background: '#fef5f3', color: '#c4421e', borderRadius: 9, font: `600 13px ${FF}`, cursor: 'pointer' }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+                Excluir aluno
+              </button>
+            : <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <span style={{ font: `500 13px ${FF}`, color: '#7c7869' }}>Confirmar exclusão?</span>
+                <button type="button" onClick={async () => { await deleteStudent(studentId); navigate('/coach/alunos') }} style={{ height: 36, padding: '0 16px', border: 'none', background: '#c4421e', color: '#fff', borderRadius: 9, font: `700 13px ${FF}`, cursor: 'pointer' }}>Excluir</button>
+                <button type="button" onClick={() => setConfirmDelete(false)} style={{ height: 36, padding: '0 14px', border: '1.5px solid #d9d3c4', background: '#fff', color: '#1B2A4A', borderRadius: 9, font: `600 13px ${FF}`, cursor: 'pointer' }}>Cancelar</button>
+              </div>
+          }
+        </div>
 
         {/* ── Hero ───────────────────────────────────────── */}
         <div className="k-hero" style={{ background: '#1B2A4A', borderRadius: 16, overflow: 'hidden', marginBottom: 18 }}>

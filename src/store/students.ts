@@ -9,8 +9,9 @@ export type NewStudentData = { name: string; email: string; goal: string; plan: 
 interface StudentsStore {
   students: Student[]
   loading:  boolean
-  fetchStudents: (coachId: string) => Promise<void>
-  addStudent:    (data: NewStudentData, coachId: string) => Promise<void>
+  fetchStudents:  (coachId: string) => Promise<void>
+  addStudent:     (data: NewStudentData, coachId: string) => Promise<void>
+  deleteStudent:  (id: number) => Promise<void>
 }
 
 type Row = {
@@ -57,6 +58,11 @@ export const useStudentsStore = create<StudentsStore>((set) => ({
       .order('created_at', { ascending: false })
     set({ loading: false })
     if (!error && data) set({ students: (data as Row[]).map(mapRow) })
+  },
+
+  deleteStudent: async (id) => {
+    const { error } = await supabase.from('students').delete().eq('id', id)
+    if (!error) set(s => ({ students: s.students.filter(st => st.id !== id) }))
   },
 
   addStudent: async (data, coachId) => {

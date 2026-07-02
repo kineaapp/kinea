@@ -96,12 +96,13 @@ function Toast({ msg }: { msg: string }) {
 }
 
 // ── Quick view drawer ───────────────────────────────────────
-function QuickView({ student: s, onClose, onOpenProfile, onStub }: {
-  student: Student; onClose: () => void; onOpenProfile: (id: number) => void; onStub: () => void
+function QuickView({ student: s, onClose, onOpenProfile, onStub, onDelete }: {
+  student: Student; onClose: () => void; onOpenProfile: (id: number) => void; onStub: () => void; onDelete: () => void
 }) {
   const pal  = avatarPalette(s.id)
   const pay  = payInfo(s.pay)
   const sem  = semInfo(s.sem)
+  const [confirmDelete, setConfirmDelete] = useState(false)
 
   return (
     <>
@@ -173,6 +174,17 @@ function QuickView({ student: s, onClose, onOpenProfile, onStub }: {
           >
             Abrir perfil completo →
           </button>
+
+          {!confirmDelete
+            ? <button type="button" onClick={() => setConfirmDelete(true)} style={{ width: '100%', border: 'none', background: 'none', color: '#c4421e', font: `600 13px ${FF}`, padding: '10px 0 2px', cursor: 'pointer' }}>
+                Excluir aluno
+              </button>
+            : <div style={{ display: 'flex', gap: 8, alignItems: 'center', paddingTop: 6 }}>
+                <span style={{ flex: 1, font: `500 12.5px ${FF}`, color: '#7c7869' }}>Confirmar exclusão?</span>
+                <button type="button" onClick={onDelete} style={{ height: 36, padding: '0 14px', border: 'none', background: '#c4421e', color: '#fff', borderRadius: 8, font: `700 12.5px ${FF}`, cursor: 'pointer' }}>Excluir</button>
+                <button type="button" onClick={() => setConfirmDelete(false)} style={{ height: 36, padding: '0 14px', border: '1.5px solid #d9d3c4', background: '#fff', color: '#1B2A4A', borderRadius: 8, font: `600 12.5px ${FF}`, cursor: 'pointer' }}>Cancelar</button>
+              </div>
+          }
         </div>
       </div>
     </>
@@ -231,7 +243,7 @@ export default function Alunos() {
   const [inviteOpen,  setInviteOpen]  = useState(false)
   const [newOpen,     setNewOpen]     = useState(false)
   const [toast,       setToast]       = useState('')
-  const { students, addStudent, fetchStudents } = useStudentsStore()
+  const { students, addStudent, fetchStudents, deleteStudent } = useStudentsStore()
   const { user } = useAuthStore()
 
   useEffect(() => { if (user?.id) fetchStudents(user.id) }, [user?.id])
@@ -456,6 +468,7 @@ export default function Alunos() {
             onClose={() => setQuickIdx(null)}
             onOpenProfile={(id) => { setQuickIdx(null); navigate(`/coach/alunos/${id}`) }}
             onStub={() => showToast('Em breve — montamos esta tela a seguir.')}
+            onDelete={() => { deleteStudent(quickIdx!); setQuickIdx(null); showToast('Aluno excluído.') }}
           />
         ) : null
       })()}
