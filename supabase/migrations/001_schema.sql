@@ -20,13 +20,6 @@ create table public.profiles (
 alter table public.profiles enable row level security;
 create policy "Usuário lê e edita o próprio perfil"
   on public.profiles for all using (auth.uid() = id);
-create policy "Coach lê perfis dos próprios alunos"
-  on public.profiles for select using (
-    exists (
-      select 1 from public.students s
-      where s.student_id = profiles.id and s.coach_id = auth.uid()
-    )
-  );
 
 -- ── Students (relação coach ↔ aluno) ─────────────────────────────────────────
 create table public.students (
@@ -48,6 +41,15 @@ create policy "Coach gerencia seus alunos"
   on public.students for all using (coach_id = auth.uid());
 create policy "Aluno lê o próprio registro"
   on public.students for select using (student_id = auth.uid());
+
+-- policy de profiles que depende de students (criada após a tabela existir)
+create policy "Coach lê perfis dos próprios alunos"
+  on public.profiles for select using (
+    exists (
+      select 1 from public.students s
+      where s.student_id = profiles.id and s.coach_id = auth.uid()
+    )
+  );
 
 -- ── Payments ─────────────────────────────────────────────────────────────────
 create table public.payments (
