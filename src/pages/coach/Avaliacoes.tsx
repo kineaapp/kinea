@@ -241,11 +241,9 @@ function NewAssessmentModal({ initial, onClose, onSave }: {
   }
 
   function handleSave() {
-    if (!name.trim())  { setErr('Informe o aluno.'); return }
+    if (!name.trim())   { setErr('Informe o aluno.'); return }
     if (!weight.trim()) { setErr('Informe o peso.'); return }
-    if (!ageN)         { setErr('Informe a idade.'); return }
-    if (!allFilled)    { setErr('Preencha todas as 7 dobras.'); return }
-    onSave(name, weight, Math.round(bfCalc! * 10) / 10)
+    onSave(name, weight, bfCalc !== null ? Math.round(bfCalc * 10) / 10 : 0)
   }
 
   return (
@@ -257,7 +255,7 @@ function NewAssessmentModal({ initial, onClose, onSave }: {
           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 20 }}>
             <div>
               <h2 style={{ font: `800 20px ${FF}`, color: '#1B2A4A', margin: 0, letterSpacing: '-.4px' }}>Nova avaliação</h2>
-              <p style={{ font: `400 12.5px ${FF}`, color: '#9a948a', margin: '3px 0 0' }}>7 dobras cutâneas — Protocolo Pollock</p>
+              <p style={{ font: `400 12.5px ${FF}`, color: '#9a948a', margin: '3px 0 0' }}>Peso obrigatório · 7 dobras Pollock opcionais</p>
             </div>
             <button onClick={onClose} aria-label="Fechar" style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#9a948a', padding: 2 }}>
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6L6 18" /><path d="M6 6l12 12" /></svg>
@@ -303,7 +301,7 @@ function NewAssessmentModal({ initial, onClose, onSave }: {
           {/* ─ 7 Dobras ─ */}
           <div>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-              <div style={{ font: `700 10.5px ${FF}`, letterSpacing: '.6px', textTransform: 'uppercase', color: '#9a948a' }}>7 Dobras cutâneas (mm)</div>
+              <div style={{ font: `700 10.5px ${FF}`, letterSpacing: '.6px', textTransform: 'uppercase', color: '#9a948a' }}>7 Dobras cutâneas (mm) <span style={{ fontWeight: 500, textTransform: 'none', letterSpacing: 0, fontSize: 10 }}>— opcional</span></div>
               {allFilled && <span style={{ font: `700 12px ${FF}`, color: '#1B2A4A' }}>Σ = {fmt1(sum7)} mm</span>}
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
@@ -347,7 +345,7 @@ function NewAssessmentModal({ initial, onClose, onSave }: {
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#b06a12" strokeWidth="2" strokeLinecap="round" style={{ flexShrink: 0 }}>
                 <circle cx="12" cy="12" r="9"/><path d="M12 8v4"/><circle cx="12" cy="16.5" r=".8" fill="#b06a12"/>
               </svg>
-              <span style={{ font: `500 12px ${FF}`, color: '#7c7869' }}>Preencha todas as 7 dobras e a idade para calcular o % de gordura.</span>
+              <span style={{ font: `500 12px ${FF}`, color: '#7c7869' }}>Preencha as 7 dobras e a idade para calcular o % de gordura (opcional).</span>
             </div>
           )}
 
