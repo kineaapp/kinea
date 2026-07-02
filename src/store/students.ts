@@ -69,7 +69,7 @@ export const useStudentsStore = create<StudentsStore>((set) => ({
     const today = new Date().toISOString().split('T')[0]
     const { data: row, error } = await supabase
       .from('students')
-      .insert({ coach_id: coachId, name: data.name, email: data.email, goal: data.goal, plan: data.plan, since: today })
+      .insert({ coach_id: coachId, name: data.name, email: data.email, goal: data.goal, plan: data.plan, since: today, pay_status: data.plan === 'Permuta' ? 'active' : 'pending' })
       .select()
       .single()
     if (!error && row) set(s => ({ students: [mapRow(row as Row), ...s.students] }))

@@ -71,8 +71,11 @@ export function NewStudentModal({ onClose, onAdd }: Props) {
             </div>
             <h2 style={{ font: `800 20px ${FF}`, color: '#1B2A4A', margin: '0 0 8px', letterSpacing: '-.4px' }}>Aluno cadastrado!</h2>
             <p style={{ font: `400 14px/1.5 ${FF}`, color: '#7c7869', margin: '0 0 24px' }}>
-              <strong style={{ color: '#1B2A4A' }}>{addedName}</strong> foi adicionado com status{' '}
-              <strong style={{ color: '#b06a12' }}>Pagamento pendente</strong>.
+              <strong style={{ color: '#1B2A4A' }}>{addedName}</strong> foi adicionado
+              {plano === 'Permuta'
+                ? <> com plano <strong style={{ color: '#1B7a4a' }}>Permuta</strong> — sem cobranças geradas.</>
+                : <> com status <strong style={{ color: '#b06a12' }}>Pagamento pendente</strong>.</>
+              }
             </p>
             <div style={{ display: 'flex', gap: 10 }}>
               <button type="button" onClick={onClose}
