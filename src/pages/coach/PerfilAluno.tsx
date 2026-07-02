@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ROSTER, getInitials, payInfo, semInfo, avatarPalette } from '../../data/mock'
+import { getInitials, payInfo, semInfo, avatarPalette } from '../../data/mock'
+import { useStudentsStore } from '../../store/students'
+import { useAuthStore } from '../../store/auth'
 
 const FF = '"Libre Franklin",sans-serif'
 
@@ -88,11 +90,19 @@ export default function PerfilAluno() {
   const [toast, setToast] = useState('')
   const toastRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
+  const { students, fetchStudents } = useStudentsStore()
+  const { user } = useAuthStore()
+
   const studentId = parseInt(id ?? '0', 10)
-  const student   = ROSTER[studentId] ?? ROSTER[0]
-  const pal       = avatarPalette(studentId)
-  const pay       = payInfo(student.pay)
-  const sem       = semInfo(student.sem)
+
+  useEffect(() => {
+    if (students.length === 0 && user?.id) fetchStudents(user.id)
+  }, [user?.id])
+
+  const student = students.find(s => s.id === studentId)
+  const pal     = avatarPalette(studentId % 5)
+  const pay     = student ? payInfo(student.pay) : payInfo('pending')
+  const sem     = student ? semInfo(student.sem) : semInfo('green')
 
   function showToast(msg: string) {
     setToast(msg); clearTimeout(toastRef.current)
@@ -108,6 +118,12 @@ export default function PerfilAluno() {
     { key: 'anexos',      label: 'Anexos'        },
     { key: 'historico',   label: 'Histórico'     },
   ]
+
+  if (!student) return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', font: `500 15px ${FF}`, color: '#7c7869' }}>
+      Carregando...
+    </div>
+  )
 
   return (
     <div>

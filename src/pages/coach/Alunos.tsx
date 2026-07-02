@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { getInitials, payInfo, semInfo, avatarPalette } from '../../data/mock'
 import type { Student, PayStatus, SemColor } from '../../data/mock'
 import { useStudentsStore } from '../../store/students'
+import { useAuthStore } from '../../store/auth'
 import { NewStudentModal } from '../../components/coach/NewStudentModal'
 
 const FF = '"Libre Franklin",sans-serif'
@@ -230,7 +231,10 @@ export default function Alunos() {
   const [inviteOpen,  setInviteOpen]  = useState(false)
   const [newOpen,     setNewOpen]     = useState(false)
   const [toast,       setToast]       = useState('')
-  const { students, addStudent }      = useStudentsStore()
+  const { students, addStudent, fetchStudents } = useStudentsStore()
+  const { user } = useAuthStore()
+
+  useEffect(() => { if (user?.id) fetchStudents(user.id) }, [user?.id])
   const toastRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const sortRef  = useRef<HTMLDivElement>(null)
 
@@ -457,7 +461,7 @@ export default function Alunos() {
       })()}
 
       {inviteOpen && <InviteModal onClose={() => setInviteOpen(false)} />}
-      {newOpen    && <NewStudentModal onClose={() => setNewOpen(false)} onAdd={data => { addStudent(data); setNewOpen(false) }} />}
+      {newOpen    && <NewStudentModal onClose={() => setNewOpen(false)} onAdd={data => { if (user?.id) addStudent(data, user.id); setNewOpen(false) }} />}
       <Toast msg={toast} />
     </div>
   )

@@ -1,6 +1,7 @@
-import { useState, type CSSProperties } from 'react'
+import { useState, useEffect, type CSSProperties } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useStudentsStore } from '../../store/students'
+import { useAuthStore } from '../../store/auth'
 import { NewStudentModal } from '../../components/coach/NewStudentModal'
 
 // ── Types & data ───────────────────────────────────────────
@@ -131,7 +132,10 @@ export default function Dashboard() {
   const [filter,    setFilter]    = useState<'all' | SemColor>('all')
   const [inviteOpen, setInviteOpen] = useState(false)
   const [newOpen,    setNewOpen]    = useState(false)
-  const { students, addStudent }   = useStudentsStore()
+  const { students, addStudent, fetchStudents } = useStudentsStore()
+  const { user } = useAuthStore()
+
+  useEffect(() => { if (user?.id) fetchStudents(user.id) }, [user?.id])
 
   const shown = filter === 'all' ? students : students.filter(s => s.sem === filter)
   const count = (c: SemColor) => students.filter(s => s.sem === c).length
@@ -325,7 +329,7 @@ export default function Dashboard() {
       {newOpen && (
         <NewStudentModal
           onClose={() => setNewOpen(false)}
-          onAdd={data => { addStudent(data); }}
+          onAdd={data => { if (user?.id) addStudent(data, user.id) }}
         />
       )}
 

@@ -1,6 +1,6 @@
 import { create } from 'zustand'
-import { ROSTER } from '../data/mock'
 import type { Student, PayStatus, SemColor } from '../data/mock'
+import { supabase } from '../lib/supabase'
 
 const MONTHS = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez']
 
@@ -8,21 +8,64 @@ export type NewStudentData = { name: string; email: string; goal: string; plan: 
 
 interface StudentsStore {
   students: Student[]
-  addStudent: (data: NewStudentData) => void
+  loading:  boolean
+  fetchStudents: (coachId: string) => Promise<void>
+  addStudent:    (data: NewStudentData, coachId: string) => Promise<void>
+}
+
+type Row = {
+  id:              number
+  name:            string
+  email:           string
+  goal:            string
+  plan:            string
+  pay_status:      PayStatus
+  engagement:      SemColor
+  next_assessment: string | null
+  since:           string
+}
+
+function formatSince(dateStr: string): string {
+  const [year, month] = dateStr.split('-')
+  return `${MONTHS[parseInt(month) - 1]}/${year}`
+}
+
+function mapRow(r: Row): Student {
+  return {
+    id:    r.id,
+    name:  r.name,
+    email: r.email,
+    goal:  r.goal,
+    plan:  r.plan,
+    pay:   r.pay_status,
+    sem:   r.engagement,
+    next:  r.next_assessment ?? '—',
+    since: formatSince(r.since),
+  }
 }
 
 export const useStudentsStore = create<StudentsStore>((set) => ({
-  students: [...ROSTER],
-  addStudent: (data) => {
-    const now = new Date()
-    const student: Student = {
-      ...data,
-      id:    Date.now(),
-      pay:   'pending' as PayStatus,
-      sem:   'green'   as SemColor,
-      next:  '—',
-      since: `${MONTHS[now.getMonth()]}/${now.getFullYear()}`,
-    }
-    set(s => ({ students: [...s.students, student] }))
+  students: [],
+  loading:  false,
+
+  fetchStudents: async (coachId) => {
+    set({ loading: true })
+    const { data, error } = await supabase
+      .from('students')
+      .select('*')
+      .eq('coach_id', coachId)
+      .order('created_at', { ascending: false })
+    set({ loading: false })
+    if (!error && data) set({ students: (data as Row[]).map(mapRow) })
+  },
+
+  addStudent: async (data, coachId) => {
+    const today = new Date().toISOString().split('T')[0]
+    const { data: row, error } = await supabase
+      .from('students')
+      .insert({ coach_id: coachId, name: data.name, email: data.email, goal: data.goal, plan: data.plan, since: today })
+      .select()
+      .single()
+    if (!error && row) set(s => ({ students: [mapRow(row as Row), ...s.students] }))
   },
 }))
