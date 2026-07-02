@@ -147,9 +147,11 @@ export default function Dashboard() {
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap', marginBottom: 26 }}>
         <div>
           <div style={{ font: `600 12px ${FF}`, color: '#a39e90', letterSpacing: '.4px', textTransform: 'uppercase', marginBottom: 5 }}>{formatDate()}</div>
-          <h1 style={{ font: `800 27px ${FF}`, color: '#1B2A4A', margin: 0, letterSpacing: '-.6px' }}>Olá, Rafael 👋</h1>
+          <h1 style={{ font: `800 27px ${FF}`, color: '#1B2A4A', margin: 0, letterSpacing: '-.6px' }}>Olá, {user?.name?.split(' ')[0] ?? 'Coach'} 👋</h1>
           <p style={{ font: `400 14px ${FF}`, color: '#7c7869', margin: '4px 0 0' }}>
-            Você tem <strong style={{ color: '#1B2A4A' }}>4 pagamentos vencidos</strong> e <strong style={{ color: '#1B2A4A' }}>3 alunos</strong> precisando de atenção.
+            {count('red') > 0
+              ? <><strong style={{ color: '#1B2A4A' }}>{count('red')} aluno{count('red') > 1 ? 's' : ''}</strong> {count('red') > 1 ? 'precisando' : 'precisando'} de atenção.</>
+              : 'Tudo em ordem por hoje.'}
           </p>
         </div>
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
@@ -166,16 +168,16 @@ export default function Dashboard() {
 
       {/* ── KPI cards ──────────────────────────────────────── */}
       <div className="k-kpis" style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 14, marginBottom: 16 }}>
-        <KpiCard label="Alunos ativos" value={34} sub="+3 este mês" subColor="#2b9d5f" iconBg="#eef1f6" iconColor="#1B2A4A"
+        <KpiCard label="Alunos ativos" value={students.filter(s => s.pay === 'active').length} sub={students.length > 0 ? `${students.length} no total` : 'Nenhum aluno ainda'} subColor="#2b9d5f" iconBg="#eef1f6" iconColor="#1B2A4A"
           icon={<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /></svg>}
         />
-        <KpiCard label="Pagam. vencidos" value={4} sub="R$ 1.560 em atraso" subColor="#D2402A" iconBg="#fbe6e1" iconColor="#D2402A"
+        <KpiCard label="Pagam. vencidos" value={students.filter(s => s.pay === 'overdue').length} sub={students.filter(s => s.pay === 'overdue').length > 0 ? 'Ver pagamentos' : 'Sem atrasos'} subColor={students.filter(s => s.pay === 'overdue').length > 0 ? '#D2402A' : '#2b9d5f'} iconBg="#fbe6e1" iconColor="#D2402A"
           icon={<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /><path d="M12 8v4" /><path d="M12 16h.01" /></svg>}
         />
-        <KpiCard label="Leads novos" value={6} sub="no funil esta semana" subColor="#7c7869" iconBg="#f7ecd9" iconColor="#b06a12"
+        <KpiCard label="Leads novos" value={0} sub="no funil esta semana" subColor="#7c7869" iconBg="#f7ecd9" iconColor="#b06a12"
           icon={<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3v18h18" /><path d="M7 14l4-4 3 3 5-6" /></svg>}
         />
-        <KpiCard label="Avaliações" value={3} sub="a vencer em 7 dias" subColor="#7c7869" iconBg="#eef1f6" iconColor="#1B2A4A"
+        <KpiCard label="Avaliações" value={0} sub="a vencer em 7 dias" subColor="#7c7869" iconBg="#eef1f6" iconColor="#1B2A4A"
           icon={<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4" /><path d="M8 2v4" /><path d="M3 10h18" /></svg>}
         />
       </div>
@@ -187,15 +189,20 @@ export default function Dashboard() {
             <h2 style={{ font: `700 16px ${FF}`, color: '#1B2A4A', margin: 0 }}>Semáforo de engajamento</h2>
             <p style={{ font: `400 12.5px ${FF}`, color: '#7c7869', margin: '3px 0 0' }}>Baseado nos check-ins semanais dos alunos</p>
           </div>
-          <span className="k-hidesm" style={{ font: `600 12px ${FF}`, color: '#a39e90' }}>34 alunos</span>
+          <span className="k-hidesm" style={{ font: `600 12px ${FF}`, color: '#a39e90' }}>{students.length} alunos</span>
         </div>
         <div style={{ display: 'flex', height: 12, borderRadius: 7, overflow: 'hidden', marginBottom: 16 }}>
-          <div style={{ width: '64.7%', background: '#2b9d5f' }} />
-          <div style={{ width: '26.5%', background: '#E0A93B' }} />
-          <div style={{ width: '8.8%',  background: '#E0533B' }} />
+          {students.length === 0
+            ? <div style={{ width: '100%', background: '#f1ece0' }} />
+            : <>
+                <div style={{ width: `${(count('green') / students.length * 100).toFixed(1)}%`, background: '#2b9d5f' }} />
+                <div style={{ width: `${(count('yellow') / students.length * 100).toFixed(1)}%`, background: '#E0A93B' }} />
+                <div style={{ width: `${(count('red') / students.length * 100).toFixed(1)}%`, background: '#E0533B' }} />
+              </>
+          }
         </div>
         <div style={{ display: 'flex', gap: 26, flexWrap: 'wrap' }}>
-          {[{ color: '#2b9d5f', n: 22, label: 'engajados' }, { color: '#E0A93B', n: 9, label: 'em alerta' }, { color: '#E0533B', n: 3, label: 'inativos' }].map(({ color, n, label }) => (
+          {[{ color: '#2b9d5f', n: count('green'), label: 'engajados' }, { color: '#E0A93B', n: count('yellow'), label: 'em alerta' }, { color: '#E0533B', n: count('red'), label: 'inativos' }].map(({ color, n, label }) => (
             <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
               <span style={{ width: 11, height: 11, borderRadius: '50%', background: color }} />
               <span style={{ font: `600 14px ${FF}`, color: '#1B2A4A' }}>{n}</span>
@@ -263,19 +270,19 @@ export default function Dashboard() {
           <div style={{ background: '#fff', border: '1px solid #ece7d9', borderRadius: 14, padding: '18px 18px 8px' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
               <h2 style={{ font: `700 15px ${FF}`, color: '#1B2A4A', margin: 0 }}>Pagamentos</h2>
-              <span style={{ font: `600 11px ${FF}`, color: '#D2402A', background: '#fbe6e1', borderRadius: 20, padding: '3px 9px' }}>4 vencidos</span>
+              {students.filter(s => s.pay === 'overdue').length > 0 && (
+                <span style={{ font: `600 11px ${FF}`, color: '#D2402A', background: '#fbe6e1', borderRadius: 20, padding: '3px 9px' }}>{students.filter(s => s.pay === 'overdue').length} vencidos</span>
+              )}
             </div>
-            {[
-              { name: 'Carlos Henrique', sub: 'venceu há 6 dias', subColor: '#D2402A', val: 'R$ 390' },
-              { name: 'Marina Klein',    sub: 'venceu há 3 dias', subColor: '#D2402A', val: 'R$ 390' },
-              { name: 'Diego Farias',    sub: 'vence amanhã',     subColor: '#b06a12', val: 'R$ 290' },
-            ].map(({ name, sub, subColor, val }) => (
-              <div key={name} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '11px 0', borderTop: '1px solid #f1ece0' }}>
+            {students.filter(s => s.pay === 'overdue').length === 0
+              ? <div style={{ padding: '18px 0', borderTop: '1px solid #f1ece0', font: `400 13px ${FF}`, color: '#9a948a', textAlign: 'center' }}>Sem pagamentos vencidos</div>
+              : students.filter(s => s.pay === 'overdue').map(s => (
+              <div key={s.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '11px 0', borderTop: '1px solid #f1ece0' }}>
                 <div>
-                  <div style={{ font: `600 13.5px ${FF}`, color: '#1B2A4A' }}>{name}</div>
-                  <div style={{ font: `400 11.5px ${FF}`, color: subColor }}>{sub}</div>
+                  <div style={{ font: `600 13.5px ${FF}`, color: '#1B2A4A' }}>{s.name}</div>
+                  <div style={{ font: `400 11.5px ${FF}`, color: '#D2402A' }}>pagamento vencido</div>
                 </div>
-                <span style={{ font: `700 13px ${FF}`, color: '#1B2A4A' }}>{val}</span>
+                <span style={{ font: `600 11px ${FF}`, color: '#D2402A', background: '#fbe6e1', borderRadius: 20, padding: '3px 9px' }}>Vencido</span>
               </div>
             ))}
             <button type="button" onClick={() => navigate('/coach/pagamentos')} style={{ width: '100%', border: 'none', background: 'none', color: '#E8542A', font: `600 13px ${FF}`, padding: '12px 0', cursor: 'pointer', borderTop: '1px solid #f1ece0', marginTop: 4 }}>
@@ -290,7 +297,7 @@ export default function Dashboard() {
               <button type="button" onClick={() => navigate('/coach/leads')} style={{ border: 'none', background: 'none', color: '#E8542A', font: `600 12px ${FF}`, cursor: 'pointer', padding: 0 }}>Abrir CRM</button>
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
-              {[{ n: 6, label: 'Novo', accent: false }, { n: 4, label: 'Contactado', accent: false }, { n: 3, label: 'Interessado', accent: true }].map(({ n, label, accent }) => (
+              {[{ n: 0, label: 'Novo', accent: false }, { n: 0, label: 'Contactado', accent: false }, { n: 0, label: 'Interessado', accent: true }].map(({ n, label, accent }) => (
                 <div key={label} style={{ flex: 1, background: '#f7f3ea', borderRadius: 10, padding: '11px 10px', textAlign: 'center' }}>
                   <div style={{ font: `800 19px/1 ${FF}`, color: accent ? '#E8542A' : '#1B2A4A' }}>{n}</div>
                   <div style={{ font: `500 10.5px ${FF}`, color: '#7c7869', marginTop: 4 }}>{label}</div>
@@ -302,22 +309,9 @@ export default function Dashboard() {
           {/* Upcoming assessments */}
           <div style={{ background: '#fff', border: '1px solid #ece7d9', borderRadius: 14, padding: '18px 18px 8px' }}>
             <h2 style={{ font: `700 15px ${FF}`, color: '#1B2A4A', margin: '0 0 6px' }}>Próximas avaliações</h2>
-            {[
-              { day: '27', mon: 'JUN', name: 'June Mazotini',  type: 'Reavaliação mensal'  },
-              { day: '29', mon: 'JUN', name: 'Bruno Tavares',  type: 'Primeira avaliação'  },
-              { day: '01', mon: 'JUL', name: 'Aline Souza',   type: 'Reavaliação mensal'  },
-            ].map(({ day, mon, name, type }) => (
-              <div key={name} style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '10px 0', borderTop: '1px solid #f1ece0' }}>
-                <div style={{ width: 42, textAlign: 'center', flexShrink: 0 }}>
-                  <div style={{ font: `800 16px/1 ${FF}`, color: '#1B2A4A' }}>{day}</div>
-                  <div style={{ font: `600 10px ${FF}`, color: '#9a948a' }}>{mon}</div>
-                </div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ font: `600 13.5px ${FF}`, color: '#1B2A4A' }}>{name}</div>
-                  <div style={{ font: `400 11.5px ${FF}`, color: '#9a948a' }}>{type}</div>
-                </div>
-              </div>
-            ))}
+            <div style={{ padding: '18px 0', borderTop: '1px solid #f1ece0', font: `400 13px ${FF}`, color: '#9a948a', textAlign: 'center' }}>
+              Nenhuma avaliação agendada
+            </div>
           </div>
 
         </div>
