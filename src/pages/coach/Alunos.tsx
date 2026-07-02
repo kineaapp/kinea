@@ -50,10 +50,10 @@ function InviteModal({ onClose }: { onClose: () => void }) {
   const [copied,setCopied]= useState(false)
   function gen() {
     const t = Math.random().toString(36).slice(2,8) + Math.random().toString(36).slice(2,8)
-    setLink('app.kinea.fit/register/' + t); setCopied(false)
+    setLink(window.location.origin + '/register/' + t); setCopied(false)
   }
   function copy() {
-    try { navigator.clipboard.writeText('https://' + link) } catch {}
+    try { navigator.clipboard.writeText(link) } catch {}
     setCopied(true); setTimeout(() => setCopied(false), 1600)
   }
   return (

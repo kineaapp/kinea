@@ -74,12 +74,12 @@ function InviteModal({ onClose }: { onClose: () => void }) {
 
   function genLink() {
     const token = Math.random().toString(36).slice(2,8) + Math.random().toString(36).slice(2,8)
-    setLink('app.kinea.fit/register/' + token)
+    setLink(window.location.origin + '/register/' + token)
     setCopied(false)
   }
 
   function copyLink() {
-    try { navigator.clipboard.writeText('https://' + link) } catch {}
+    try { navigator.clipboard.writeText(link) } catch {}
     setCopied(true)
     setTimeout(() => setCopied(false), 1600)
   }
