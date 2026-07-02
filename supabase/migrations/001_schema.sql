@@ -5,7 +5,8 @@ create type sem_color    as enum ('green', 'yellow', 'red');
 create type lead_status  as enum ('novo', 'contactado', 'interessado', 'proposta', 'convertido');
 create type unit_system  as enum ('metric', 'imperial');
 
--- ── Profiles (extends auth.users) ────────────────────────────────────────────
+-- ── Tables ───────────────────────────────────────────────────────────────────
+
 create table public.profiles (
   id         uuid primary key references auth.users (id) on delete cascade,
   name       text        not null,
@@ -17,15 +18,11 @@ create table public.profiles (
   anamnese_completed boolean not null default false,
   created_at timestamptz not null default now()
 );
-alter table public.profiles enable row level security;
-create policy "Usuário lê e edita o próprio perfil"
-  on public.profiles for all using (auth.uid() = id);
 
--- ── Students (relação coach ↔ aluno) ─────────────────────────────────────────
 create table public.students (
   id              bigserial   primary key,
   coach_id        uuid        not null references public.profiles (id),
-  student_id      uuid        references public.profiles (id),   -- null até aceitar convite
+  student_id      uuid        references public.profiles (id),
   name            text        not null,
   email           text        not null,
   goal            text        not null default 'Hipertrofia',
@@ -36,22 +33,7 @@ create table public.students (
   since           date        not null default current_date,
   created_at      timestamptz not null default now()
 );
-alter table public.students enable row level security;
-create policy "Coach gerencia seus alunos"
-  on public.students for all using (coach_id = auth.uid());
-create policy "Aluno lê o próprio registro"
-  on public.students for select using (student_id = auth.uid());
 
--- policy de profiles que depende de students (criada após a tabela existir)
-create policy "Coach lê perfis dos próprios alunos"
-  on public.profiles for select using (
-    exists (
-      select 1 from public.students s
-      where s.student_id = profiles.id and s.coach_id = auth.uid()
-    )
-  );
-
--- ── Payments ─────────────────────────────────────────────────────────────────
 create table public.payments (
   id          bigserial   primary key,
   student_id  bigint      not null references public.students (id) on delete cascade,
@@ -62,17 +44,7 @@ create table public.payments (
   description text,
   created_at  timestamptz not null default now()
 );
-alter table public.payments enable row level security;
-create policy "Coach acessa pagamentos dos próprios alunos"
-  on public.payments for all using (
-    exists (select 1 from public.students s where s.id = payments.student_id and s.coach_id = auth.uid())
-  );
-create policy "Aluno lê seus pagamentos"
-  on public.payments for select using (
-    exists (select 1 from public.students s where s.id = payments.student_id and s.student_id = auth.uid())
-  );
 
--- ── Workouts ─────────────────────────────────────────────────────────────────
 create table public.workouts (
   id           bigserial primary key,
   coach_id     uuid      not null references public.profiles (id),
@@ -83,17 +55,7 @@ create table public.workouts (
   duration_min int       not null default 45,
   created_at   timestamptz not null default now()
 );
-alter table public.workouts enable row level security;
-create policy "Coach gerencia seus treinos"
-  on public.workouts for all using (coach_id = auth.uid());
-create policy "Aluno lê treinos atribuídos"
-  on public.workouts for select using (
-    exists (select 1 from public.workout_assignments wa where wa.workout_id = workouts.id and wa.student_id = (
-      select id from public.students where student_id = auth.uid() limit 1
-    ))
-  );
 
--- ── Exercises ────────────────────────────────────────────────────────────────
 create table public.exercises (
   id         bigserial primary key,
   workout_id bigint    not null references public.workouts (id) on delete cascade,
@@ -103,32 +65,16 @@ create table public.exercises (
   rest_sec   int       not null default 60,
   sort_order int       not null default 0
 );
-alter table public.exercises enable row level security;
-create policy "Herda acesso do treino"
-  on public.exercises for all using (
-    exists (select 1 from public.workouts w where w.id = exercises.workout_id and w.coach_id = auth.uid())
-  );
 
--- ── Workout assignments (treino atribuído ao aluno + dia da semana) ───────────
 create table public.workout_assignments (
   id          bigserial primary key,
   workout_id  bigint    not null references public.workouts (id) on delete cascade,
   student_id  bigint    not null references public.students (id) on delete cascade,
-  day_of_week smallint  check (day_of_week between 0 and 6),  -- 0=Dom … 6=Sab
+  day_of_week smallint  check (day_of_week between 0 and 6),
   assigned_at timestamptz not null default now(),
   unique (workout_id, student_id, day_of_week)
 );
-alter table public.workout_assignments enable row level security;
-create policy "Coach gerencia atribuições"
-  on public.workout_assignments for all using (
-    exists (select 1 from public.workouts w where w.id = workout_assignments.workout_id and w.coach_id = auth.uid())
-  );
-create policy "Aluno lê as próprias atribuições"
-  on public.workout_assignments for select using (
-    exists (select 1 from public.students s where s.id = workout_assignments.student_id and s.student_id = auth.uid())
-  );
 
--- ── Messages ─────────────────────────────────────────────────────────────────
 create table public.messages (
   id         bigserial   primary key,
   from_id    uuid        not null references public.profiles (id),
@@ -137,15 +83,7 @@ create table public.messages (
   read_at    timestamptz,
   created_at timestamptz not null default now()
 );
-alter table public.messages enable row level security;
-create policy "Participante lê suas mensagens"
-  on public.messages for select using (auth.uid() in (from_id, to_id));
-create policy "Participante envia mensagem"
-  on public.messages for insert with check (auth.uid() = from_id);
-create policy "Destinatário marca como lida"
-  on public.messages for update using (auth.uid() = to_id);
 
--- ── Leads (CRM do coach) ─────────────────────────────────────────────────────
 create table public.leads (
   id         bigserial   primary key,
   coach_id   uuid        not null references public.profiles (id),
@@ -156,11 +94,7 @@ create table public.leads (
   notes      text,
   created_at timestamptz not null default now()
 );
-alter table public.leads enable row level security;
-create policy "Coach gerencia seus leads"
-  on public.leads for all using (coach_id = auth.uid());
 
--- ── Assessments (avaliações físicas) ─────────────────────────────────────────
 create table public.assessments (
   id           bigserial primary key,
   student_id   bigint    not null references public.students (id) on delete cascade,
@@ -176,28 +110,122 @@ create table public.assessments (
   notes        text,
   created_at   timestamptz not null default now()
 );
-alter table public.assessments enable row level security;
-create policy "Coach acessa avaliações dos próprios alunos"
-  on public.assessments for all using (
-    exists (select 1 from public.students s where s.id = assessments.student_id and s.coach_id = auth.uid())
-  );
-create policy "Aluno lê suas avaliações"
-  on public.assessments for select using (
-    exists (select 1 from public.students s where s.id = assessments.student_id and s.student_id = auth.uid())
-  );
 
--- ── Check-ins semanais ────────────────────────────────────────────────────────
 create table public.check_ins (
   id         bigserial   primary key,
   student_id bigint      not null references public.students (id) on delete cascade,
   content    text        not null,
   created_at timestamptz not null default now()
 );
-alter table public.check_ins enable row level security;
+
+-- ── Row Level Security ────────────────────────────────────────────────────────
+
+alter table public.profiles           enable row level security;
+alter table public.students           enable row level security;
+alter table public.payments           enable row level security;
+alter table public.workouts           enable row level security;
+alter table public.exercises          enable row level security;
+alter table public.workout_assignments enable row level security;
+alter table public.messages           enable row level security;
+alter table public.leads              enable row level security;
+alter table public.assessments        enable row level security;
+alter table public.check_ins          enable row level security;
+
+-- ── Policies ─────────────────────────────────────────────────────────────────
+
+-- profiles
+create policy "Usuário lê e edita o próprio perfil"
+  on public.profiles for all using (auth.uid() = id);
+
+create policy "Coach lê perfis dos próprios alunos"
+  on public.profiles for select using (
+    exists (
+      select 1 from public.students s
+      where s.student_id = profiles.id and s.coach_id = auth.uid()
+    )
+  );
+
+-- students
+create policy "Coach gerencia seus alunos"
+  on public.students for all using (coach_id = auth.uid());
+
+create policy "Aluno lê o próprio registro"
+  on public.students for select using (student_id = auth.uid());
+
+-- payments
+create policy "Coach acessa pagamentos dos próprios alunos"
+  on public.payments for all using (
+    exists (select 1 from public.students s where s.id = payments.student_id and s.coach_id = auth.uid())
+  );
+
+create policy "Aluno lê seus pagamentos"
+  on public.payments for select using (
+    exists (select 1 from public.students s where s.id = payments.student_id and s.student_id = auth.uid())
+  );
+
+-- workouts
+create policy "Coach gerencia seus treinos"
+  on public.workouts for all using (coach_id = auth.uid());
+
+create policy "Aluno lê treinos atribuídos"
+  on public.workouts for select using (
+    exists (
+      select 1 from public.workout_assignments wa
+      where wa.workout_id = workouts.id
+        and wa.student_id = (
+          select id from public.students where student_id = auth.uid() limit 1
+        )
+    )
+  );
+
+-- exercises
+create policy "Herda acesso do treino"
+  on public.exercises for all using (
+    exists (select 1 from public.workouts w where w.id = exercises.workout_id and w.coach_id = auth.uid())
+  );
+
+-- workout_assignments
+create policy "Coach gerencia atribuições"
+  on public.workout_assignments for all using (
+    exists (select 1 from public.workouts w where w.id = workout_assignments.workout_id and w.coach_id = auth.uid())
+  );
+
+create policy "Aluno lê as próprias atribuições"
+  on public.workout_assignments for select using (
+    exists (select 1 from public.students s where s.id = workout_assignments.student_id and s.student_id = auth.uid())
+  );
+
+-- messages
+create policy "Participante lê suas mensagens"
+  on public.messages for select using (auth.uid() in (from_id, to_id));
+
+create policy "Participante envia mensagem"
+  on public.messages for insert with check (auth.uid() = from_id);
+
+create policy "Destinatário marca como lida"
+  on public.messages for update using (auth.uid() = to_id);
+
+-- leads
+create policy "Coach gerencia seus leads"
+  on public.leads for all using (coach_id = auth.uid());
+
+-- assessments
+create policy "Coach acessa avaliações dos próprios alunos"
+  on public.assessments for all using (
+    exists (select 1 from public.students s where s.id = assessments.student_id and s.coach_id = auth.uid())
+  );
+
+create policy "Aluno lê suas avaliações"
+  on public.assessments for select using (
+    exists (select 1 from public.students s where s.id = assessments.student_id and s.student_id = auth.uid())
+  );
+
+-- check_ins
 create policy "Coach lê check-ins dos próprios alunos"
   on public.check_ins for select using (
     exists (select 1 from public.students s where s.id = check_ins.student_id and s.coach_id = auth.uid())
   );
+
 create policy "Aluno envia e lê os próprios check-ins"
   on public.check_ins for all using (
     exists (select 1 from public.students s where s.id = check_ins.student_id and s.student_id = auth.uid())
