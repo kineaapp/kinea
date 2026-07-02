@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../../store/auth'
 import { useSettingsStore } from '../../store/settings'
@@ -70,7 +70,7 @@ function Toast({ msg }: { msg: string }) {
 
 // ── Page ───────────────────────────────────────────────────────────────────────
 export default function Configuracoes() {
-  const { user, setUser, logout } = useAuthStore()
+  const { user, setUser, updateUser, logout } = useAuthStore()
   const navigate = useNavigate()
   const [toast, setToast] = useState('')
   const toastRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
@@ -87,6 +87,17 @@ export default function Configuracoes() {
     reassessments: true,
     checkins: false,
   })
+
+  // Photo
+  const photoInputRef = useRef<HTMLInputElement>(null)
+  const onPhotoChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = ev => updateUser({ photo: ev.target?.result as string })
+    reader.readAsDataURL(file)
+    e.target.value = ''
+  }, [updateUser])
 
   // Logo
   const { customLogoDataUrl, setCustomLogo } = useSettingsStore()
@@ -192,13 +203,23 @@ export default function Configuracoes() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             {/* Avatar */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 4 }}>
-              <div style={{ width: 64, height: 64, borderRadius: '50%', background: '#E8542A', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', font: `700 22px ${FF}`, flexShrink: 0 }}>
-                {initials}
+              <div style={{ position: 'relative', flexShrink: 0 }}>
+                {user?.photo
+                  ? <img src={user.photo} alt="Foto" style={{ width: 64, height: 64, borderRadius: '50%', objectFit: 'cover', border: '2px solid #ece7d9' }} />
+                  : <div style={{ width: 64, height: 64, borderRadius: '50%', background: '#E8542A', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', font: `700 22px ${FF}` }}>{initials}</div>
+                }
+                <button
+                  onClick={() => photoInputRef.current?.click()}
+                  style={{ position: 'absolute', bottom: 0, right: 0, width: 22, height: 22, borderRadius: '50%', background: '#1B2A4A', border: '2px solid #fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                >
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                </button>
+                <input ref={photoInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={onPhotoChange} />
               </div>
               <div>
                 <div style={{ font: `700 14.5px ${FF}`, color: '#1B2A4A', marginBottom: 4 }}>{name || 'Coach'}</div>
                 <button
-                  onClick={() => showToast('Em breve.')}
+                  onClick={() => photoInputRef.current?.click()}
                   style={{ border: '1.5px solid #d9d3c4', background: '#fff', color: '#6b6657', font: `600 12px ${FF}`, borderRadius: 8, padding: '6px 14px', cursor: 'pointer' }}
                 >
                   Alterar foto
