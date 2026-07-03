@@ -67,14 +67,14 @@ function Chip({ active, children, onClick }: { active: boolean; children: React.
 }
 
 // ── Invite modal ────────────────────────────────────────────
-function InviteModal({ onClose }: { onClose: () => void }) {
+function InviteModal({ coachId, onClose }: { coachId: string; onClose: () => void }) {
   const [inviteEmail, setInviteEmail] = useState('')
   const [link,        setLink]        = useState('')
   const [copied,      setCopied]      = useState(false)
 
   function genLink() {
     const token = Math.random().toString(36).slice(2,8) + Math.random().toString(36).slice(2,8)
-    setLink(window.location.origin + '/register/' + token)
+    setLink(window.location.origin + '/register/' + coachId + '/' + token)
     setCopied(false)
   }
 
@@ -318,7 +318,7 @@ export default function Dashboard() {
       </div>
 
       {/* ── Modals ─────────────────────────────────────────── */}
-      {inviteOpen && <InviteModal onClose={() => setInviteOpen(false)} />}
+      {inviteOpen && <InviteModal coachId={user?.id ?? ''} onClose={() => setInviteOpen(false)} />}
 
       {newOpen && (
         <NewStudentModal

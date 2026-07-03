@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import type { CSSProperties } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import KineaLogo from '../components/KineaLogo'
 import { useAuthStore } from '../store/auth'
 import { useSettingsStore } from '../store/settings'
@@ -36,6 +36,7 @@ type View = 'form' | 'confirm' | 'done'
 export default function Register() {
   const navigate    = useNavigate()
   const { setUser } = useAuthStore()
+  const { coachId } = useParams<{ coachId: string }>()
   const { customLogoDataUrl } = useSettingsStore()
 
   const [view,         setView]         = useState<View>('form')
@@ -96,9 +97,19 @@ export default function Register() {
         name:  n,
         email: em,
         role:  'student',
-        anamnese_completed:  false,
+        anamnese_completed:   false,
         assessment_completed: false,
       })
+
+      // Link student to coach if coachId is present in the invite URL
+      if (coachId) {
+        await supabase.from('students').insert({
+          coach_id:   coachId,
+          student_id: userId,
+          name:       n,
+          email:      em,
+        })
+      }
 
       // If Supabase returned a session immediately (email confirmation disabled)
       if (data.session) {

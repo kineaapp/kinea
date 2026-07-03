@@ -45,12 +45,13 @@ function sortStudents(list: Student[], key: SortKey) {
 
 // ── Shared: invite modal ────────────────────────────────────
 function InviteModal({ onClose }: { onClose: () => void }) {
+  const { user } = useAuthStore()
   const [email, setEmail] = useState('')
   const [link,  setLink]  = useState('')
   const [copied,setCopied]= useState(false)
   function gen() {
     const t = Math.random().toString(36).slice(2,8) + Math.random().toString(36).slice(2,8)
-    setLink(window.location.origin + '/register/' + t); setCopied(false)
+    setLink(window.location.origin + '/register/' + (user?.id ?? '') + '/' + t); setCopied(false)
   }
   function copy() {
     try { navigator.clipboard.writeText(link) } catch {}

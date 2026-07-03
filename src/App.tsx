@@ -30,7 +30,7 @@ export default function App() {
     <Routes>
       <Route path="/" element={<Navigate to="/login" replace />} />
       <Route path="/login" element={<Login />} />
-      <Route path="/register/:token" element={<Register />} />
+      <Route path="/register/:coachId/:token" element={<Register />} />
       <Route path="/coach" element={<Layout />}>
         <Route index element={<Navigate to="dashboard" replace />} />
         <Route path="dashboard"    element={<Dashboard />} />
