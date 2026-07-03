@@ -22,6 +22,7 @@ import Anamnese from './pages/aluno/Anamnese'
 import PrimeiraAvaliacao from './pages/aluno/PrimeiraAvaliacao'
 import AlunoNotificacoes from './pages/aluno/Notificacoes'
 import AlunoConfiguracoes from './pages/aluno/Configuracoes'
+import Register from './pages/Register'
 
 
 export default function App() {
@@ -29,6 +30,7 @@ export default function App() {
     <Routes>
       <Route path="/" element={<Navigate to="/login" replace />} />
       <Route path="/login" element={<Login />} />
+      <Route path="/register/:token" element={<Register />} />
       <Route path="/coach" element={<Layout />}>
         <Route index element={<Navigate to="dashboard" replace />} />
         <Route path="dashboard"    element={<Dashboard />} />
