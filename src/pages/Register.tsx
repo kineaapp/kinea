@@ -128,14 +128,14 @@ export default function Register() {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'row', minHeight: '100vh', background: '#FAEEDA' }}>
+    <div className="k-split" style={{ display: 'flex', flexDirection: 'row', minHeight: '100vh', background: '#FAEEDA' }}>
 
       {/* ── Brand panel ── */}
       <div
         className="k-brand"
         style={{ width: '46%', background: '#1B2A4A', color: '#FAEEDA', padding: '52px 56px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', position: 'relative', overflow: 'hidden' }}
       >
-        <div style={{ position: 'absolute', right: -90, bottom: -70, opacity: .07, transform: 'rotate(-8deg)', pointerEvents: 'none' }}>
+        <div className="k-brand-motif" style={{ position: 'absolute', right: -90, bottom: -70, opacity: .07, transform: 'rotate(-8deg)', pointerEvents: 'none' }}>
           <KineaLogo width={440} height={532} />
         </div>
 
@@ -158,7 +158,7 @@ export default function Register() {
           </p>
         </div>
 
-        <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', gap: 13 }}>
+        <div className="k-brand-foot" style={{ position: 'relative', display: 'flex', flexDirection: 'column', gap: 13 }}>
           {['Treinos montados pelo seu coach', 'Acompanhamento de avaliações e progresso', 'Comunicação direta, sem ruído'].map(t => (
             <div key={t} style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
               <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#E8542A', flexShrink: 0 }} />
