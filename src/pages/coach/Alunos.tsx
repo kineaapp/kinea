@@ -244,7 +244,7 @@ export default function Alunos() {
   const [inviteOpen,  setInviteOpen]  = useState(false)
   const [newOpen,     setNewOpen]     = useState(false)
   const [toast,       setToast]       = useState('')
-  const { students, addStudent, fetchStudents, deleteStudent } = useStudentsStore()
+  const { students, loading, fetchError, addStudent, fetchStudents, deleteStudent } = useStudentsStore()
   const { user } = useAuthStore()
 
   useEffect(() => { if (user?.id) fetchStudents(user.id) }, [user?.id])
@@ -394,6 +394,23 @@ export default function Alunos() {
           )}
         </div>
       </div>
+
+      {/* Error / retry banner */}
+      {fetchError && (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, background: '#fff3f0', border: '1.5px solid #f5c6bc', borderRadius: 12, padding: '14px 18px', marginBottom: 14 }}>
+          <div>
+            <div style={{ font: `700 13.5px ${FF}`, color: '#c4421e', marginBottom: 2 }}>Não foi possível carregar os alunos</div>
+            <div style={{ font: `400 12.5px ${FF}`, color: '#9a4a38' }}>{fetchError}</div>
+          </div>
+          <button
+            type="button"
+            onClick={() => { if (user?.id) fetchStudents(user.id) }}
+            style={{ flexShrink: 0, height: 38, padding: '0 16px', border: 'none', background: '#E8542A', color: '#fff', borderRadius: 9, font: `700 13px ${FF}`, cursor: 'pointer' }}
+          >
+            {loading ? 'Carregando…' : 'Tentar novamente'}
+          </button>
+        </div>
+      )}
 
       {/* Table */}
       <div style={{ background: '#fff', border: '1px solid #ece7d9', borderRadius: 14, overflow: 'hidden' }}>

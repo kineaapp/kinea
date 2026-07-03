@@ -9,6 +9,7 @@ export type NewStudentData = { name: string; email: string; goal: string; plan: 
 interface StudentsStore {
   students: Student[]
   loading:  boolean
+  fetchError: string | null
   fetchStudents:  (coachId: string) => Promise<void>
   addStudent:     (data: NewStudentData, coachId: string) => Promise<void>
   deleteStudent:  (id: number) => Promise<void>
@@ -49,18 +50,20 @@ function mapRow(r: Row): Student {
 }
 
 export const useStudentsStore = create<StudentsStore>((set) => ({
-  students: [],
-  loading:  false,
+  students:   [],
+  loading:    false,
+  fetchError: null,
 
   fetchStudents: async (coachId) => {
-    set({ loading: true })
+    set({ loading: true, fetchError: null })
     const { data, error } = await supabase
       .from('students')
       .select('*')
       .eq('coach_id', coachId)
       .order('created_at', { ascending: false })
     set({ loading: false })
-    if (!error && data) set({ students: (data as Row[]).map(mapRow) })
+    if (error) { set({ fetchError: error.message }); return }
+    if (data) set({ students: (data as Row[]).map(mapRow) })
   },
 
   deleteStudent: async (id) => {
