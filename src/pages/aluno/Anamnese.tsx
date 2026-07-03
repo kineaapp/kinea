@@ -271,7 +271,7 @@ export default function Anamnese() {
   const { addMessage } = useChatStore()
 
   const [step, setStep]     = useState(0)
-  const [data, setData]     = useState<AnamneseData>(EMPTY)
+  const [data, setData]     = useState<AnamneseData>({ ...EMPTY, nome: user?.name ?? '' })
   const [error, setError]   = useState('')
   const [loading, setLoading] = useState(false)
 
