@@ -4,7 +4,7 @@ import { getInitials, payInfo, semInfo, avatarPalette } from '../../data/mock'
 import type { Student, PayStatus, SemColor } from '../../data/mock'
 import { useStudentsStore } from '../../store/students'
 import { useAuthStore } from '../../store/auth'
-import { NewStudentModal } from '../../components/coach/NewStudentModal'
+
 
 const FF = '"Libre Franklin",sans-serif'
 
@@ -242,9 +242,8 @@ export default function Alunos() {
   const [sortOpen,    setSortOpen]    = useState(false)
   const [quickIdx,    setQuickIdx]    = useState<number | null>(null)
   const [inviteOpen,  setInviteOpen]  = useState(false)
-  const [newOpen,     setNewOpen]     = useState(false)
   const [toast,       setToast]       = useState('')
-  const { students, loading, fetchError, addStudent, fetchStudents, deleteStudent } = useStudentsStore()
+  const { students, loading, fetchError, fetchStudents, deleteStudent } = useStudentsStore()
   const { user } = useAuthStore()
 
   useEffect(() => { if (user?.id) fetchStudents(user.id) }, [user?.id])
@@ -297,13 +296,9 @@ export default function Alunos() {
           </p>
         </div>
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-          <button type="button" onClick={() => setInviteOpen(true)} style={{ display: 'flex', alignItems: 'center', gap: 8, height: 42, padding: '0 16px', border: '1.5px solid #d6cfbe', background: '#fff', color: '#1B2A4A', borderRadius: 10, font: `600 13.5px ${FF}`, cursor: 'pointer' }}>
+          <button type="button" onClick={() => setInviteOpen(true)} style={{ display: 'flex', alignItems: 'center', gap: 8, height: 42, padding: '0 18px', border: 'none', background: '#E8542A', color: '#fff', borderRadius: 10, font: `700 13.5px ${FF}`, cursor: 'pointer', boxShadow: '0 2px 0 #c4421e' }}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6"/><path d="M22 11h-6"/></svg>
-            Convidar
-          </button>
-          <button type="button" onClick={() => setNewOpen(true)} style={{ display: 'flex', alignItems: 'center', gap: 8, height: 42, padding: '0 18px', border: 'none', background: '#E8542A', color: '#fff', borderRadius: 10, font: `700 13.5px ${FF}`, cursor: 'pointer', boxShadow: '0 2px 0 #c4421e' }}>
-            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
-            Novo aluno
+            Convidar aluno
           </button>
         </div>
       </div>
@@ -492,7 +487,6 @@ export default function Alunos() {
       })()}
 
       {inviteOpen && <InviteModal onClose={() => setInviteOpen(false)} />}
-      {newOpen    && <NewStudentModal onClose={() => setNewOpen(false)} onAdd={data => { if (user?.id) addStudent(data, user.id); setNewOpen(false) }} />}
       <Toast msg={toast} />
     </div>
   )
