@@ -681,7 +681,6 @@ export default function PerfilAluno() {
 
                 // Payments
                 payments.forEach(p => {
-                  const s = STATUS_PAY[p.status] ?? STATUS_PAY.pending
                   events.push({ dot: p.status === 'active' ? '#1B7a4a' : '#b06a12', title: p.status === 'active' ? 'Pagamento confirmado' : 'Fatura gerada', desc: `${p.description ?? 'Fatura'} · ${fmtMoney(p.amount)}`, date: p.paid_at ? fmtDate(p.paid_at) : fmtDate(p.due_date), ts: new Date(p.paid_at ?? p.due_date).getTime() })
                 })
 
