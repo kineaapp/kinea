@@ -287,7 +287,7 @@ export default function Pagamentos() {
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap', marginBottom: 22 }}>
         <div>
           <h1 style={{ font: `800 27px ${FF}`, color: '#1B2A4A', margin: 0, letterSpacing: '-.6px' }}>Pagamentos</h1>
-          <p style={{ font: `400 14px ${FF}`, color: '#7c7869', margin: '4px 0 0' }}>Junho de 2026 · visão geral do financeiro</p>
+          <p style={{ font: `400 14px ${FF}`, color: '#7c7869', margin: '4px 0 0' }}>{new Date().toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })} · visão geral do financeiro</p>
         </div>
         <button
           type="button" onClick={() => setNewOpen(true)}
@@ -309,7 +309,7 @@ export default function Pagamentos() {
             <span style={{ font: `600 11.5px ${FF}`, color: '#aeb9cc' }}>Recebido no mês</span>
           </div>
           <div style={{ font: `800 26px ${FF}`, letterSpacing: '-.5px' }}>{brl(sum('pago'))}</div>
-          <div style={{ font: `500 11.5px ${FF}`, color: '#8fd6a8', marginTop: 5 }}>▲ 7% vs. maio</div>
+          <div style={{ font: `500 11.5px ${FF}`, color: '#8fd6a8', marginTop: 5 }}>{cnt('pago')} fatura{cnt('pago') !== 1 ? 's' : ''} confirmada{cnt('pago') !== 1 ? 's' : ''}</div>
         </div>
 
         {/* A receber */}
