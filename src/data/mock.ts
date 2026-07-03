@@ -2,15 +2,16 @@ export type SemColor  = 'green' | 'yellow' | 'red'
 export type PayStatus = 'active' | 'pending' | 'overdue'
 
 export interface Student {
-  id:    number
-  name:  string
-  goal:  string
-  plan:  string
-  pay:   PayStatus
-  sem:   SemColor
-  next:  string
-  email: string
-  since: string
+  id:          number
+  studentUuid: string
+  name:        string
+  goal:        string
+  plan:        string
+  pay:         PayStatus
+  sem:         SemColor
+  next:        string
+  email:       string
+  since:       string
 }
 
 export const ROSTER: Student[] = []

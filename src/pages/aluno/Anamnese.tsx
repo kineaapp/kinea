@@ -318,6 +318,28 @@ export default function Anamnese() {
 
       if (user?.id) {
         await supabase.from('profiles').update({ anamnese_completed: true }).eq('id', user.id)
+        await supabase.from('anamneses').insert({
+          student_id:      user.id,
+          nome:            data.nome,
+          data_nasc:       data.dataNasc,
+          telefone:        data.telefone,
+          profissao:       data.profissao,
+          doencas:         JSON.stringify(data.doencas),
+          outra_doenca:    data.outraDoenca,
+          medicamentos:    data.medicamentos,
+          cirurgia:        data.cirurgia,
+          limitacoes:      data.limitacoes,
+          pratica_atual:   data.praticaAtual,
+          atividade_atual: data.atividadeAtual,
+          treinou_personal:data.treinouPersonal,
+          objetivo:        data.objetivo,
+          dias_semana:     data.diasSemana,
+          horario:         data.horario,
+          horas_sono:      data.horasSono,
+          nivel_estresse:  data.nivelEstresse,
+          fuma:            data.fuma,
+          alcool:          data.alcool,
+        })
       }
       if (user) setUser({ ...user, anamneseCompleted: true })
       navigate('/aluno/primeira-avaliacao')

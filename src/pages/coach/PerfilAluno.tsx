@@ -3,10 +3,20 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { getInitials, payInfo, semInfo, avatarPalette } from '../../data/mock'
 import { useStudentsStore } from '../../store/students'
 import { useAuthStore } from '../../store/auth'
+import { supabase } from '../../lib/supabase'
 
 const FF = '"Libre Franklin",sans-serif'
 
-type Tab = 'overview' | 'treino' | 'avaliacoes' | 'pagamentos' | 'anexos' | 'historico'
+type Tab = 'overview' | 'anamnese' | 'treino' | 'avaliacoes' | 'pagamentos' | 'anexos' | 'historico'
+
+interface AnamneseRow {
+  nome: string; data_nasc: string; telefone: string; profissao: string
+  doencas: string; outra_doenca: string; medicamentos: string; cirurgia: string; limitacoes: string
+  pratica_atual: string; atividade_atual: string; treinou_personal: string
+  objetivo: string; dias_semana: string; horario: string
+  horas_sono: string; nivel_estresse: string; fuma: string; alcool: string
+  created_at: string
+}
 
 // ── Static mock data (June's profile) ──────────────────────
 const WORKOUTS = [
@@ -89,6 +99,8 @@ export default function PerfilAluno() {
   const [tab, setTab]   = useState<Tab>('overview')
   const [toast, setToast] = useState('')
   const toastRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const [anamnese, setAnamnese] = useState<AnamneseRow | null>(null)
+  const [anamneseLoading, setAnamneseLoading] = useState(false)
 
   const { students, fetchStudents, deleteStudent } = useStudentsStore()
   const { user } = useAuthStore()
@@ -101,6 +113,23 @@ export default function PerfilAluno() {
   }, [user?.id])
 
   const student = students.find(s => s.id === studentId)
+
+  useEffect(() => {
+    if (tab !== 'anamnese' || !student?.studentUuid || anamnese !== null) return
+    setAnamneseLoading(true)
+    supabase
+      .from('anamneses')
+      .select('*')
+      .eq('student_id', student.studentUuid)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single()
+      .then(({ data }) => {
+        setAnamnese(data ?? null)
+        setAnamneseLoading(false)
+      })
+  }, [tab, student?.studentUuid])
+
   const pal     = avatarPalette(studentId % 5)
   const pay     = student ? payInfo(student.pay) : payInfo('pending')
   const sem     = student ? semInfo(student.sem) : semInfo('green')
@@ -112,12 +141,13 @@ export default function PerfilAluno() {
   useEffect(() => () => clearTimeout(toastRef.current), [])
 
   const TABS: { key: Tab; label: string }[] = [
-    { key: 'overview',    label: 'Visão geral'  },
-    { key: 'treino',      label: 'Treino'        },
-    { key: 'avaliacoes',  label: 'Avaliações'    },
-    { key: 'pagamentos',  label: 'Pagamentos'    },
-    { key: 'anexos',      label: 'Anexos'        },
-    { key: 'historico',   label: 'Histórico'     },
+    { key: 'overview',   label: 'Visão geral' },
+    { key: 'anamnese',   label: 'Anamnese'    },
+    { key: 'treino',     label: 'Treino'      },
+    { key: 'avaliacoes', label: 'Avaliações'  },
+    { key: 'pagamentos', label: 'Pagamentos'  },
+    { key: 'anexos',     label: 'Anexos'      },
+    { key: 'historico',  label: 'Histórico'   },
   ]
 
   if (!student) return (
@@ -276,6 +306,119 @@ export default function PerfilAluno() {
                   ))}
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* ANAMNESE */}
+          {tab === 'anamnese' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              {anamneseLoading ? (
+                <div style={{ font: `500 14px ${FF}`, color: '#7c7869', padding: '40px 0', textAlign: 'center' }}>Carregando...</div>
+              ) : !anamnese ? (
+                <div style={{ background: '#fff', border: '1px solid #ece7d9', borderRadius: 14, padding: '40px 24px', textAlign: 'center' }}>
+                  <div style={{ font: `700 16px ${FF}`, color: '#1B2A4A', marginBottom: 6 }}>Anamnese não preenchida</div>
+                  <div style={{ font: `400 13px ${FF}`, color: '#9a948a' }}>O aluno ainda não completou a anamnese.</div>
+                </div>
+              ) : (
+                <>
+                  {/* Cabeçalho */}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+                    <h2 style={{ font: `800 20px ${FF}`, color: '#1B2A4A', margin: 0, letterSpacing: '-.4px' }}>Anamnese</h2>
+                    <span style={{ font: `400 12px ${FF}`, color: '#9a948a' }}>
+                      Preenchida em {new Date(anamnese.created_at).toLocaleDateString('pt-BR')}
+                    </span>
+                  </div>
+
+                  {/* Dados pessoais */}
+                  <div style={{ background: '#fff', border: '1px solid #ece7d9', borderRadius: 14, padding: '20px 22px' }}>
+                    <h3 style={{ font: `700 13px ${FF}`, color: '#9a948a', textTransform: 'uppercase', letterSpacing: '.5px', margin: '0 0 14px' }}>Dados pessoais</h3>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(200px,1fr))', gap: '10px 24px' }}>
+                      {[
+                        { label: 'Nome',       val: anamnese.nome },
+                        { label: 'Nascimento', val: anamnese.data_nasc },
+                        { label: 'Telefone',   val: anamnese.telefone },
+                        { label: 'Profissão',  val: anamnese.profissao },
+                      ].map(({ label, val }) => (
+                        <div key={label}>
+                          <div style={{ font: `500 11px ${FF}`, color: '#9a948a', marginBottom: 2 }}>{label}</div>
+                          <div style={{ font: `600 13.5px ${FF}`, color: '#1B2A4A' }}>{val || '—'}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Saúde */}
+                  <div style={{ background: '#fff', border: '1px solid #ece7d9', borderRadius: 14, padding: '20px 22px' }}>
+                    <h3 style={{ font: `700 13px ${FF}`, color: '#9a948a', textTransform: 'uppercase', letterSpacing: '.5px', margin: '0 0 14px' }}>Saúde</h3>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                      {[
+                        { label: 'Doenças / condições', val: (() => { try { const p = JSON.parse(anamnese.doencas); return Array.isArray(p) ? p.join(', ') : anamnese.doencas } catch { return anamnese.doencas } })() },
+                        { label: 'Outra doença',         val: anamnese.outra_doenca },
+                        { label: 'Medicamentos',          val: anamnese.medicamentos },
+                        { label: 'Cirurgia',              val: anamnese.cirurgia },
+                        { label: 'Limitações físicas',   val: anamnese.limitacoes },
+                      ].map(({ label, val }) => (
+                        <div key={label} style={{ display: 'flex', gap: 16, padding: '8px 0', borderBottom: '1px solid #f4efe3' }}>
+                          <div style={{ font: `400 13px ${FF}`, color: '#7c7869', minWidth: 180, flexShrink: 0 }}>{label}</div>
+                          <div style={{ font: `600 13px ${FF}`, color: '#1B2A4A' }}>{val || '—'}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Atividade física */}
+                  <div style={{ background: '#fff', border: '1px solid #ece7d9', borderRadius: 14, padding: '20px 22px' }}>
+                    <h3 style={{ font: `700 13px ${FF}`, color: '#9a948a', textTransform: 'uppercase', letterSpacing: '.5px', margin: '0 0 14px' }}>Atividade física</h3>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+                      {[
+                        { label: 'Pratica atividade?',     val: anamnese.pratica_atual },
+                        { label: 'Qual atividade?',        val: anamnese.atividade_atual },
+                        { label: 'Treinou com personal?',  val: anamnese.treinou_personal },
+                      ].map(({ label, val }) => (
+                        <div key={label} style={{ display: 'flex', gap: 16, padding: '8px 0', borderBottom: '1px solid #f4efe3' }}>
+                          <div style={{ font: `400 13px ${FF}`, color: '#7c7869', minWidth: 180, flexShrink: 0 }}>{label}</div>
+                          <div style={{ font: `600 13px ${FF}`, color: '#1B2A4A' }}>{val || '—'}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Objetivo e preferências */}
+                  <div style={{ background: '#fff', border: '1px solid #ece7d9', borderRadius: 14, padding: '20px 22px' }}>
+                    <h3 style={{ font: `700 13px ${FF}`, color: '#9a948a', textTransform: 'uppercase', letterSpacing: '.5px', margin: '0 0 14px' }}>Objetivo e preferências</h3>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+                      {[
+                        { label: 'Objetivo',        val: anamnese.objetivo },
+                        { label: 'Dias por semana', val: anamnese.dias_semana },
+                        { label: 'Horário',         val: anamnese.horario },
+                      ].map(({ label, val }) => (
+                        <div key={label} style={{ display: 'flex', gap: 16, padding: '8px 0', borderBottom: '1px solid #f4efe3' }}>
+                          <div style={{ font: `400 13px ${FF}`, color: '#7c7869', minWidth: 180, flexShrink: 0 }}>{label}</div>
+                          <div style={{ font: `600 13px ${FF}`, color: '#1B2A4A' }}>{val || '—'}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Estilo de vida */}
+                  <div style={{ background: '#fff', border: '1px solid #ece7d9', borderRadius: 14, padding: '20px 22px' }}>
+                    <h3 style={{ font: `700 13px ${FF}`, color: '#9a948a', textTransform: 'uppercase', letterSpacing: '.5px', margin: '0 0 14px' }}>Estilo de vida</h3>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(180px,1fr))', gap: '10px 24px' }}>
+                      {[
+                        { label: 'Horas de sono',    val: anamnese.horas_sono },
+                        { label: 'Nível de estresse', val: anamnese.nivel_estresse },
+                        { label: 'Fuma?',             val: anamnese.fuma },
+                        { label: 'Álcool?',           val: anamnese.alcool },
+                      ].map(({ label, val }) => (
+                        <div key={label}>
+                          <div style={{ font: `500 11px ${FF}`, color: '#9a948a', marginBottom: 2 }}>{label}</div>
+                          <div style={{ font: `600 13.5px ${FF}`, color: '#1B2A4A' }}>{val || '—'}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           )}
 

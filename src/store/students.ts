@@ -16,6 +16,7 @@ interface StudentsStore {
 
 type Row = {
   id:              number
+  student_id:      string | null
   name:            string
   email:           string
   goal:            string
@@ -33,15 +34,16 @@ function formatSince(dateStr: string): string {
 
 function mapRow(r: Row): Student {
   return {
-    id:    r.id,
-    name:  r.name,
-    email: r.email,
-    goal:  r.goal,
-    plan:  r.plan,
-    pay:   r.pay_status,
-    sem:   r.engagement,
-    next:  r.next_assessment ?? '—',
-    since: formatSince(r.since),
+    id:          r.id,
+    studentUuid: r.student_id ?? '',
+    name:        r.name,
+    email:       r.email,
+    goal:        r.goal,
+    plan:        r.plan,
+    pay:         r.pay_status,
+    sem:         r.engagement,
+    next:        r.next_assessment ?? '—',
+    since:       formatSince(r.since),
   }
 }
 
