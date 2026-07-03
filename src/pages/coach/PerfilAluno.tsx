@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { getInitials, payInfo, semInfo, avatarPalette } from '../../data/mock'
 import { useStudentsStore } from '../../store/students'
@@ -9,6 +9,7 @@ const FF = '"Libre Franklin",sans-serif'
 
 type Tab = 'overview' | 'anamnese' | 'treino' | 'avaliacoes' | 'pagamentos' | 'anexos' | 'historico'
 
+// ── Interfaces ─────────────────────────────────────────────────
 interface AnamneseRow {
   nome: string; data_nasc: string; telefone: string; profissao: string
   doencas: string; outra_doenca: string; medicamentos: string; cirurgia: string; limitacoes: string
@@ -18,95 +19,88 @@ interface AnamneseRow {
   created_at: string
 }
 
-// ── Static mock data (June's profile) ──────────────────────
-const WORKOUTS = [
-  { letter: 'A', title: 'Peito & Tríceps', count: 6, items: [
-    { name: 'Supino reto',      sets: '4×8'  },
-    { name: 'Supino inclinado', sets: '3×10' },
-    { name: 'Crucifixo',       sets: '3×12' },
-    { name: 'Tríceps testa',   sets: '4×10' },
-  ]},
-  { letter: 'B', title: 'Costas & Bíceps', count: 6, items: [
-    { name: 'Puxada frente',  sets: '4×10' },
-    { name: 'Remada curvada', sets: '4×8'  },
-    { name: 'Rosca direta',   sets: '3×12' },
-    { name: 'Rosca martelo',  sets: '3×12' },
-  ]},
-  { letter: 'C', title: 'Pernas & Ombro', count: 7, items: [
-    { name: 'Agachamento',        sets: '4×8'  },
-    { name: 'Leg press',          sets: '4×12' },
-    { name: 'Cadeira extensora',  sets: '3×15' },
-    { name: 'Desenvolvimento',    sets: '4×10' },
-  ]},
-]
+interface ExerciseRow { name: string; sets: number; reps: string; sort_order: number }
 
-const INVOICES = [
-  { month: 'Junho 2025', date: 'venc. 05/jun', amount: 'R$ 390', label: 'Pago', color: '#1B7a4a', bg: '#e7f3ea' },
-  { month: 'Maio 2025',  date: 'venc. 05/mai', amount: 'R$ 390', label: 'Pago', color: '#1B7a4a', bg: '#e7f3ea' },
-  { month: 'Abril 2025', date: 'venc. 05/abr', amount: 'R$ 390', label: 'Pago', color: '#1B7a4a', bg: '#e7f3ea' },
-  { month: 'Março 2025', date: 'venc. 05/mar', amount: 'R$ 390', label: 'Pago', color: '#1B7a4a', bg: '#e7f3ea' },
-]
+interface WorkoutRow {
+  id: number; name: string; description: string | null
+  muscle_group: string | null; difficulty: string; duration_min: number
+  exercises: ExerciseRow[]
+}
 
-const ATTACHMENTS = [
-  { name: 'Hemograma completo.pdf', ext: 'PDF', meta: '1,2 MB · 12 jun', bg: '#fbe6e1', color: '#c4421e', tag: 'Exame',     tagColor: '#5a4ea0', tagBg: '#eceaf6' },
-  { name: 'Progresso frente.jpg',   ext: 'JPG', meta: '2,8 MB · 10 jun', bg: '#e7f3ea', color: '#1B7a4a', tag: 'Foto',      tagColor: '#1B7a4a', tagBg: '#e7f3ea' },
-  { name: 'Progresso costas.jpg',   ext: 'JPG', meta: '2,6 MB · 10 jun', bg: '#e7f3ea', color: '#1B7a4a', tag: 'Foto',      tagColor: '#1B7a4a', tagBg: '#e7f3ea' },
-  { name: 'Laudo ortopédico.pdf',   ext: 'PDF', meta: '640 KB · 02 jun', bg: '#fbe6e1', color: '#c4421e', tag: 'Laudo',     tagColor: '#b06a12', tagBg: '#f7ecd9' },
-  { name: 'Atestado médico.pdf',    ext: 'PDF', meta: '320 KB · 28 mai', bg: '#fbe6e1', color: '#c4421e', tag: 'Documento', tagColor: '#1B2A4A', tagBg: '#eef1f6' },
-  { name: 'Bioimpedância mai.pdf',  ext: 'PDF', meta: '880 KB · 03 mai', bg: '#fbe6e1', color: '#c4421e', tag: 'Exame',     tagColor: '#5a4ea0', tagBg: '#eceaf6' },
-]
+interface AssignmentRow { id: number; day_of_week: number | null; workouts: WorkoutRow }
 
-const TIMELINE = [
-  { dot: '#E8542A', title: 'Check-in registrado',   desc: 'Treino C concluído · carga aumentada no agachamento', date: 'Hoje, 07:42' },
-  { dot: '#1B2A4A', title: 'Novo anexo enviado',     desc: 'Hemograma completo.pdf adicionado pela aluna',        date: '12 jun, 18:10' },
-  { dot: '#1B2A4A', title: 'Avaliação física',       desc: 'Peso 64,8 kg · 22,4% de gordura',                    date: '01 jun, 09:00' },
-  { dot: '#1B7a4a', title: 'Pagamento confirmado',   desc: 'Fatura de junho · R$ 390',                            date: '05 jun, 11:23' },
-  { dot: '#1B2A4A', title: 'Treino atualizado',      desc: 'Programa ABC ajustado para semana 8',                 date: '30 abr, 15:30' },
-  { dot: '#9a948a', title: 'Início do acompanhamento',desc: 'Aluna ingressou no plano Mensal',                   date: '10 mar, 10:00' },
-]
+interface AssessmentRow {
+  id: number; assessed_at: string
+  weight_kg: number | null; body_fat_pct: number | null
+  chest_cm: number | null; waist_cm: number | null; hip_cm: number | null
+  arm_cm: number | null; thigh_cm: number | null; notes: string | null
+}
 
-const CHECKIN_BARS = [
-  { day: 'Seg', h: 64, active: true  },
-  { day: 'Ter', h: 80, active: true  },
-  { day: 'Qua', h: 24, active: false },
-  { day: 'Qui', h: 72, active: true  },
-  { day: 'Sex', h: 58, active: true  },
-  { day: 'Sáb', h: 14, active: false },
-  { day: 'Dom', h: 14, active: false },
-]
+interface PaymentRow {
+  id: number; amount: number; status: string
+  due_date: string; paid_at: string | null; description: string | null
+}
 
-const WEIGHT_BARS = [
-  { label: '69,0', mon: 'Mar', h: 108, active: false },
-  { label: '67,3', mon: 'Abr', h: 96,  active: false },
-  { label: '66,1', mon: 'Mai', h: 88,  active: false },
-  { label: '64,8', mon: 'Jun', h: 78,  active: true  },
-]
+interface CheckInRow { id: number; content: string; created_at: string }
 
-// ── Toast ───────────────────────────────────────────────────
+// ── Helpers ────────────────────────────────────────────────────
+const MONTHS_PT: Record<string, number> = {
+  jan:0,fev:1,mar:2,abr:3,mai:4,jun:5,jul:6,ago:7,set:8,out:9,nov:10,dez:11,
+}
+function calcSemanas(since: string): number {
+  const [mon, yr] = since.split('/')
+  const d = new Date(parseInt(yr), MONTHS_PT[mon] ?? 0, 1)
+  return Math.max(1, Math.floor((Date.now() - d.getTime()) / 604800000))
+}
+function fmtDate(iso: string) {
+  return new Date(iso).toLocaleDateString('pt-BR')
+}
+function fmtMoney(v: number) {
+  return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+}
+const DAY_NAMES = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb']
+const STATUS_PAY: Record<string, { label: string; color: string; bg: string }> = {
+  active:  { label: 'Pago',     color: '#1B7a4a', bg: '#e7f3ea' },
+  pending: { label: 'Pendente', color: '#b06a12', bg: '#f7ecd9' },
+  overdue: { label: 'Atrasado', color: '#c4421e', bg: '#fbe6e1' },
+}
+
+// ── Empty state ────────────────────────────────────────────────
+function Empty({ icon, title, sub }: { icon: string; title: string; sub?: string }) {
+  return (
+    <div style={{ background: '#fff', border: '1px solid #ece7d9', borderRadius: 14, padding: '40px 24px', textAlign: 'center' }}>
+      <div style={{ fontSize: 32, marginBottom: 10 }}>{icon}</div>
+      <div style={{ font: `700 15px ${FF}`, color: '#1B2A4A', marginBottom: 4 }}>{title}</div>
+      {sub && <div style={{ font: `400 13px ${FF}`, color: '#9a948a' }}>{sub}</div>}
+    </div>
+  )
+}
+
+// ── Toast ──────────────────────────────────────────────────────
 function Toast({ msg }: { msg: string }) {
   if (!msg) return null
   return (
-    <div style={{ position: 'fixed', left: '50%', bottom: 28, transform: 'translateX(-50%)', zIndex: 80, background: '#1B2A4A', color: '#FAEEDA', font: `600 13.5px ${FF}`, padding: '13px 20px', borderRadius: 11, boxShadow: '0 10px 30px rgba(0,0,0,.28)' }}>
+    <div style={{ position: 'fixed', left: '50%', bottom: 28, transform: 'translateX(-50%)', zIndex: 90, background: '#1B2A4A', color: '#FAEEDA', font: `600 13.5px ${FF}`, padding: '13px 20px', borderRadius: 11, boxShadow: '0 10px 30px rgba(0,0,0,.28)' }}>
       {msg}
     </div>
   )
 }
 
-// ── Main page ───────────────────────────────────────────────
+// ── Main ───────────────────────────────────────────────────────
 export default function PerfilAluno() {
-  const { id } = useParams<{ id: string }>()
+  const { id }    = useParams<{ id: string }>()
   const navigate  = useNavigate()
-  const [tab, setTab]   = useState<Tab>('overview')
+  const [tab, setTab] = useState<Tab>('overview')
   const [toast, setToast] = useState('')
-  const toastRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
-  const [anamnese, setAnamnese] = useState<AnamneseRow | null>(null)
-  const [anamneseLoading, setAnamneseLoading] = useState(false)
+  const toastRef  = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
-  const { students, fetchStudents, deleteStudent } = useStudentsStore()
-  const { user } = useAuthStore()
-  const [confirmDelete, setConfirmDelete] = useState(false)
-
+  // ── Auth / student ────────────────────────────────────────
+  const { students, fetchStudents, deleteStudent, updatePlan } = useStudentsStore()
+  const { user }  = useAuthStore()
   const studentId = parseInt(id ?? '0', 10)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [showPlanPicker, setShowPlanPicker] = useState(false)
+  const [savingPlan, setSavingPlan]         = useState(false)
 
   useEffect(() => {
     if (students.length === 0 && user?.id) fetchStudents(user.id)
@@ -114,29 +108,106 @@ export default function PerfilAluno() {
 
   const student = students.find(s => s.id === studentId)
 
-  useEffect(() => {
-    if (tab !== 'anamnese' || !student?.studentUuid || anamnese !== null) return
-    setAnamneseLoading(true)
-    supabase
-      .from('anamneses')
-      .select('*')
-      .eq('student_id', student.studentUuid)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .single()
-      .then(({ data }) => {
-        setAnamnese(data ?? null)
-        setAnamneseLoading(false)
-      })
-  }, [tab, student?.studentUuid])
+  // ── Remote data ───────────────────────────────────────────
+  const [anamnese,        setAnamnese]        = useState<AnamneseRow | null>(null)
+  const [anamneseLoading, setAnamneseLoading] = useState(false)
+  const [assignments,     setAssignments]     = useState<AssignmentRow[]>([])
+  const [assignLoading,   setAssignLoading]   = useState(false)
+  const [assessments,     setAssessments]     = useState<AssessmentRow[]>([])
+  const [assessLoading,   setAssessLoading]   = useState(false)
+  const [payments,        setPayments]        = useState<PaymentRow[]>([])
+  const [payLoading,      setPayLoading]      = useState(false)
+  const [checkins,        setCheckins]        = useState<CheckInRow[]>([])
+  const [checkLoading,    setCheckLoading]    = useState(false)
+  const loaded = useRef(new Set<string>())
 
-  const pal     = avatarPalette(studentId % 5)
-  const pay     = student ? payInfo(student.pay) : payInfo('pending')
-  const sem     = student ? semInfo(student.sem) : semInfo('green')
+  const fetchAnamnese = useCallback(async () => {
+    if (!student?.studentUuid || loaded.current.has('anamnese')) return
+    loaded.current.add('anamnese')
+    setAnamneseLoading(true)
+    const { data } = await supabase.from('anamneses').select('*')
+      .eq('student_id', student.studentUuid).order('created_at', { ascending: false }).limit(1).single()
+    setAnamnese(data ?? null)
+    setAnamneseLoading(false)
+  }, [student?.studentUuid])
+
+  const fetchAssignments = useCallback(async () => {
+    if (!studentId || loaded.current.has('assignments')) return
+    loaded.current.add('assignments')
+    setAssignLoading(true)
+    const { data } = await supabase.from('workout_assignments')
+      .select('id, day_of_week, workouts(id,name,description,muscle_group,difficulty,duration_min,exercises(name,sets,reps,sort_order))')
+      .eq('student_id', studentId).order('id', { ascending: true })
+    setAssignments((data as AssignmentRow[] | null) ?? [])
+    setAssignLoading(false)
+  }, [studentId])
+
+  const fetchAssessments = useCallback(async () => {
+    if (!studentId || loaded.current.has('assessments')) return
+    loaded.current.add('assessments')
+    setAssessLoading(true)
+    const { data } = await supabase.from('assessments')
+      .select('id,assessed_at,weight_kg,body_fat_pct,chest_cm,waist_cm,hip_cm,arm_cm,thigh_cm,notes')
+      .eq('student_id', studentId).order('assessed_at', { ascending: false })
+    setAssessments((data as AssessmentRow[] | null) ?? [])
+    setAssessLoading(false)
+  }, [studentId])
+
+  const fetchPayments = useCallback(async () => {
+    if (!studentId || loaded.current.has('payments')) return
+    loaded.current.add('payments')
+    setPayLoading(true)
+    const { data } = await supabase.from('payments')
+      .select('id,amount,status,due_date,paid_at,description')
+      .eq('student_id', studentId).order('due_date', { ascending: false })
+    setPayments((data as PaymentRow[] | null) ?? [])
+    setPayLoading(false)
+  }, [studentId])
+
+  const fetchCheckins = useCallback(async () => {
+    if (!studentId || loaded.current.has('checkins')) return
+    loaded.current.add('checkins')
+    setCheckLoading(true)
+    const { data } = await supabase.from('check_ins')
+      .select('id,content,created_at').eq('student_id', studentId)
+      .order('created_at', { ascending: false }).limit(20)
+    setCheckins((data as CheckInRow[] | null) ?? [])
+    setCheckLoading(false)
+  }, [studentId])
+
+  useEffect(() => {
+    if (!student) return
+    if (tab === 'overview')   { fetchAssignments(); fetchCheckins() }
+    if (tab === 'anamnese')   fetchAnamnese()
+    if (tab === 'treino')     fetchAssignments()
+    if (tab === 'avaliacoes') fetchAssessments()
+    if (tab === 'pagamentos') fetchPayments()
+    if (tab === 'historico')  { fetchCheckins(); fetchAssessments(); fetchPayments() }
+  }, [tab, student?.id])
+
+  // ── Derived ───────────────────────────────────────────────
+  const pal  = avatarPalette(studentId % 5)
+  const pay  = student ? payInfo(student.pay)  : payInfo('pending')
+  const sem  = student ? semInfo(student.sem)  : semInfo('green')
+  const semanas      = student ? calcSemanas(student.since) : 0
+  const lastAssess   = assessments[0] ?? null
+  const pesoAtual    = lastAssess?.weight_kg    != null ? `${lastAssess.weight_kg.toFixed(1)} kg`    : null
+  const gorduraAtual = lastAssess?.body_fat_pct != null ? `${lastAssess.body_fat_pct.toFixed(1)}%`  : null
+
+  const PLANS = ['Mensal', 'Trimestral', 'Semestral', 'Permuta']
+
+  async function handleSavePlan(plan: string) {
+    setSavingPlan(true)
+    await updatePlan(studentId, plan)
+    setSavingPlan(false)
+    setShowPlanPicker(false)
+    showToast(`Plano atualizado para ${plan}`)
+  }
 
   function showToast(msg: string) {
-    setToast(msg); clearTimeout(toastRef.current)
-    toastRef.current = setTimeout(() => setToast(''), 1800)
+    setToast(msg)
+    clearTimeout(toastRef.current)
+    toastRef.current = setTimeout(() => setToast(''), 2000)
   }
   useEffect(() => () => clearTimeout(toastRef.current), [])
 
@@ -156,36 +227,66 @@ export default function PerfilAluno() {
     </div>
   )
 
+  // ── Unique workouts for overview / treino ─────────────────
+  const uniqueWorkouts = assignments.reduce<WorkoutRow[]>((acc, a) => {
+    if (!acc.find(w => w.id === a.workouts.id)) acc.push(a.workouts)
+    return acc
+  }, [])
+
   return (
     <div>
-      {/* ── Outer pad ──────────────────────────────────────── */}
+
+      {/* ── Plan picker modal ─────────────────────────────── */}
+      {showPlanPicker && (
+        <div onClick={() => setShowPlanPicker(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(20,25,40,.5)', zIndex: 80, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 16, padding: '28px 28px 24px', width: '100%', maxWidth: 360, boxShadow: '0 24px 60px rgba(0,0,0,.3)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+              <h2 style={{ font: `800 18px ${FF}`, color: '#1B2A4A', margin: 0, letterSpacing: '-.4px' }}>Plano de {student.name.split(' ')[0]}</h2>
+              <button onClick={() => setShowPlanPicker(false)} style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#9a948a', padding: 4, display: 'flex' }}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
+              </button>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {PLANS.map(p => (
+                <button key={p} type="button" disabled={savingPlan} onClick={() => handleSavePlan(p)}
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', padding: '13px 16px', border: `2px solid ${student.plan === p ? '#E8542A' : '#ece7d9'}`, background: student.plan === p ? '#fff8f6' : '#fff', borderRadius: 12, font: `600 14px ${FF}`, color: student.plan === p ? '#E8542A' : '#1B2A4A', cursor: savingPlan ? 'default' : 'pointer', opacity: savingPlan ? .6 : 1, textAlign: 'left' }}
+                >
+                  {p}
+                  {student.plan === p && <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#E8542A" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5"/></svg>}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Page ─────────────────────────────────────────── */}
       <div className="k-pagepad" style={{ padding: '30px 34px 64px', maxWidth: 1180 }}>
 
-        {/* Back link + delete */}
+        {/* Back + delete */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-          <button
-            type="button"
-            onClick={() => navigate('/coach/alunos')}
-            style={{ display: 'inline-flex', alignItems: 'center', gap: 7, font: `600 13px ${FF}`, color: '#7c7869', background: 'none', border: 'none', cursor: 'pointer', padding: '0 4px' }}
-          >
+          <button type="button" onClick={() => navigate('/coach/alunos')}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 7, font: `600 13px ${FF}`, color: '#7c7869', background: 'none', border: 'none', cursor: 'pointer', padding: '0 4px' }}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
             Voltar para Alunos
           </button>
-
           {!confirmDelete
-            ? <button type="button" onClick={() => setConfirmDelete(true)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 36, padding: '0 14px', border: '1.5px solid #e8c5bb', background: '#fef5f3', color: '#c4421e', borderRadius: 9, font: `600 13px ${FF}`, cursor: 'pointer' }}>
+            ? <button type="button" onClick={() => setConfirmDelete(true)}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 36, padding: '0 14px', border: '1.5px solid #e8c5bb', background: '#fef5f3', color: '#c4421e', borderRadius: 9, font: `600 13px ${FF}`, cursor: 'pointer' }}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
                 Excluir aluno
               </button>
             : <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                 <span style={{ font: `500 13px ${FF}`, color: '#7c7869' }}>Confirmar exclusão?</span>
-                <button type="button" onClick={async () => { await deleteStudent(studentId); navigate('/coach/alunos') }} style={{ height: 36, padding: '0 16px', border: 'none', background: '#c4421e', color: '#fff', borderRadius: 9, font: `700 13px ${FF}`, cursor: 'pointer' }}>Excluir</button>
-                <button type="button" onClick={() => setConfirmDelete(false)} style={{ height: 36, padding: '0 14px', border: '1.5px solid #d9d3c4', background: '#fff', color: '#1B2A4A', borderRadius: 9, font: `600 13px ${FF}`, cursor: 'pointer' }}>Cancelar</button>
+                <button type="button" onClick={async () => { await deleteStudent(studentId); navigate('/coach/alunos') }}
+                  style={{ height: 36, padding: '0 16px', border: 'none', background: '#c4421e', color: '#fff', borderRadius: 9, font: `700 13px ${FF}`, cursor: 'pointer' }}>Excluir</button>
+                <button type="button" onClick={() => setConfirmDelete(false)}
+                  style={{ height: 36, padding: '0 14px', border: '1.5px solid #d9d3c4', background: '#fff', color: '#1B2A4A', borderRadius: 9, font: `600 13px ${FF}`, cursor: 'pointer' }}>Cancelar</button>
               </div>
           }
         </div>
 
-        {/* ── Hero ───────────────────────────────────────── */}
+        {/* ── Hero ──────────────────────────────────────── */}
         <div className="k-hero" style={{ background: '#1B2A4A', borderRadius: 16, overflow: 'hidden', marginBottom: 18 }}>
           <div className="k-heropad" style={{ padding: '26px 28px', display: 'flex', alignItems: 'flex-start', gap: 20, flexWrap: 'wrap' }}>
             <div style={{ width: 74, height: 74, borderRadius: '50%', background: pal[0], color: pal[1], display: 'flex', alignItems: 'center', justifyContent: 'center', font: `800 27px ${FF}`, flexShrink: 0 }}>
@@ -200,21 +301,23 @@ export default function PerfilAluno() {
               </div>
               <div style={{ display: 'flex', gap: 18, flexWrap: 'wrap', marginTop: 10 }}>
                 <span style={{ font: `400 13px ${FF}`, color: '#aeb9cc' }}>🎯 {student.goal}</span>
-                <span style={{ font: `400 13px ${FF}`, color: '#aeb9cc' }}>📋 Plano {student.plan}</span>
+                <button type="button" onClick={() => setShowPlanPicker(true)} title="Clique para alterar o plano"
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 6, font: `400 13px ${FF}`, color: student.plan === 'Sem plano' ? '#E8542A' : '#aeb9cc', background: student.plan === 'Sem plano' ? 'rgba(232,84,42,.12)' : 'rgba(255,255,255,.06)', border: student.plan === 'Sem plano' ? '1px solid rgba(232,84,42,.3)' : '1px solid rgba(255,255,255,.1)', borderRadius: 20, padding: '3px 12px', cursor: 'pointer' }}>
+                  📋 {student.plan === 'Sem plano' ? 'Atribuir plano' : `Plano ${student.plan}`}
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                </button>
                 <span style={{ font: `400 13px ${FF}`, color: '#aeb9cc' }}>📅 Aluno(a) desde {student.since}</span>
                 <span style={{ font: `400 13px ${FF}`, color: '#aeb9cc' }}>✉️ {student.email}</span>
               </div>
             </div>
             <div className="k-herostats" style={{ display: 'flex', gap: 10 }}>
               {[
-                { val: '12', unit: '', sub: 'semanas' },
-                { val: '-4,2', unit: 'kg', sub: 'desde início' },
-                { val: '92', unit: '%', sub: 'adesão', highlight: true },
-              ].map(({ val, unit, sub, highlight }) => (
+                { val: String(semanas), unit: '', sub: 'semanas' },
+                { val: pesoAtual ?? '—', unit: '', sub: 'peso atual' },
+                { val: gorduraAtual ?? '—', unit: '', sub: 'gordura' },
+              ].map(({ val, unit, sub }) => (
                 <div key={sub} style={{ background: 'rgba(255,255,255,.07)', borderRadius: 12, padding: '13px 16px', textAlign: 'center', minWidth: 78 }}>
-                  <div style={{ font: `800 22px/1 ${FF}`, color: highlight ? '#3ddc84' : '#fff' }}>
-                    {val}<span style={{ fontSize: 13 }}>{unit}</span>
-                  </div>
+                  <div style={{ font: `800 22px/1 ${FF}`, color: '#fff' }}>{val}<span style={{ fontSize: 13 }}>{unit}</span></div>
                   <div style={{ font: `500 10.5px ${FF}`, color: '#8b97ad', marginTop: 4 }}>{sub}</div>
                 </div>
               ))}
@@ -224,57 +327,61 @@ export default function PerfilAluno() {
           {/* Tabs */}
           <div className="k-tabscroll" style={{ display: 'flex', gap: 2, padding: '0 28px', background: 'rgba(255,255,255,.04)', overflowX: 'auto' }}>
             {TABS.map(({ key, label }) => (
-              <button
-                key={key}
-                type="button"
-                onClick={() => setTab(key)}
-                style={{
-                  border: 'none', background: 'none',
-                  color: tab === key ? '#fff' : '#aeb9cc',
-                  font: `600 13.5px ${FF}`,
-                  padding: '14px 14px', cursor: 'pointer',
-                  borderBottom: `2.5px solid ${tab === key ? '#E8542A' : 'transparent'}`,
-                  whiteSpace: 'nowrap',
-                }}
-              >{label}</button>
+              <button key={key} type="button" onClick={() => setTab(key)}
+                style={{ border: 'none', background: 'none', color: tab === key ? '#fff' : '#aeb9cc', font: `600 13.5px ${FF}`, padding: '14px 14px', cursor: 'pointer', borderBottom: `2.5px solid ${tab === key ? '#E8542A' : 'transparent'}`, whiteSpace: 'nowrap' }}>
+                {label}
+              </button>
             ))}
           </div>
         </div>
 
-        {/* ── Tab body ──────────────────────────────────── */}
+        {/* ── Tab body ────────────────────────────────────── */}
         <div className="k-bodypad">
 
-          {/* OVERVIEW */}
+          {/* VISÃO GERAL */}
           {tab === 'overview' && (
             <div className="k-twocol" style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
               <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 16 }}>
+
                 {/* Treino atual */}
                 <div style={{ background: '#fff', border: '1px solid #ece7d9', borderRadius: 14, padding: '20px 22px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
                     <h2 style={{ font: `700 16px ${FF}`, color: '#1B2A4A', margin: 0 }}>Treino atual</h2>
-                    <span style={{ font: `600 11px ${FF}`, color: '#1B7a4a', background: '#e7f3ea', borderRadius: 20, padding: '4px 11px' }}>Ativo</span>
+                    {uniqueWorkouts.length > 0 && <span style={{ font: `600 11px ${FF}`, color: '#1B7a4a', background: '#e7f3ea', borderRadius: 20, padding: '4px 11px' }}>Ativo</span>}
                   </div>
-                  <div style={{ font: `700 15px ${FF}`, color: '#1B2A4A' }}>Programa ABC · Hipertrofia</div>
-                  <div style={{ font: `400 13px ${FF}`, color: '#7c7869', marginTop: 3 }}>5 treinos/semana · semana 8 de 12</div>
-                  <div style={{ height: 8, background: '#f1ece0', borderRadius: 5, overflow: 'hidden', marginTop: 14 }}>
-                    <div style={{ width: '67%', height: '100%', background: '#E8542A', borderRadius: 5 }} />
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 7 }}>
-                    <span style={{ font: `500 11.5px ${FF}`, color: '#9a948a' }}>67% do ciclo</span>
-                    <span style={{ font: `500 11.5px ${FF}`, color: '#9a948a' }}>faltam 4 semanas</span>
-                  </div>
+                  {assignLoading ? (
+                    <div style={{ font: `400 13px ${FF}`, color: '#9a948a' }}>Carregando...</div>
+                  ) : uniqueWorkouts.length === 0 ? (
+                    <div style={{ font: `400 13px ${FF}`, color: '#9a948a' }}>Nenhum treino atribuído ainda.</div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      {uniqueWorkouts.map(w => (
+                        <div key={w.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #f4efe3' }}>
+                          <span style={{ font: `600 14px ${FF}`, color: '#1B2A4A' }}>{w.name}</span>
+                          <span style={{ font: `400 12px ${FF}`, color: '#9a948a' }}>{w.muscle_group ?? w.difficulty} · {w.duration_min} min</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
-                {/* Check-ins */}
+
+                {/* Check-ins recentes */}
                 <div style={{ background: '#fff', border: '1px solid #ece7d9', borderRadius: 14, padding: '20px 22px' }}>
                   <h2 style={{ font: `700 16px ${FF}`, color: '#1B2A4A', margin: '0 0 14px' }}>Check-ins recentes</h2>
-                  <div style={{ display: 'flex', gap: 7, alignItems: 'flex-end', height: 90 }}>
-                    {CHECKIN_BARS.map(({ day, h, active }) => (
-                      <div key={day} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
-                        <div style={{ width: '100%', background: active ? '#E8542A' : '#f1ece0', borderRadius: 5, height: h }} />
-                        <span style={{ font: `500 10px ${FF}`, color: '#9a948a' }}>{day}</span>
-                      </div>
-                    ))}
-                  </div>
+                  {checkLoading ? (
+                    <div style={{ font: `400 13px ${FF}`, color: '#9a948a' }}>Carregando...</div>
+                  ) : checkins.length === 0 ? (
+                    <div style={{ font: `400 13px ${FF}`, color: '#9a948a' }}>Nenhum check-in registrado ainda.</div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      {checkins.slice(0, 5).map(c => (
+                        <div key={c.id} style={{ padding: '9px 12px', background: '#fbf8f1', borderRadius: 9, borderLeft: '3px solid #E8542A' }}>
+                          <div style={{ font: `500 12.5px ${FF}`, color: '#1B2A4A' }}>{c.content}</div>
+                          <div style={{ font: `400 11px ${FF}`, color: '#9a948a', marginTop: 3 }}>{fmtDate(c.created_at)}</div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -284,7 +391,8 @@ export default function PerfilAluno() {
                   <h2 style={{ font: `700 15px ${FF}`, color: '#1B2A4A', margin: '0 0 12px' }}>Ações rápidas</h2>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                     {['⚡ Editar treino', '📅 Agendar avaliação', '📎 Enviar anexo', '💬 Enviar mensagem'].map(label => (
-                      <button key={label} type="button" onClick={() => showToast('Em breve!')} style={{ display: 'flex', alignItems: 'center', gap: 11, width: '100%', border: '1.5px solid #ece7d9', background: '#fff', padding: '11px 13px', borderRadius: 10, cursor: 'pointer', font: `600 13.5px ${FF}`, color: '#1B2A4A', textAlign: 'left' }}>
+                      <button key={label} type="button" onClick={() => showToast('Em breve!')}
+                        style={{ display: 'flex', alignItems: 'center', gap: 11, width: '100%', border: '1.5px solid #ece7d9', background: '#fff', padding: '11px 13px', borderRadius: 10, cursor: 'pointer', font: `600 13.5px ${FF}`, color: '#1B2A4A', textAlign: 'left' }}>
                         {label}
                       </button>
                     ))}
@@ -296,8 +404,8 @@ export default function PerfilAluno() {
                   {[
                     { label: 'Próxima avaliação', val: student.next, valColor: '#1B2A4A' },
                     { label: 'Pagamento',          val: pay.label,   valColor: pay.color  },
-                    { label: 'Última mensagem',    val: 'há 2 dias', valColor: '#1B2A4A' },
-                    { label: 'Adesão ao treino',   val: '92%',       valColor: '#1B2A4A' },
+                    { label: 'Plano',              val: student.plan === 'Sem plano' ? 'Não definido' : student.plan, valColor: student.plan === 'Sem plano' ? '#9a948a' : '#1B2A4A' },
+                    { label: 'Avaliações',         val: assessments.length > 0 ? `${assessments.length}` : '—', valColor: '#1B2A4A' },
                   ].map(({ label, val, valColor }, i, arr) => (
                     <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: i < arr.length - 1 ? '1px solid #f1ece0' : 'none' }}>
                       <span style={{ font: `400 13px ${FF}`, color: '#7c7869' }}>{label}</span>
@@ -315,108 +423,57 @@ export default function PerfilAluno() {
               {anamneseLoading ? (
                 <div style={{ font: `500 14px ${FF}`, color: '#7c7869', padding: '40px 0', textAlign: 'center' }}>Carregando...</div>
               ) : !anamnese ? (
-                <div style={{ background: '#fff', border: '1px solid #ece7d9', borderRadius: 14, padding: '40px 24px', textAlign: 'center' }}>
-                  <div style={{ font: `700 16px ${FF}`, color: '#1B2A4A', marginBottom: 6 }}>Anamnese não preenchida</div>
-                  <div style={{ font: `400 13px ${FF}`, color: '#9a948a' }}>O aluno ainda não completou a anamnese.</div>
-                </div>
+                <Empty icon="📋" title="Anamnese não preenchida" sub="O aluno ainda não completou a anamnese." />
               ) : (
                 <>
-                  {/* Cabeçalho */}
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
                     <h2 style={{ font: `800 20px ${FF}`, color: '#1B2A4A', margin: 0, letterSpacing: '-.4px' }}>Anamnese</h2>
-                    <span style={{ font: `400 12px ${FF}`, color: '#9a948a' }}>
-                      Preenchida em {new Date(anamnese.created_at).toLocaleDateString('pt-BR')}
-                    </span>
+                    <span style={{ font: `400 12px ${FF}`, color: '#9a948a' }}>Preenchida em {new Date(anamnese.created_at).toLocaleDateString('pt-BR')}</span>
                   </div>
-
-                  {/* Dados pessoais */}
-                  <div style={{ background: '#fff', border: '1px solid #ece7d9', borderRadius: 14, padding: '20px 22px' }}>
-                    <h3 style={{ font: `700 13px ${FF}`, color: '#9a948a', textTransform: 'uppercase', letterSpacing: '.5px', margin: '0 0 14px' }}>Dados pessoais</h3>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(200px,1fr))', gap: '10px 24px' }}>
-                      {[
-                        { label: 'Nome',       val: anamnese.nome },
-                        { label: 'Nascimento', val: anamnese.data_nasc },
-                        { label: 'Telefone',   val: anamnese.telefone },
-                        { label: 'Profissão',  val: anamnese.profissao },
-                      ].map(({ label, val }) => (
-                        <div key={label}>
-                          <div style={{ font: `500 11px ${FF}`, color: '#9a948a', marginBottom: 2 }}>{label}</div>
-                          <div style={{ font: `600 13.5px ${FF}`, color: '#1B2A4A' }}>{val || '—'}</div>
+                  {[
+                    { title: 'Dados pessoais', rows: [
+                      { label: 'Nome', val: anamnese.nome }, { label: 'Nascimento', val: anamnese.data_nasc },
+                      { label: 'Telefone', val: anamnese.telefone }, { label: 'Profissão', val: anamnese.profissao },
+                    ], grid: true },
+                    { title: 'Saúde', rows: [
+                      { label: 'Doenças / condições', val: (() => { try { const p = JSON.parse(anamnese.doencas); return Array.isArray(p) ? p.join(', ') : anamnese.doencas } catch { return anamnese.doencas } })() },
+                      { label: 'Outra doença', val: anamnese.outra_doenca }, { label: 'Medicamentos', val: anamnese.medicamentos },
+                      { label: 'Cirurgia', val: anamnese.cirurgia }, { label: 'Limitações físicas', val: anamnese.limitacoes },
+                    ], grid: false },
+                    { title: 'Atividade física', rows: [
+                      { label: 'Pratica atividade?', val: anamnese.pratica_atual },
+                      { label: 'Qual atividade?', val: anamnese.atividade_atual },
+                      { label: 'Treinou com personal?', val: anamnese.treinou_personal },
+                    ], grid: false },
+                    { title: 'Objetivo e preferências', rows: [
+                      { label: 'Objetivo', val: anamnese.objetivo },
+                      { label: 'Dias por semana', val: anamnese.dias_semana }, { label: 'Horário', val: anamnese.horario },
+                    ], grid: false },
+                    { title: 'Estilo de vida', rows: [
+                      { label: 'Horas de sono', val: anamnese.horas_sono }, { label: 'Nível de estresse', val: anamnese.nivel_estresse },
+                      { label: 'Fuma?', val: anamnese.fuma }, { label: 'Álcool?', val: anamnese.alcool },
+                    ], grid: true },
+                  ].map(({ title, rows, grid }) => (
+                    <div key={title} style={{ background: '#fff', border: '1px solid #ece7d9', borderRadius: 14, padding: '20px 22px' }}>
+                      <h3 style={{ font: `700 13px ${FF}`, color: '#9a948a', textTransform: 'uppercase', letterSpacing: '.5px', margin: '0 0 14px' }}>{title}</h3>
+                      {grid ? (
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(200px,1fr))', gap: '10px 24px' }}>
+                          {rows.map(({ label, val }) => (
+                            <div key={label}><div style={{ font: `500 11px ${FF}`, color: '#9a948a', marginBottom: 2 }}>{label}</div><div style={{ font: `600 13.5px ${FF}`, color: '#1B2A4A' }}>{val || '—'}</div></div>
+                          ))}
                         </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Saúde */}
-                  <div style={{ background: '#fff', border: '1px solid #ece7d9', borderRadius: 14, padding: '20px 22px' }}>
-                    <h3 style={{ font: `700 13px ${FF}`, color: '#9a948a', textTransform: 'uppercase', letterSpacing: '.5px', margin: '0 0 14px' }}>Saúde</h3>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                      {[
-                        { label: 'Doenças / condições', val: (() => { try { const p = JSON.parse(anamnese.doencas); return Array.isArray(p) ? p.join(', ') : anamnese.doencas } catch { return anamnese.doencas } })() },
-                        { label: 'Outra doença',         val: anamnese.outra_doenca },
-                        { label: 'Medicamentos',          val: anamnese.medicamentos },
-                        { label: 'Cirurgia',              val: anamnese.cirurgia },
-                        { label: 'Limitações físicas',   val: anamnese.limitacoes },
-                      ].map(({ label, val }) => (
-                        <div key={label} style={{ display: 'flex', gap: 16, padding: '8px 0', borderBottom: '1px solid #f4efe3' }}>
-                          <div style={{ font: `400 13px ${FF}`, color: '#7c7869', minWidth: 180, flexShrink: 0 }}>{label}</div>
-                          <div style={{ font: `600 13px ${FF}`, color: '#1B2A4A' }}>{val || '—'}</div>
+                      ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+                          {rows.map(({ label, val }) => (
+                            <div key={label} style={{ display: 'flex', gap: 16, padding: '8px 0', borderBottom: '1px solid #f4efe3' }}>
+                              <div style={{ font: `400 13px ${FF}`, color: '#7c7869', minWidth: 180, flexShrink: 0 }}>{label}</div>
+                              <div style={{ font: `600 13px ${FF}`, color: '#1B2A4A' }}>{val || '—'}</div>
+                            </div>
+                          ))}
                         </div>
-                      ))}
+                      )}
                     </div>
-                  </div>
-
-                  {/* Atividade física */}
-                  <div style={{ background: '#fff', border: '1px solid #ece7d9', borderRadius: 14, padding: '20px 22px' }}>
-                    <h3 style={{ font: `700 13px ${FF}`, color: '#9a948a', textTransform: 'uppercase', letterSpacing: '.5px', margin: '0 0 14px' }}>Atividade física</h3>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-                      {[
-                        { label: 'Pratica atividade?',     val: anamnese.pratica_atual },
-                        { label: 'Qual atividade?',        val: anamnese.atividade_atual },
-                        { label: 'Treinou com personal?',  val: anamnese.treinou_personal },
-                      ].map(({ label, val }) => (
-                        <div key={label} style={{ display: 'flex', gap: 16, padding: '8px 0', borderBottom: '1px solid #f4efe3' }}>
-                          <div style={{ font: `400 13px ${FF}`, color: '#7c7869', minWidth: 180, flexShrink: 0 }}>{label}</div>
-                          <div style={{ font: `600 13px ${FF}`, color: '#1B2A4A' }}>{val || '—'}</div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Objetivo e preferências */}
-                  <div style={{ background: '#fff', border: '1px solid #ece7d9', borderRadius: 14, padding: '20px 22px' }}>
-                    <h3 style={{ font: `700 13px ${FF}`, color: '#9a948a', textTransform: 'uppercase', letterSpacing: '.5px', margin: '0 0 14px' }}>Objetivo e preferências</h3>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-                      {[
-                        { label: 'Objetivo',        val: anamnese.objetivo },
-                        { label: 'Dias por semana', val: anamnese.dias_semana },
-                        { label: 'Horário',         val: anamnese.horario },
-                      ].map(({ label, val }) => (
-                        <div key={label} style={{ display: 'flex', gap: 16, padding: '8px 0', borderBottom: '1px solid #f4efe3' }}>
-                          <div style={{ font: `400 13px ${FF}`, color: '#7c7869', minWidth: 180, flexShrink: 0 }}>{label}</div>
-                          <div style={{ font: `600 13px ${FF}`, color: '#1B2A4A' }}>{val || '—'}</div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Estilo de vida */}
-                  <div style={{ background: '#fff', border: '1px solid #ece7d9', borderRadius: 14, padding: '20px 22px' }}>
-                    <h3 style={{ font: `700 13px ${FF}`, color: '#9a948a', textTransform: 'uppercase', letterSpacing: '.5px', margin: '0 0 14px' }}>Estilo de vida</h3>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(180px,1fr))', gap: '10px 24px' }}>
-                      {[
-                        { label: 'Horas de sono',    val: anamnese.horas_sono },
-                        { label: 'Nível de estresse', val: anamnese.nivel_estresse },
-                        { label: 'Fuma?',             val: anamnese.fuma },
-                        { label: 'Álcool?',           val: anamnese.alcool },
-                      ].map(({ label, val }) => (
-                        <div key={label}>
-                          <div style={{ font: `500 11px ${FF}`, color: '#9a948a', marginBottom: 2 }}>{label}</div>
-                          <div style={{ font: `600 13.5px ${FF}`, color: '#1B2A4A' }}>{val || '—'}</div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
+                  ))}
                 </>
               )}
             </div>
@@ -427,32 +484,50 @@ export default function PerfilAluno() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
                 <div>
-                  <h2 style={{ font: `800 20px ${FF}`, color: '#1B2A4A', margin: 0, letterSpacing: '-.4px' }}>Programa ABC · Hipertrofia</h2>
-                  <p style={{ font: `400 13px ${FF}`, color: '#7c7869', margin: '3px 0 0' }}>Atribuído em 30/abr · 5 dias/semana</p>
+                  <h2 style={{ font: `800 20px ${FF}`, color: '#1B2A4A', margin: 0, letterSpacing: '-.4px' }}>Treinos atribuídos</h2>
+                  {uniqueWorkouts.length > 0 && <p style={{ font: `400 13px ${FF}`, color: '#7c7869', margin: '3px 0 0' }}>{uniqueWorkouts.length} treino{uniqueWorkouts.length > 1 ? 's' : ''} · {assignments.length} sessão{assignments.length > 1 ? 'ões' : ''} por semana</p>}
                 </div>
-                <button type="button" onClick={() => showToast('Em breve!')} style={{ height: 42, padding: '0 18px', border: 'none', background: '#E8542A', color: '#fff', borderRadius: 10, font: `700 13.5px ${FF}`, cursor: 'pointer', boxShadow: '0 2px 0 #c4421e' }}>
-                  Abrir no builder →
+                <button type="button" onClick={() => showToast('Em breve!')}
+                  style={{ height: 42, padding: '0 18px', border: 'none', background: '#E8542A', color: '#fff', borderRadius: 10, font: `700 13.5px ${FF}`, cursor: 'pointer', boxShadow: '0 2px 0 #c4421e' }}>
+                  + Atribuir treino
                 </button>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(220px,1fr))', gap: 12 }}>
-                {WORKOUTS.map(w => (
-                  <div key={w.letter} style={{ background: '#fff', border: '1px solid #ece7d9', borderRadius: 14, padding: '16px 18px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-                      <div style={{ width: 34, height: 34, borderRadius: 9, background: '#1B2A4A', color: '#FAEEDA', display: 'flex', alignItems: 'center', justifyContent: 'center', font: `800 14px ${FF}` }}>{w.letter}</div>
-                      <div>
-                        <div style={{ font: `700 14px ${FF}`, color: '#1B2A4A' }}>{w.title}</div>
-                        <div style={{ font: `400 11.5px ${FF}`, color: '#9a948a' }}>{w.count} exercícios</div>
+              {assignLoading ? (
+                <div style={{ font: `400 13px ${FF}`, color: '#9a948a', padding: '20px 0' }}>Carregando...</div>
+              ) : uniqueWorkouts.length === 0 ? (
+                <Empty icon="🏋️" title="Nenhum treino atribuído" sub="Use o botão acima para atribuir um treino a este aluno." />
+              ) : (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(240px,1fr))', gap: 12 }}>
+                  {uniqueWorkouts.map(w => {
+                    const days = assignments.filter(a => a.workouts.id === w.id && a.day_of_week != null).map(a => DAY_NAMES[a.day_of_week!])
+                    return (
+                      <div key={w.id} style={{ background: '#fff', border: '1px solid #ece7d9', borderRadius: 14, padding: '16px 18px' }}>
+                        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 10 }}>
+                          <div>
+                            <div style={{ font: `700 14px ${FF}`, color: '#1B2A4A' }}>{w.name}</div>
+                            <div style={{ font: `400 11.5px ${FF}`, color: '#9a948a', marginTop: 2 }}>{w.muscle_group ?? w.difficulty} · {w.duration_min} min</div>
+                          </div>
+                        </div>
+                        {days.length > 0 && (
+                          <div style={{ display: 'flex', gap: 4, marginBottom: 10, flexWrap: 'wrap' }}>
+                            {days.map(d => <span key={d} style={{ font: `600 10px ${FF}`, color: '#1B2A4A', background: '#f1ece0', borderRadius: 6, padding: '2px 7px' }}>{d}</span>)}
+                          </div>
+                        )}
+                        {w.exercises.length > 0 && (
+                          <div style={{ borderTop: '1px solid #f4efe3', paddingTop: 8 }}>
+                            {[...w.exercises].sort((a,b) => a.sort_order - b.sort_order).map(ex => (
+                              <div key={ex.name} style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', borderBottom: '1px solid #f8f5ef' }}>
+                                <span style={{ font: `500 12.5px ${FF}`, color: '#4a4742' }}>{ex.name}</span>
+                                <span style={{ font: `400 12px ${FF}`, color: '#9a948a' }}>{ex.sets}×{ex.reps}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
-                    </div>
-                    {w.items.map(ex => (
-                      <div key={ex.name} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderTop: '1px solid #f4efe3' }}>
-                        <span style={{ font: `500 12.5px ${FF}`, color: '#4a4742' }}>{ex.name}</span>
-                        <span style={{ font: `400 12px ${FF}`, color: '#9a948a' }}>{ex.sets}</span>
-                      </div>
-                    ))}
-                  </div>
-                ))}
-              </div>
+                    )
+                  })}
+                </div>
+              )}
             </div>
           )}
 
@@ -460,34 +535,53 @@ export default function PerfilAluno() {
           {tab === 'avaliacoes' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
-                <h2 style={{ font: `800 20px ${FF}`, color: '#1B2A4A', margin: 0, letterSpacing: '-.4px' }}>Evolução física</h2>
-                <button type="button" onClick={() => showToast('Em breve!')} style={{ height: 42, padding: '0 18px', border: '1.5px solid #d6cfbe', background: '#fff', color: '#1B2A4A', borderRadius: 10, font: `600 13.5px ${FF}`, cursor: 'pointer' }}>+ Nova avaliação</button>
+                <h2 style={{ font: `800 20px ${FF}`, color: '#1B2A4A', margin: 0, letterSpacing: '-.4px' }}>Avaliações físicas</h2>
+                <button type="button" onClick={() => showToast('Em breve!')}
+                  style={{ height: 42, padding: '0 18px', border: '1.5px solid #d6cfbe', background: '#fff', color: '#1B2A4A', borderRadius: 10, font: `600 13.5px ${FF}`, cursor: 'pointer' }}>
+                  + Nova avaliação
+                </button>
               </div>
-              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                {[
-                  { label: 'Peso atual',   val: '64,8 kg', delta: '▼ 4,2 kg', up: true  },
-                  { label: '% Gordura',    val: '22,4%',   delta: '▼ 3,1 pts', up: true  },
-                  { label: 'Massa magra',  val: '50,3 kg', delta: '▲ 1,4 kg', up: false },
-                ].map(({ label, val, delta, up }) => (
-                  <div key={label} style={{ flex: 1, minWidth: 130, background: '#fff', border: '1px solid #ece7d9', borderRadius: 12, padding: 16 }}>
-                    <div style={{ font: `500 11px ${FF}`, color: '#9a948a' }}>{label}</div>
-                    <div style={{ font: `800 24px ${FF}`, color: '#1B2A4A', marginTop: 4 }}>{val}</div>
-                    <div style={{ font: `600 12px ${FF}`, color: up ? '#1B7a4a' : '#b06a12', marginTop: 2 }}>{delta}</div>
-                  </div>
-                ))}
-              </div>
-              <div style={{ background: '#fff', border: '1px solid #ece7d9', borderRadius: 14, padding: '20px 22px' }}>
-                <h3 style={{ font: `700 14px ${FF}`, color: '#1B2A4A', margin: '0 0 16px' }}>Peso ao longo do tempo</h3>
-                <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end', height: 140 }}>
-                  {WEIGHT_BARS.map(({ label, mon, h, active }) => (
-                    <div key={mon} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
-                      <span style={{ font: `${active ? '800' : '700'} 12px ${FF}`, color: active ? '#E8542A' : '#7c7869' }}>{label}</span>
-                      <div style={{ width: '60%', background: active ? '#E8542A' : '#cdd6e4', borderRadius: '5px 5px 0 0', height: h }} />
-                      <span style={{ font: `${active ? '600' : '500'} 10px ${FF}`, color: active ? '#1B2A4A' : '#9a948a' }}>{mon}</span>
+              {assessLoading ? (
+                <div style={{ font: `400 13px ${FF}`, color: '#9a948a', padding: '20px 0' }}>Carregando...</div>
+              ) : assessments.length === 0 ? (
+                <Empty icon="📊" title="Nenhuma avaliação registrada" sub="Clique em '+ Nova avaliação' para registrar a primeira avaliação deste aluno." />
+              ) : (
+                <>
+                  {/* Resumo últimos dados */}
+                  {lastAssess && (
+                    <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                      {[
+                        { label: 'Peso atual',   val: lastAssess.weight_kg    != null ? `${lastAssess.weight_kg.toFixed(1)} kg`    : '—' },
+                        { label: '% Gordura',    val: lastAssess.body_fat_pct != null ? `${lastAssess.body_fat_pct.toFixed(1)}%`   : '—' },
+                        { label: 'Cintura',      val: lastAssess.waist_cm     != null ? `${lastAssess.waist_cm.toFixed(1)} cm`     : '—' },
+                        { label: 'Quadril',      val: lastAssess.hip_cm       != null ? `${lastAssess.hip_cm.toFixed(1)} cm`       : '—' },
+                      ].map(({ label, val }) => (
+                        <div key={label} style={{ flex: 1, minWidth: 120, background: '#fff', border: '1px solid #ece7d9', borderRadius: 12, padding: 16 }}>
+                          <div style={{ font: `500 11px ${FF}`, color: '#9a948a' }}>{label}</div>
+                          <div style={{ font: `800 22px ${FF}`, color: '#1B2A4A', marginTop: 4 }}>{val}</div>
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
-              </div>
+                  )}
+                  {/* Lista de avaliações */}
+                  <div style={{ background: '#fff', border: '1px solid #ece7d9', borderRadius: 14, overflow: 'hidden' }}>
+                    <div style={{ padding: '12px 18px', background: '#fbf8f1', borderBottom: '1px solid #ece7d9', font: `700 11px ${FF}`, color: '#9a948a', textTransform: 'uppercase', letterSpacing: '.5px' }}>
+                      Histórico de avaliações
+                    </div>
+                    {assessments.map((a, i) => (
+                      <div key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '13px 18px', borderTop: i === 0 ? 'none' : '1px solid #f1ece0' }}>
+                        <div style={{ font: `600 13px ${FF}`, color: '#1B2A4A', minWidth: 100 }}>{fmtDate(a.assessed_at)}</div>
+                        <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', flex: 1 }}>
+                          {a.weight_kg    != null && <span style={{ font: `400 12.5px ${FF}`, color: '#4a4742' }}>⚖️ {a.weight_kg.toFixed(1)} kg</span>}
+                          {a.body_fat_pct != null && <span style={{ font: `400 12.5px ${FF}`, color: '#4a4742' }}>📊 {a.body_fat_pct.toFixed(1)}% gordura</span>}
+                          {a.waist_cm     != null && <span style={{ font: `400 12.5px ${FF}`, color: '#4a4742' }}>📏 Cintura {a.waist_cm.toFixed(0)} cm</span>}
+                        </div>
+                        {i === 0 && <span style={{ font: `600 10px ${FF}`, color: '#1B7a4a', background: '#e7f3ea', borderRadius: 20, padding: '3px 9px', whiteSpace: 'nowrap' }}>Mais recente</span>}
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
             </div>
           )}
 
@@ -496,9 +590,16 @@ export default function PerfilAluno() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                 <div style={{ flex: 1, minWidth: 150, background: '#1B2A4A', borderRadius: 14, padding: '18px 20px' }}>
-                  <div style={{ font: `500 12px ${FF}`, color: '#aeb9cc' }}>Plano atual</div>
-                  <div style={{ font: `800 19px ${FF}`, color: '#fff', marginTop: 5 }}>Mensal · R$ 390</div>
-                  <div style={{ font: `400 12px ${FF}`, color: '#8b97ad', marginTop: 3 }}>renova dia 05</div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 5 }}>
+                    <div style={{ font: `500 12px ${FF}`, color: '#aeb9cc' }}>Plano atual</div>
+                    <button type="button" onClick={() => setShowPlanPicker(true)}
+                      style={{ font: `600 11px ${FF}`, color: '#E8542A', background: 'rgba(232,84,42,.15)', border: 'none', borderRadius: 20, padding: '3px 10px', cursor: 'pointer' }}>
+                      {student.plan === 'Sem plano' ? 'Atribuir' : 'Alterar'}
+                    </button>
+                  </div>
+                  <div style={{ font: `800 19px ${FF}`, color: student.plan === 'Sem plano' ? '#6b7a9a' : '#fff', fontStyle: student.plan === 'Sem plano' ? 'italic' : 'normal' }}>
+                    {student.plan === 'Sem plano' ? 'Sem plano definido' : student.plan}
+                  </div>
                 </div>
                 <div style={{ flex: 1, minWidth: 150, background: '#fff', border: '1px solid #ece7d9', borderRadius: 14, padding: '18px 20px' }}>
                   <div style={{ font: `500 12px ${FF}`, color: '#9a948a' }}>Status</div>
@@ -506,67 +607,55 @@ export default function PerfilAluno() {
                 </div>
                 <div style={{ flex: 1, minWidth: 150, background: '#fff', border: '1px solid #ece7d9', borderRadius: 14, padding: '18px 20px' }}>
                   <div style={{ font: `500 12px ${FF}`, color: '#9a948a' }}>Total pago</div>
-                  <div style={{ font: `800 19px ${FF}`, color: '#1B2A4A', marginTop: 5 }}>R$ 1.560</div>
-                  <div style={{ font: `400 12px ${FF}`, color: '#9a948a', marginTop: 3 }}>4 faturas</div>
-                </div>
-              </div>
-              <div style={{ background: '#fff', border: '1px solid #ece7d9', borderRadius: 14, overflow: 'hidden' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 18px', background: '#fbf8f1', borderBottom: '1px solid #ece7d9' }}>
-                  <span style={{ font: `700 11px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#9a948a' }}>Faturas</span>
-                  <button type="button" onClick={() => showToast('Em breve!')} style={{ border: 'none', background: 'none', color: '#E8542A', font: `600 12px ${FF}`, cursor: 'pointer' }}>Registrar pagamento</button>
-                </div>
-                {INVOICES.map((iv, i) => (
-                  <div key={iv.month} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '13px 18px', borderTop: i === 0 ? 'none' : '1px solid #f1ece0' }}>
-                    <div>
-                      <div style={{ font: `600 14px ${FF}`, color: '#1B2A4A' }}>{iv.month}</div>
-                      <div style={{ font: `400 12px ${FF}`, color: '#9a948a' }}>{iv.date}</div>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                      <span style={{ font: `700 13px ${FF}`, color: '#1B2A4A' }}>{iv.amount}</span>
-                      <span style={{ display: 'inline-flex', alignItems: 'center', font: `600 11px ${FF}`, color: iv.color, background: iv.bg, borderRadius: 20, padding: '3px 10px', whiteSpace: 'nowrap' }}>{iv.label}</span>
-                    </div>
+                  <div style={{ font: `800 19px ${FF}`, color: '#1B2A4A', marginTop: 5 }}>
+                    {fmtMoney(payments.filter(p => p.status === 'active').reduce((s, p) => s + p.amount, 0))}
                   </div>
-                ))}
+                  <div style={{ font: `400 12px ${FF}`, color: '#9a948a', marginTop: 3 }}>{payments.filter(p => p.status === 'active').length} fatura{payments.filter(p => p.status === 'active').length !== 1 ? 's' : ''}</div>
+                </div>
               </div>
+              {payLoading ? (
+                <div style={{ font: `400 13px ${FF}`, color: '#9a948a', padding: '20px 0' }}>Carregando...</div>
+              ) : payments.length === 0 ? (
+                <Empty icon="💳" title="Nenhuma fatura registrada" sub="As faturas serão listadas aqui assim que forem geradas." />
+              ) : (
+                <div style={{ background: '#fff', border: '1px solid #ece7d9', borderRadius: 14, overflow: 'hidden' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 18px', background: '#fbf8f1', borderBottom: '1px solid #ece7d9' }}>
+                    <span style={{ font: `700 11px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#9a948a' }}>Faturas</span>
+                    <button type="button" onClick={() => showToast('Em breve!')}
+                      style={{ border: 'none', background: 'none', color: '#E8542A', font: `600 12px ${FF}`, cursor: 'pointer' }}>Registrar pagamento</button>
+                  </div>
+                  {payments.map((p, i) => {
+                    const s = STATUS_PAY[p.status] ?? STATUS_PAY.pending
+                    return (
+                      <div key={p.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '13px 18px', borderTop: i === 0 ? 'none' : '1px solid #f1ece0' }}>
+                        <div>
+                          <div style={{ font: `600 14px ${FF}`, color: '#1B2A4A' }}>{p.description ?? 'Fatura'}</div>
+                          <div style={{ font: `400 12px ${FF}`, color: '#9a948a' }}>venc. {fmtDate(p.due_date)}</div>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                          <span style={{ font: `700 13px ${FF}`, color: '#1B2A4A' }}>{fmtMoney(p.amount)}</span>
+                          <span style={{ display: 'inline-flex', alignItems: 'center', font: `600 11px ${FF}`, color: s.color, background: s.bg, borderRadius: 20, padding: '3px 10px', whiteSpace: 'nowrap' }}>{s.label}</span>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
             </div>
           )}
 
           {/* ANEXOS */}
           {tab === 'anexos' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div>
                   <h2 style={{ font: `800 20px ${FF}`, color: '#1B2A4A', margin: 0, letterSpacing: '-.4px' }}>Anexos</h2>
                   <p style={{ font: `400 13px ${FF}`, color: '#7c7869', margin: '3px 0 0' }}>Exames, fotos de progresso, laudos e documentos</p>
                 </div>
-                <button type="button" onClick={() => showToast('Em breve!')} style={{ height: 42, padding: '0 18px', border: 'none', background: '#E8542A', color: '#fff', borderRadius: 10, font: `700 13.5px ${FF}`, cursor: 'pointer', boxShadow: '0 2px 0 #c4421e' }}>+ Adicionar anexo</button>
+                <button type="button" onClick={() => showToast('Em breve!')}
+                  style={{ height: 42, padding: '0 18px', border: 'none', background: '#E8542A', color: '#fff', borderRadius: 10, font: `700 13.5px ${FF}`, cursor: 'pointer', boxShadow: '0 2px 0 #c4421e' }}>+ Adicionar anexo</button>
               </div>
-              {/* Dropzone */}
-              <button type="button" onClick={() => showToast('Em breve!')} style={{ width: '100%', border: '2px dashed #d2ccbb', background: '#fbf8f1', borderRadius: 14, padding: 26, cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
-                <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#E8542A" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5"/><path d="M12 3v12"/></svg>
-                <span style={{ font: `600 14px ${FF}`, color: '#1B2A4A' }}>Arraste arquivos ou clique para enviar</span>
-                <span style={{ font: `400 12px ${FF}`, color: '#9a948a' }}>PDF, JPG ou PNG até 10 MB</span>
-              </button>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(230px,1fr))', gap: 12 }}>
-                {ATTACHMENTS.map(a => (
-                  <div key={a.name} style={{ background: '#fff', border: '1px solid #ece7d9', borderRadius: 14, padding: '15px 16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
-                    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
-                      <div style={{ width: 42, height: 42, borderRadius: 11, background: a.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', font: `800 11px ${FF}`, color: a.color }}>{a.ext}</div>
-                      <button type="button" onClick={() => showToast('Em breve!')} style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#c5bfb0', padding: 2 }}>
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>
-                      </button>
-                    </div>
-                    <div>
-                      <div style={{ font: `700 13.5px ${FF}`, color: '#1B2A4A', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.name}</div>
-                      <div style={{ font: `400 11.5px ${FF}`, color: '#9a948a', marginTop: 2 }}>{a.meta}</div>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid #f4efe3', paddingTop: 10 }}>
-                      <span style={{ font: `600 10.5px ${FF}`, color: a.tagColor, background: a.tagBg, borderRadius: 20, padding: '3px 9px' }}>{a.tag}</span>
-                      <button type="button" onClick={() => showToast('Em breve!')} style={{ border: 'none', background: 'none', color: '#E8542A', font: `600 12px ${FF}`, cursor: 'pointer', padding: 0 }}>Baixar</button>
-                    </div>
-                  </div>
-                ))}
-              </div>
+              <Empty icon="📎" title="Nenhum anexo enviado" sub="Envio de arquivos em breve." />
             </div>
           )}
 
@@ -574,19 +663,46 @@ export default function PerfilAluno() {
           {tab === 'historico' && (
             <div style={{ background: '#fff', border: '1px solid #ece7d9', borderRadius: 14, padding: '22px 24px' }}>
               <h2 style={{ font: `800 18px ${FF}`, color: '#1B2A4A', margin: '0 0 18px', letterSpacing: '-.3px' }}>Linha do tempo</h2>
-              {TIMELINE.map((t, i) => (
-                <div key={i} style={{ display: 'flex', gap: 14 }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                    <div style={{ width: 11, height: 11, borderRadius: '50%', background: t.dot, marginTop: 4, flexShrink: 0 }} />
-                    {i < TIMELINE.length - 1 && <div style={{ width: 2, flex: 1, background: '#eee5d2' }} />}
+              {(checkLoading || assessLoading || payLoading) ? (
+                <div style={{ font: `400 13px ${FF}`, color: '#9a948a' }}>Carregando...</div>
+              ) : (() => {
+                const events: { dot: string; title: string; desc: string; date: string; ts: number }[] = []
+
+                // Registration event
+                const [mon, yr] = student.since.split('/')
+                const sinceTs = new Date(parseInt(yr), MONTHS_PT[mon] ?? 0, 1).getTime()
+                events.push({ dot: '#9a948a', title: 'Início do acompanhamento', desc: `Aluno ingressou · plano ${student.plan === 'Sem plano' ? 'a definir' : student.plan}`, date: student.since, ts: sinceTs })
+
+                // Check-ins
+                checkins.forEach(c => events.push({ dot: '#E8542A', title: 'Check-in', desc: c.content.slice(0, 80) + (c.content.length > 80 ? '…' : ''), date: fmtDate(c.created_at), ts: new Date(c.created_at).getTime() }))
+
+                // Assessments
+                assessments.forEach(a => events.push({ dot: '#1B2A4A', title: 'Avaliação física', desc: [a.weight_kg != null ? `Peso ${a.weight_kg.toFixed(1)} kg` : '', a.body_fat_pct != null ? `${a.body_fat_pct.toFixed(1)}% gordura` : ''].filter(Boolean).join(' · ') || 'Avaliação registrada', date: fmtDate(a.assessed_at), ts: new Date(a.assessed_at).getTime() }))
+
+                // Payments
+                payments.forEach(p => {
+                  const s = STATUS_PAY[p.status] ?? STATUS_PAY.pending
+                  events.push({ dot: p.status === 'active' ? '#1B7a4a' : '#b06a12', title: p.status === 'active' ? 'Pagamento confirmado' : 'Fatura gerada', desc: `${p.description ?? 'Fatura'} · ${fmtMoney(p.amount)}`, date: p.paid_at ? fmtDate(p.paid_at) : fmtDate(p.due_date), ts: new Date(p.paid_at ?? p.due_date).getTime() })
+                })
+
+                events.sort((a, b) => b.ts - a.ts)
+
+                if (events.length === 1) return <div style={{ font: `400 13px ${FF}`, color: '#9a948a' }}>Nenhum evento registrado além do cadastro.</div>
+
+                return events.map((t, i) => (
+                  <div key={i} style={{ display: 'flex', gap: 14 }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                      <div style={{ width: 11, height: 11, borderRadius: '50%', background: t.dot, marginTop: 4, flexShrink: 0 }} />
+                      {i < events.length - 1 && <div style={{ width: 2, flex: 1, background: '#eee5d2' }} />}
+                    </div>
+                    <div style={{ paddingBottom: 18 }}>
+                      <div style={{ font: `600 13.5px ${FF}`, color: '#1B2A4A' }}>{t.title}</div>
+                      <div style={{ font: `400 12.5px ${FF}`, color: '#7c7869', marginTop: 2 }}>{t.desc}</div>
+                      <div style={{ font: `500 11px ${FF}`, color: '#b0a99c', marginTop: 4 }}>{t.date}</div>
+                    </div>
                   </div>
-                  <div style={{ paddingBottom: 18 }}>
-                    <div style={{ font: `600 13.5px ${FF}`, color: '#1B2A4A' }}>{t.title}</div>
-                    <div style={{ font: `400 12.5px ${FF}`, color: '#7c7869', marginTop: 2 }}>{t.desc}</div>
-                    <div style={{ font: `500 11px ${FF}`, color: '#b0a99c', marginTop: 4 }}>{t.date}</div>
-                  </div>
-                </div>
-              ))}
+                ))
+              })()}
             </div>
           )}
 

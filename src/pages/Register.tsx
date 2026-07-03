@@ -101,13 +101,15 @@ export default function Register() {
         assessment_completed: false,
       })
 
-      // Link student to coach if coachId is present in the invite URL
+      // Link student to coach if coachId is present in the invite URL.
+      // plan is intentionally left as 'Sem plano' — the coach assigns it after registration.
       if (coachId) {
         await supabase.from('students').insert({
           coach_id:   coachId,
           student_id: userId,
           name:       n,
           email:      em,
+          plan:       'Sem plano',
         })
       }
 

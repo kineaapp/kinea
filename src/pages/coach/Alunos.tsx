@@ -437,7 +437,7 @@ export default function Alunos() {
                     </div>
                   </div>
                   <div className="k-col-plan" style={{ width: 96 }}>
-                    <span style={{ font: `600 11px ${FF}`, color: '#1B2A4A', background: '#f1ece0', borderRadius: 20, padding: '4px 11px', whiteSpace: 'nowrap' }}>{s.plan}</span>
+                    <span style={{ font: `600 11px ${FF}`, color: s.plan === 'Sem plano' ? '#9a948a' : '#1B2A4A', background: s.plan === 'Sem plano' ? '#ede8dc' : '#f1ece0', borderRadius: 20, padding: '4px 11px', whiteSpace: 'nowrap', fontStyle: s.plan === 'Sem plano' ? 'italic' : 'normal' }}>{s.plan}</span>
                   </div>
                   <div style={{ width: 104 }}>
                     <span style={{ display: 'inline-flex', alignItems: 'center', font: `600 11px ${FF}`, color: pay.color, background: pay.bg, borderRadius: 20, padding: '4px 11px', whiteSpace: 'nowrap' }}>{pay.label}</span>
