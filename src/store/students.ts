@@ -69,8 +69,9 @@ export const useStudentsStore = create<StudentsStore>((set) => ({
   },
 
   updatePlan: async (id, plan) => {
-    const { error } = await supabase.from('students').update({ plan }).eq('id', id)
-    if (!error) set(s => ({ students: s.students.map(st => st.id === id ? { ...st, plan } : st) }))
+    const pay_status = plan === 'Permuta' ? 'active' : 'pending'
+    const { error } = await supabase.from('students').update({ plan, pay_status }).eq('id', id)
+    if (!error) set(s => ({ students: s.students.map(st => st.id === id ? { ...st, plan, pay: pay_status as PayStatus } : st) }))
   },
 
   addStudent: async (data, coachId) => {
