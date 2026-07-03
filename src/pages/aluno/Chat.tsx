@@ -64,12 +64,14 @@ export default function Chat() {
     <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100dvh - 64px)' }}>
       {/* Header */}
       <div style={{ background: '#fff', borderBottom: '1px solid #EDE8DC', padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
-        <div style={{ width: 40, height: 40, borderRadius: '50%', background: '#E8542A', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-          <span style={{ font: `700 15px "Libre Franklin",sans-serif`, color: '#fff' }}>RS</span>
+        <div style={{ width: 40, height: 40, borderRadius: '50%', background: '#1B2A4A', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#FAEEDA" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" />
+          </svg>
         </div>
         <div>
-          <div style={{ font: `700 14px "Libre Franklin",sans-serif`, color: '#1B2A4A' }}>Rafael Silva</div>
-          <div style={{ font: `400 12px "Libre Franklin",sans-serif`, color: '#4CAF8A' }}>● Online agora</div>
+          <div style={{ font: `700 14px "Libre Franklin",sans-serif`, color: '#1B2A4A' }}>Seu Coach</div>
+          <div style={{ font: `400 12px "Libre Franklin",sans-serif`, color: '#A39E90' }}>Chat direto</div>
         </div>
       </div>
 
