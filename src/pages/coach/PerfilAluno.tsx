@@ -106,10 +106,12 @@ export default function PerfilAluno() {
   const [editEmail,     setEditEmail]         = useState('')
   const [editGoal,      setEditGoal]          = useState('')
   const [editSaving,    setEditSaving]        = useState(false)
-  const [subLoading,  setSubLoading]        = useState(false)
-  const [subError,    setSubError]          = useState<string | null>(null)
-  const [paymentUrl,  setPaymentUrl]        = useState<string | null>(null)
-  const [urlCopied,   setUrlCopied]         = useState(false)
+  const [subLoading,    setSubLoading]      = useState(false)
+  const [subError,      setSubError]        = useState<string | null>(null)
+  const [paymentUrl,    setPaymentUrl]      = useState<string | null>(null)
+  const [urlCopied,     setUrlCopied]       = useState(false)
+  const [checkLoading2, setCheckLoading2]   = useState(false)
+  const [checkMsg,      setCheckMsg]        = useState<string | null>(null)
 
   useEffect(() => {
     if (students.length === 0 && user?.id) fetchStudents(user.id)
@@ -204,6 +206,30 @@ export default function PerfilAluno() {
   const gorduraAtual = lastAssess?.body_fat_pct != null ? `${lastAssess.body_fat_pct.toFixed(1)}%`  : null
 
   const PLANS = ['Mensal', 'Trimestral', 'Semestral', 'Permuta']
+
+  async function handleCheckPayment() {
+    setCheckLoading2(true); setCheckMsg(null)
+    try {
+      const { data, error } = await supabase.functions.invoke('check-payment-status', {
+        body: { studentId },
+      })
+      if (error) throw new Error(error.message)
+      if (data?.error) throw new Error(data.error)
+      if (data?.updated) {
+        showToast('Status atualizado: ' + (data.payStatus === 'active' ? 'Em dia ✓' : data.payStatus))
+        if (student) {
+          // atualiza local store
+          const { fetchStudents } = useStudentsStore.getState()
+          if (user?.id) fetchStudents(user.id)
+        }
+      } else {
+        setCheckMsg(`Asaas: ${data?.asaasStatus ?? '—'} — nenhuma alteração necessária`)
+      }
+    } catch (err) {
+      setCheckMsg(err instanceof Error ? err.message : 'Erro ao consultar')
+    }
+    setCheckLoading2(false)
+  }
 
   async function handleCreateSubscription() {
     setSubLoading(true); setSubError(null); setPaymentUrl(null)
@@ -756,12 +782,29 @@ export default function PerfilAluno() {
                   )}
                 </div>
               ) : (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12, background: '#f0f9f3', border: '1px solid #b7e0c6', borderRadius: 12, padding: '14px 18px' }}>
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1B7a4a" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 12l3 3 5-6"/></svg>
-                  <div>
-                    <div style={{ font: `700 13.5px ${FF}`, color: '#1B7a4a' }}>Assinatura trimestral ativa</div>
-                    <div style={{ font: `400 12px ${FF}`, color: '#4a9a6a', marginTop: 2 }}>Renovação automática a cada 3 meses via Asaas</div>
+                <div style={{ background: '#f0f9f3', border: '1px solid #b7e0c6', borderRadius: 12, padding: '14px 18px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1B7a4a" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 12l3 3 5-6"/></svg>
+                      <div>
+                        <div style={{ font: `700 13.5px ${FF}`, color: '#1B7a4a' }}>Assinatura trimestral ativa</div>
+                        <div style={{ font: `400 12px ${FF}`, color: '#4a9a6a', marginTop: 2 }}>Renovação automática a cada 3 meses via Asaas</div>
+                      </div>
+                    </div>
+                    <button
+                      type="button" onClick={handleCheckPayment} disabled={checkLoading2}
+                      style={{ flexShrink: 0, height: 36, padding: '0 14px', border: '1px solid #b7e0c6', background: '#fff', color: '#1B7a4a', borderRadius: 9, font: `600 12.5px ${FF}`, cursor: checkLoading2 ? 'default' : 'pointer', opacity: checkLoading2 ? .7 : 1, display: 'flex', alignItems: 'center', gap: 6 }}
+                    >
+                      {checkLoading2
+                        ? <><span style={{ width: 13, height: 13, border: '2px solid rgba(27,122,74,.3)', borderTopColor: '#1B7a4a', borderRadius: '50%', display: 'inline-block', animation: 'kspin .7s linear infinite' }} /></>
+                        : <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+                      }
+                      Verificar pagamento
+                    </button>
                   </div>
+                  {checkMsg && (
+                    <div style={{ marginTop: 10, font: `400 12px ${FF}`, color: '#4a9a6a' }}>{checkMsg}</div>
+                  )}
                 </div>
               )}
 
