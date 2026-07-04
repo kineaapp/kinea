@@ -42,6 +42,7 @@ export default function Register() {
   const [view,         setView]         = useState<View>('form')
   const [name,         setName]         = useState('')
   const [email,        setEmail]        = useState('')
+  const [cpf,          setCpf]          = useState('')
   const [password,     setPassword]     = useState('')
   const [confirm,      setConfirm]      = useState('')
   const [showPass,     setShowPass]     = useState(false)
@@ -50,6 +51,27 @@ export default function Register() {
   const pendingEmail = useRef('')
 
   const validEmail = (v: string) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v)
+
+  function formatCpf(v: string): string {
+    const d = v.replace(/\D/g, '').slice(0, 11)
+    if (d.length <= 3) return d
+    if (d.length <= 6) return `${d.slice(0,3)}.${d.slice(3)}`
+    if (d.length <= 9) return `${d.slice(0,3)}.${d.slice(3,6)}.${d.slice(6)}`
+    return `${d.slice(0,3)}.${d.slice(3,6)}.${d.slice(6,9)}-${d.slice(9)}`
+  }
+
+  function validCpf(v: string): boolean {
+    const d = v.replace(/\D/g, '')
+    if (d.length !== 11 || /^(\d)\1{10}$/.test(d)) return false
+    let s = 0
+    for (let i = 0; i < 9; i++) s += parseInt(d[i]) * (10 - i)
+    let c = (s * 10) % 11; if (c >= 10) c = 0
+    if (c !== parseInt(d[9])) return false
+    s = 0
+    for (let i = 0; i < 10; i++) s += parseInt(d[i]) * (11 - i)
+    c = (s * 10) % 11; if (c >= 10) c = 0
+    return c === parseInt(d[10])
+  }
 
   // If a session already exists (user clicked confirmation link), create profile and redirect
   useEffect(() => {
@@ -70,6 +92,7 @@ export default function Register() {
 
     if (!n)                        return setError('Informe seu nome completo.')
     if (!em || !validEmail(em))    return setError('Digite um e-mail válido.')
+    if (!validCpf(cpf))            return setError('CPF inválido. Verifique e tente novamente.')
     if (password.length < 6)       return setError('A senha deve ter no mínimo 6 caracteres.')
     if (password !== confirm)      return setError('As senhas não coincidem.')
 
@@ -110,6 +133,7 @@ export default function Register() {
           name:       n,
           email:      em,
           plan:       'Sem plano',
+          cpf:        cpf.replace(/\D/g, ''),
         })
       }
 
@@ -208,6 +232,15 @@ export default function Register() {
                   <input
                     type="email" autoComplete="email" placeholder="voce@email.com"
                     value={email} onChange={e => { setEmail(e.target.value); setError('') }}
+                    className="k-input" style={inputStyle}
+                  />
+                </div>
+
+                <div style={{ marginBottom: 15 }}>
+                  <label style={labelStyle}>CPF</label>
+                  <input
+                    type="text" autoComplete="off" inputMode="numeric" placeholder="000.000.000-00"
+                    value={cpf} onChange={e => { setCpf(formatCpf(e.target.value)); setError('') }}
                     className="k-input" style={inputStyle}
                   />
                 </div>

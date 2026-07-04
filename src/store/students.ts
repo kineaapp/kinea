@@ -10,23 +10,26 @@ interface StudentsStore {
   students: Student[]
   loading:  boolean
   fetchError: string | null
-  fetchStudents:  (coachId: string) => Promise<void>
-  addStudent:     (data: NewStudentData, coachId: string) => Promise<void>
-  deleteStudent:  (id: number) => Promise<void>
-  updatePlan:     (id: number, plan: string) => Promise<void>
+  fetchStudents:      (coachId: string) => Promise<void>
+  addStudent:         (data: NewStudentData, coachId: string) => Promise<void>
+  deleteStudent:      (id: number) => Promise<void>
+  updatePlan:         (id: number, plan: string) => Promise<void>
+  setStudentAsaasSubId: (id: number, subId: string) => void
 }
 
 type Row = {
-  id:              number
-  student_id:      string | null
-  name:            string
-  email:           string
-  goal:            string
-  plan:            string
-  pay_status:      PayStatus
-  engagement:      SemColor
-  next_assessment: string | null
-  since:           string
+  id:                    number
+  student_id:            string | null
+  name:                  string
+  email:                 string
+  goal:                  string
+  plan:                  string
+  pay_status:            PayStatus
+  engagement:            SemColor
+  next_assessment:       string | null
+  since:                 string
+  cpf:                   string | null
+  asaas_subscription_id: string | null
 }
 
 function formatSince(dateStr: string): string {
@@ -46,6 +49,8 @@ function mapRow(r: Row): Student {
     sem:         r.engagement,
     next:        r.next_assessment ?? '—',
     since:       formatSince(r.since),
+    cpf:         r.cpf ?? null,
+    asaasSubId:  r.asaas_subscription_id ?? null,
   }
 }
 
@@ -76,6 +81,10 @@ export const useStudentsStore = create<StudentsStore>((set) => ({
     const { error } = await supabase.from('students').update({ plan, pay_status }).eq('id', id)
     if (!error) set(s => ({ students: s.students.map(st => st.id === id ? { ...st, plan, pay: pay_status as PayStatus } : st) }))
   },
+
+  setStudentAsaasSubId: (id, subId) => set(s => ({
+    students: s.students.map(st => st.id === id ? { ...st, asaasSubId: subId } : st),
+  })),
 
   addStudent: async (data, coachId) => {
     const today = new Date().toISOString().split('T')[0]

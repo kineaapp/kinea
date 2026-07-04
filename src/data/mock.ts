@@ -12,6 +12,8 @@ export interface Student {
   next:        string
   email:       string
   since:       string
+  cpf:         string | null
+  asaasSubId:  string | null
 }
 
 export const ROSTER: Student[] = []
