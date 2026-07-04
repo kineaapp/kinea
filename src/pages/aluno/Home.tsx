@@ -1,15 +1,72 @@
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { MessageCircle } from 'lucide-react'
 import { useAuthStore } from '../../store/auth'
+import { supabase } from '../../lib/supabase'
 
 const FF = '"Libre Franklin",sans-serif'
 
+function formatCpf(v: string): string {
+  const d = v.replace(/\D/g, '').slice(0, 11)
+  if (d.length <= 3) return d
+  if (d.length <= 6) return `${d.slice(0,3)}.${d.slice(3)}`
+  if (d.length <= 9) return `${d.slice(0,3)}.${d.slice(3,6)}.${d.slice(6)}`
+  return `${d.slice(0,3)}.${d.slice(3,6)}.${d.slice(6,9)}-${d.slice(9)}`
+}
+
 export default function Home() {
-  const navigate = useNavigate()
-  const { user } = useAuthStore()
+  const navigate        = useNavigate()
+  const { user, updateUser } = useAuthStore()
 
   const firstName = user?.name?.split(' ')[0] ?? 'Aluno'
   const dateStr   = new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })
+
+  const [editOpen,    setEditOpen]    = useState(false)
+  const [editName,    setEditName]    = useState('')
+  const [editCpf,     setEditCpf]     = useState('')
+  const [editLoading, setEditLoading] = useState(false)
+  const [editSaving,  setEditSaving]  = useState(false)
+  const [editError,   setEditError]   = useState('')
+  const [saved,       setSaved]       = useState(false)
+
+  async function openEdit() {
+    setEditName(user?.name ?? '')
+    setEditError('')
+    setSaved(false)
+    setEditLoading(true)
+    setEditOpen(true)
+    const { data } = await supabase
+      .from('students')
+      .select('cpf')
+      .eq('student_id', user?.id)
+      .single()
+    setEditCpf(data?.cpf ? formatCpf(data.cpf) : '')
+    setEditLoading(false)
+  }
+
+  async function handleSave() {
+    const name = editName.trim()
+    const cpf  = editCpf.replace(/\D/g, '')
+    if (!name) { setEditError('Informe seu nome.'); return }
+    if (cpf && cpf.length !== 11) { setEditError('CPF incompleto.'); return }
+
+    setEditSaving(true); setEditError('')
+    try {
+      await Promise.all([
+        supabase.from('profiles').update({ name }).eq('id', user?.id),
+        supabase.from('students').update({ name, ...(cpf ? { cpf } : {}) }).eq('student_id', user?.id),
+      ])
+      updateUser({
+        name,
+        initials: name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase(),
+      })
+      setSaved(true)
+      setTimeout(() => { setEditOpen(false); setSaved(false) }, 1200)
+    } catch {
+      setEditError('Não foi possível salvar. Tente novamente.')
+    }
+    setEditSaving(false)
+  }
 
   return (
     <div style={{ background: '#F4EFE3', minHeight: '100%' }}>
@@ -33,14 +90,86 @@ export default function Home() {
               Bem-vindo ao seu espaço de treino.
             </div>
           </div>
-          <button
-            onClick={() => navigate('/aluno/chat')}
-            style={{ width: 40, height: 40, borderRadius: '50%', background: 'rgba(255,255,255,.1)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
-          >
-            <MessageCircle size={20} color="#FAEEDA" strokeWidth={2} />
-          </button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              onClick={openEdit}
+              title="Editar meus dados"
+              style={{ width: 40, height: 40, borderRadius: '50%', background: 'rgba(255,255,255,.1)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
+            >
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#FAEEDA" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+              </svg>
+            </button>
+            <button
+              onClick={() => navigate('/aluno/chat')}
+              style={{ width: 40, height: 40, borderRadius: '50%', background: 'rgba(255,255,255,.1)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
+            >
+              <MessageCircle size={20} color="#FAEEDA" strokeWidth={2} />
+            </button>
+          </div>
         </div>
       </div>
+
+      {/* Edit profile drawer */}
+      {editOpen && (
+        <div onClick={() => { if (!editSaving) setEditOpen(false) }} style={{ position: 'fixed', inset: 0, background: 'rgba(20,25,40,.5)', zIndex: 60, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+          <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 480, background: '#fff', borderRadius: '20px 20px 0 0', padding: '24px 22px 36px', boxShadow: '0 -12px 40px rgba(0,0,0,.2)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+              <h2 style={{ font: `800 17px ${FF}`, color: '#1B2A4A', margin: 0 }}>Meus dados</h2>
+              <button onClick={() => setEditOpen(false)} disabled={editSaving} style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#9a948a', padding: 4, display: 'flex' }}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
+              </button>
+            </div>
+
+            {editLoading ? (
+              <div style={{ textAlign: 'center', padding: '24px 0', font: `400 14px ${FF}`, color: '#9a948a' }}>Carregando...</div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <div>
+                  <label style={{ display: 'block', font: `600 11px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#6b6657', marginBottom: 7 }}>Nome completo</label>
+                  <input
+                    type="text" value={editName} onChange={e => { setEditName(e.target.value); setEditError('') }}
+                    disabled={editSaving}
+                    style={{ width: '100%', height: 46, border: '1.5px solid #d9d3c4', borderRadius: 10, background: '#fff', padding: '0 13px', font: `400 14px ${FF}`, color: '#1B2A4A', outline: 'none', boxSizing: 'border-box' }}
+                    onFocus={e => { e.currentTarget.style.borderColor = '#E8542A' }}
+                    onBlur={e =>  { e.currentTarget.style.borderColor = '#d9d3c4' }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', font: `600 11px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#6b6657', marginBottom: 7 }}>CPF</label>
+                  <input
+                    type="text" inputMode="numeric" placeholder="000.000.000-00"
+                    value={editCpf} onChange={e => { setEditCpf(formatCpf(e.target.value)); setEditError('') }}
+                    disabled={editSaving}
+                    style={{ width: '100%', height: 46, border: '1.5px solid #d9d3c4', borderRadius: 10, background: '#fff', padding: '0 13px', font: `400 14px ${FF}`, color: '#1B2A4A', outline: 'none', boxSizing: 'border-box' }}
+                    onFocus={e => { e.currentTarget.style.borderColor = '#E8542A' }}
+                    onBlur={e =>  { e.currentTarget.style.borderColor = '#d9d3c4' }}
+                  />
+                </div>
+
+                {editError && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#fdeee9', border: '1px solid #f6cdbf', borderRadius: 9, padding: '9px 12px' }}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#E8542A" strokeWidth="2.2" strokeLinecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v6"/><path d="M12 16.5v.5"/></svg>
+                    <span style={{ font: `500 13px ${FF}`, color: '#c4421e' }}>{editError}</span>
+                  </div>
+                )}
+
+                <button
+                  type="button" onClick={handleSave} disabled={editSaving || saved}
+                  style={{ width: '100%', height: 48, border: 'none', borderRadius: 11, background: saved ? '#1B7a4a' : '#E8542A', color: '#fff', font: `700 14.5px ${FF}`, cursor: editSaving ? 'default' : 'pointer', opacity: editSaving ? .75 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, transition: 'background .2s', marginTop: 4 }}>
+                  {saved
+                    ? <><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5"/></svg> Salvo!</>
+                    : editSaving
+                      ? <><span style={{ width: 16, height: 16, border: '2px solid rgba(255,255,255,.4)', borderTopColor: '#fff', borderRadius: '50%', display: 'inline-block', animation: 'kspin .7s linear infinite' }} /> Salvando...</>
+                      : 'Salvar'
+                  }
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Treino de Hoje */}
       <div style={{ padding: '18px 18px 0' }}>

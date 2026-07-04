@@ -95,12 +95,17 @@ export default function PerfilAluno() {
   const toastRef  = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
   // ── Auth / student ────────────────────────────────────────
-  const { students, fetchStudents, deleteStudent, updatePlan, setStudentAsaasSubId } = useStudentsStore()
+  const { students, fetchStudents, deleteStudent, updatePlan, setStudentAsaasSubId, updateStudentInfo } = useStudentsStore()
   const { user }  = useAuthStore()
   const studentId = parseInt(id ?? '0', 10)
   const [confirmDelete, setConfirmDelete] = useState(false)
-  const [showPlanPicker, setShowPlanPicker] = useState(false)
-  const [savingPlan, setSavingPlan]         = useState(false)
+  const [showPlanPicker, setShowPlanPicker]   = useState(false)
+  const [savingPlan,    setSavingPlan]        = useState(false)
+  const [showEditModal, setShowEditModal]     = useState(false)
+  const [editName,      setEditName]          = useState('')
+  const [editEmail,     setEditEmail]         = useState('')
+  const [editGoal,      setEditGoal]          = useState('')
+  const [editSaving,    setEditSaving]        = useState(false)
   const [subLoading,  setSubLoading]        = useState(false)
   const [subError,    setSubError]          = useState<string | null>(null)
   const [paymentUrl,  setPaymentUrl]        = useState<string | null>(null)
@@ -222,6 +227,25 @@ export default function PerfilAluno() {
     setUrlCopied(true); setTimeout(() => setUrlCopied(false), 1800)
   }
 
+  function openEditModal() {
+    setEditName(student?.name ?? '')
+    setEditEmail(student?.email ?? '')
+    setEditGoal(student?.goal ?? '')
+    setShowEditModal(true)
+  }
+
+  async function handleSaveStudentInfo() {
+    const name  = editName.trim()
+    const email = editEmail.trim().toLowerCase()
+    const goal  = editGoal.trim()
+    if (!name || !email || !goal) return
+    setEditSaving(true)
+    await updateStudentInfo(studentId, { name, email, goal })
+    setEditSaving(false)
+    setShowEditModal(false)
+    showToast('Dados atualizados.')
+  }
+
   async function handleSavePlan(plan: string) {
     setSavingPlan(true)
     await updatePlan(studentId, plan)
@@ -286,6 +310,51 @@ export default function PerfilAluno() {
         </div>
       )}
 
+      {/* ── Edit student modal ───────────────────────────── */}
+      {showEditModal && (
+        <div onClick={() => setShowEditModal(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(20,25,40,.5)', zIndex: 80, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 16, padding: '28px 28px 24px', width: '100%', maxWidth: 400, boxShadow: '0 24px 60px rgba(0,0,0,.3)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 22 }}>
+              <h2 style={{ font: `800 18px ${FF}`, color: '#1B2A4A', margin: 0, letterSpacing: '-.4px' }}>Editar dados do aluno</h2>
+              <button onClick={() => setShowEditModal(false)} style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#9a948a', padding: 4, display: 'flex' }}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
+              </button>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {[
+                { label: 'Nome completo', value: editName, set: setEditName, type: 'text' },
+                { label: 'E-mail',        value: editEmail, set: setEditEmail, type: 'email' },
+                { label: 'Objetivo',      value: editGoal,  set: setEditGoal,  type: 'text' },
+              ].map(({ label, value, set, type }) => (
+                <div key={label}>
+                  <label style={{ display: 'block', font: `600 11px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#6b6657', marginBottom: 7 }}>{label}</label>
+                  <input
+                    type={type} value={value} onChange={e => set(e.target.value)}
+                    disabled={editSaving}
+                    style={{ width: '100%', height: 44, border: '1.5px solid #d9d3c4', borderRadius: 10, background: '#fff', padding: '0 13px', font: `400 14px ${FF}`, color: '#1B2A4A', outline: 'none', boxSizing: 'border-box' }}
+                    onFocus={e => { e.currentTarget.style.borderColor = '#E8542A'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(232,84,42,.12)' }}
+                    onBlur={e =>  { e.currentTarget.style.borderColor = '#d9d3c4'; e.currentTarget.style.boxShadow = 'none' }}
+                  />
+                </div>
+              ))}
+            </div>
+            <div style={{ display: 'flex', gap: 8, marginTop: 22 }}>
+              <button type="button" onClick={() => setShowEditModal(false)} disabled={editSaving}
+                style={{ flex: 1, height: 46, border: '1.5px solid #d9d3c4', background: '#fff', color: '#1B2A4A', borderRadius: 10, font: `600 14px ${FF}`, cursor: 'pointer' }}>
+                Cancelar
+              </button>
+              <button type="button" onClick={handleSaveStudentInfo} disabled={editSaving || !editName.trim() || !editEmail.trim() || !editGoal.trim()}
+                style={{ flex: 2, height: 46, border: 'none', background: '#E8542A', color: '#fff', borderRadius: 10, font: `700 14px ${FF}`, cursor: editSaving ? 'default' : 'pointer', opacity: editSaving ? .7 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                {editSaving
+                  ? <><span style={{ width: 15, height: 15, border: '2px solid rgba(255,255,255,.4)', borderTopColor: '#fff', borderRadius: '50%', display: 'inline-block', animation: 'kspin .7s linear infinite' }} /> Salvando...</>
+                  : 'Salvar alterações'
+                }
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── Page ─────────────────────────────────────────── */}
       <div className="k-pagepad" style={{ padding: '30px 34px 64px', maxWidth: 1180 }}>
 
@@ -321,6 +390,10 @@ export default function PerfilAluno() {
             <div style={{ flex: 1, minWidth: 200 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                 <h1 style={{ font: `800 25px ${FF}`, color: '#fff', margin: 0, letterSpacing: '-.5px' }}>{student.name}</h1>
+                  <button type="button" onClick={openEditModal} title="Editar dados do aluno"
+                    style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 30, height: 30, border: '1px solid rgba(255,255,255,.2)', background: 'rgba(255,255,255,.08)', borderRadius: 8, cursor: 'pointer', color: '#aeb9cc', flexShrink: 0 }}>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                  </button>
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, font: `600 11px ${FF}`, color: sem.label === 'Engajado' ? '#bfe6cd' : sem.label === 'Em alerta' ? '#f5dcae' : '#f5c8c0', background: sem.label === 'Engajado' ? 'rgba(43,157,95,.22)' : sem.label === 'Em alerta' ? 'rgba(224,169,59,.22)' : 'rgba(224,83,59,.22)', borderRadius: 20, padding: '4px 11px' }}>
                   <span style={{ width: 8, height: 8, borderRadius: '50%', background: sem.color }} />{sem.label}
                 </span>

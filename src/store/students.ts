@@ -14,7 +14,8 @@ interface StudentsStore {
   addStudent:         (data: NewStudentData, coachId: string) => Promise<void>
   deleteStudent:      (id: number) => Promise<void>
   updatePlan:         (id: number, plan: string) => Promise<void>
-  setStudentAsaasSubId: (id: number, subId: string) => void
+  setStudentAsaasSubId:  (id: number, subId: string) => void
+  updateStudentInfo:     (id: number, info: { name?: string; email?: string; goal?: string }) => Promise<void>
 }
 
 type Row = {
@@ -85,6 +86,11 @@ export const useStudentsStore = create<StudentsStore>((set) => ({
   setStudentAsaasSubId: (id, subId) => set(s => ({
     students: s.students.map(st => st.id === id ? { ...st, asaasSubId: subId } : st),
   })),
+
+  updateStudentInfo: async (id, info) => {
+    const { error } = await supabase.from('students').update(info).eq('id', id)
+    if (!error) set(s => ({ students: s.students.map(st => st.id === id ? { ...st, ...info } : st) }))
+  },
 
   addStudent: async (data, coachId) => {
     const today = new Date().toISOString().split('T')[0]
