@@ -95,7 +95,7 @@ export default function PerfilAluno() {
   const toastRef  = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
   // ── Auth / student ────────────────────────────────────────
-  const { students, fetchStudents, deleteStudent, updatePlan, setStudentAsaasSubId, updateStudentInfo } = useStudentsStore()
+  const { students, fetchStudents, deleteStudent, updatePlan, setStudentAsaasSubId, updateStudentInfo, blockStudent } = useStudentsStore()
   const { user }  = useAuthStore()
   const studentId = parseInt(id ?? '0', 10)
   const [confirmDelete, setConfirmDelete] = useState(false)
@@ -112,6 +112,7 @@ export default function PerfilAluno() {
   const [urlCopied,     setUrlCopied]       = useState(false)
   const [checkLoading2, setCheckLoading2]   = useState(false)
   const [checkMsg,      setCheckMsg]        = useState<string | null>(null)
+  const [blockLoading,  setBlockLoading]    = useState(false)
 
   useEffect(() => {
     if (students.length === 0 && user?.id) fetchStudents(user.id)
@@ -726,9 +727,26 @@ export default function PerfilAluno() {
                     {student.plan === 'Sem plano' ? 'Sem plano definido' : student.plan}
                   </div>
                 </div>
-                <div style={{ flex: 1, minWidth: 150, background: '#fff', border: '1px solid #ece7d9', borderRadius: 14, padding: '18px 20px' }}>
+                <div style={{ flex: 1, minWidth: 150, background: '#fff', border: `1px solid ${student.blocked ? '#f6cdbf' : '#ece7d9'}`, borderRadius: 14, padding: '18px 20px' }}>
                   <div style={{ font: `500 12px ${FF}`, color: '#9a948a' }}>Status</div>
                   <div style={{ display: 'inline-flex', alignItems: 'center', font: `700 14px ${FF}`, color: pay.color, background: pay.bg, borderRadius: 20, padding: '4px 12px', marginTop: 7 }}>{pay.label}</div>
+                  {(student.pay === 'overdue' || student.blocked) && (
+                    <div style={{ marginTop: 12 }}>
+                      <button
+                        type="button"
+                        disabled={blockLoading}
+                        onClick={async () => {
+                          setBlockLoading(true)
+                          await blockStudent(studentId, !student.blocked)
+                          setBlockLoading(false)
+                          showToast(student.blocked ? 'Acesso restaurado.' : 'Aluno bloqueado.')
+                        }}
+                        style={{ height: 32, padding: '0 14px', border: 'none', borderRadius: 8, font: `700 12px ${FF}`, cursor: blockLoading ? 'default' : 'pointer', opacity: blockLoading ? .6 : 1, background: student.blocked ? '#e7f3ea' : '#fbe6e1', color: student.blocked ? '#1B7a4a' : '#c4421e' }}
+                      >
+                        {blockLoading ? '...' : student.blocked ? 'Desbloquear' : 'Bloquear'}
+                      </button>
+                    </div>
+                  )}
                 </div>
                 <div style={{ flex: 1, minWidth: 150, background: '#fff', border: '1px solid #ece7d9', borderRadius: 14, padding: '18px 20px' }}>
                   <div style={{ font: `500 12px ${FF}`, color: '#9a948a' }}>Total pago</div>

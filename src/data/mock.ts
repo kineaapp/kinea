@@ -14,6 +14,7 @@ export interface Student {
   since:       string
   cpf:         string | null
   asaasSubId:  string | null
+  blocked:     boolean
 }
 
 export const ROSTER: Student[] = []
