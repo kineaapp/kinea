@@ -16,6 +16,7 @@ interface StudentsStore {
   updatePlan:         (id: number, plan: string) => Promise<void>
   updateStudentInfo:     (id: number, info: { name?: string; email?: string; goal?: string }) => Promise<void>
   blockStudent:          (id: number, blocked: boolean) => Promise<void>
+  setStudentStripeSubId: (id: number, subId: string) => void
 }
 
 type Row = {
@@ -30,6 +31,7 @@ type Row = {
   next_assessment:       string | null
   since:                 string
   cpf:                   string | null
+  stripe_subscription_id: string | null
   blocked:               boolean
 }
 
@@ -51,6 +53,7 @@ function mapRow(r: Row): Student {
     next:        r.next_assessment ?? '—',
     since:       formatSince(r.since),
     cpf:         r.cpf ?? null,
+    stripeSubId: r.stripe_subscription_id ?? null,
     blocked:     r.blocked ?? false,
   }
 }
@@ -87,6 +90,10 @@ export const useStudentsStore = create<StudentsStore>((set) => ({
     const { error } = await supabase.from('students').update(info).eq('id', id)
     if (!error) set(s => ({ students: s.students.map(st => st.id === id ? { ...st, ...info } : st) }))
   },
+
+  setStudentStripeSubId: (id, subId) => set(s => ({
+    students: s.students.map(st => st.id === id ? { ...st, stripeSubId: subId } : st),
+  })),
 
   blockStudent: async (id, blocked) => {
     const { error } = await supabase.from('students').update({ blocked }).eq('id', id)

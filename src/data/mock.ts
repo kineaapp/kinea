@@ -13,6 +13,7 @@ export interface Student {
   email:       string
   since:       string
   cpf:         string | null
+  stripeSubId: string | null
   blocked:     boolean
 }
 
