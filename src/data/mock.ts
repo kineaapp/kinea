@@ -13,7 +13,6 @@ export interface Student {
   email:       string
   since:       string
   cpf:         string | null
-  asaasSubId:  string | null
   blocked:     boolean
 }
 

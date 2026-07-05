@@ -14,7 +14,6 @@ interface StudentsStore {
   addStudent:         (data: NewStudentData, coachId: string) => Promise<void>
   deleteStudent:      (id: number) => Promise<void>
   updatePlan:         (id: number, plan: string) => Promise<void>
-  setStudentAsaasSubId:  (id: number, subId: string) => void
   updateStudentInfo:     (id: number, info: { name?: string; email?: string; goal?: string }) => Promise<void>
   blockStudent:          (id: number, blocked: boolean) => Promise<void>
 }
@@ -31,7 +30,6 @@ type Row = {
   next_assessment:       string | null
   since:                 string
   cpf:                   string | null
-  asaas_subscription_id: string | null
   blocked:               boolean
 }
 
@@ -53,7 +51,6 @@ function mapRow(r: Row): Student {
     next:        r.next_assessment ?? '—',
     since:       formatSince(r.since),
     cpf:         r.cpf ?? null,
-    asaasSubId:  r.asaas_subscription_id ?? null,
     blocked:     r.blocked ?? false,
   }
 }
@@ -85,10 +82,6 @@ export const useStudentsStore = create<StudentsStore>((set) => ({
     const { error } = await supabase.from('students').update({ plan, pay_status }).eq('id', id)
     if (!error) set(s => ({ students: s.students.map(st => st.id === id ? { ...st, plan, pay: pay_status as PayStatus } : st) }))
   },
-
-  setStudentAsaasSubId: (id, subId) => set(s => ({
-    students: s.students.map(st => st.id === id ? { ...st, asaasSubId: subId } : st),
-  })),
 
   updateStudentInfo: async (id, info) => {
     const { error } = await supabase.from('students').update(info).eq('id', id)

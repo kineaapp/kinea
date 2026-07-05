@@ -95,7 +95,7 @@ export default function PerfilAluno() {
   const toastRef  = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
   // ── Auth / student ────────────────────────────────────────
-  const { students, fetchStudents, deleteStudent, updatePlan, setStudentAsaasSubId, updateStudentInfo, blockStudent } = useStudentsStore()
+  const { students, fetchStudents, deleteStudent, updatePlan, updateStudentInfo, blockStudent } = useStudentsStore()
   const { user }  = useAuthStore()
   const studentId = parseInt(id ?? '0', 10)
   const [confirmDelete, setConfirmDelete] = useState(false)
@@ -106,12 +106,6 @@ export default function PerfilAluno() {
   const [editEmail,     setEditEmail]         = useState('')
   const [editGoal,      setEditGoal]          = useState('')
   const [editSaving,    setEditSaving]        = useState(false)
-  const [subLoading,    setSubLoading]      = useState(false)
-  const [subError,      setSubError]        = useState<string | null>(null)
-  const [paymentUrl,    setPaymentUrl]      = useState<string | null>(null)
-  const [urlCopied,     setUrlCopied]       = useState(false)
-  const [checkLoading2, setCheckLoading2]   = useState(false)
-  const [checkMsg,      setCheckMsg]        = useState<string | null>(null)
   const [blockLoading,  setBlockLoading]    = useState(false)
 
   useEffect(() => {
@@ -207,52 +201,6 @@ export default function PerfilAluno() {
   const gorduraAtual = lastAssess?.body_fat_pct != null ? `${lastAssess.body_fat_pct.toFixed(1)}%`  : null
 
   const PLANS = ['Mensal', 'Trimestral', 'Semestral', 'Permuta']
-
-  async function handleCheckPayment() {
-    setCheckLoading2(true); setCheckMsg(null)
-    try {
-      const { data, error } = await supabase.functions.invoke('check-payment-status', {
-        body: { studentId },
-      })
-      if (error) throw new Error(error.message)
-      if (data?.error) throw new Error(data.error)
-      if (data?.updated) {
-        showToast('Status atualizado: ' + (data.payStatus === 'active' ? 'Em dia ✓' : data.payStatus))
-        if (student) {
-          // atualiza local store
-          const { fetchStudents } = useStudentsStore.getState()
-          if (user?.id) fetchStudents(user.id)
-        }
-      } else {
-        setCheckMsg(`Asaas: ${data?.asaasStatus ?? '—'} — nenhuma alteração necessária`)
-      }
-    } catch (err) {
-      setCheckMsg(err instanceof Error ? err.message : 'Erro ao consultar')
-    }
-    setCheckLoading2(false)
-  }
-
-  async function handleCreateSubscription() {
-    setSubLoading(true); setSubError(null); setPaymentUrl(null)
-    try {
-      const { data, error } = await supabase.functions.invoke('create-subscription', {
-        body: { studentId },
-      })
-      if (error) throw new Error(error.message)
-      if (data?.error) throw new Error(data.error)
-      if (data?.paymentUrl) setPaymentUrl(data.paymentUrl)
-      if (data?.subscriptionId) setStudentAsaasSubId(studentId, data.subscriptionId)
-    } catch (err) {
-      setSubError(err instanceof Error ? err.message : 'Erro ao criar assinatura')
-    }
-    setSubLoading(false)
-  }
-
-  function copyPaymentUrl() {
-    if (!paymentUrl) return
-    try { navigator.clipboard.writeText(paymentUrl) } catch {}
-    setUrlCopied(true); setTimeout(() => setUrlCopied(false), 1800)
-  }
 
   function openEditModal() {
     setEditName(student?.name ?? '')
@@ -756,76 +704,6 @@ export default function PerfilAluno() {
                   <div style={{ font: `400 12px ${FF}`, color: '#9a948a', marginTop: 3 }}>{payments.filter(p => p.status === 'active').length} fatura{payments.filter(p => p.status === 'active').length !== 1 ? 's' : ''}</div>
                 </div>
               </div>
-              {/* ── Assinatura Asaas ──────────────────────── */}
-              {!student.asaasSubId ? (
-                <div style={{ background: '#fff', border: '2px dashed #d9d3c4', borderRadius: 14, padding: '22px 24px' }}>
-                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
-                    <div>
-                      <div style={{ font: `700 15px ${FF}`, color: '#1B2A4A', marginBottom: 4 }}>Cobrança automática via Asaas</div>
-                      <div style={{ font: `400 13px ${FF}`, color: '#7c7869', maxWidth: 420 }}>
-                        Gera <strong>3 cobranças mensais de R$ 247</strong> (total R$ 741). O aluno recebe o link e escolhe Pix, boleto ou cartão em cada parcela.
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={handleCreateSubscription}
-                      disabled={subLoading}
-                      style={{ flexShrink: 0, height: 44, padding: '0 20px', border: 'none', background: '#1B2A4A', color: '#fff', borderRadius: 10, font: `700 13.5px ${FF}`, cursor: subLoading ? 'default' : 'pointer', opacity: subLoading ? .7 : 1, display: 'flex', alignItems: 'center', gap: 8 }}
-                    >
-                      {subLoading
-                        ? <><span style={{ width: 15, height: 15, border: '2px solid rgba(255,255,255,.4)', borderTopColor: '#fff', borderRadius: '50%', display: 'inline-block', animation: 'kspin .7s linear infinite' }} /> Gerando...</>
-                        : '⚡ Ativar assinatura'
-                      }
-                    </button>
-                  </div>
-
-                  {subError && (
-                    <div style={{ marginTop: 14, display: 'flex', alignItems: 'center', gap: 8, background: '#fdeee9', border: '1px solid #f6cdbf', borderRadius: 9, padding: '10px 13px' }}>
-                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#E8542A" strokeWidth="2.2" strokeLinecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v6"/><path d="M12 16.5v.5"/></svg>
-                      <span style={{ font: `500 13px ${FF}`, color: '#c4421e' }}>{subError}</span>
-                    </div>
-                  )}
-
-                  {paymentUrl && (
-                    <div style={{ marginTop: 16, background: '#f0f9f3', border: '1px solid #b7e0c6', borderRadius: 11, padding: '14px 16px' }}>
-                      <div style={{ font: `600 11px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#1B7a4a', marginBottom: 8 }}>Link de pagamento gerado</div>
-                      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                        <div style={{ flex: 1, minWidth: 0, height: 42, border: '1px solid #c2e0ce', borderRadius: 9, background: '#fff', display: 'flex', alignItems: 'center', padding: '0 13px', font: `500 12px ${FF}`, color: '#1B2A4A', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{paymentUrl}</div>
-                        <button type="button" onClick={copyPaymentUrl} style={{ flexShrink: 0, height: 42, padding: '0 16px', border: 'none', borderRadius: 9, background: urlCopied ? '#1B7a4a' : '#1B2A4A', color: '#fff', font: `700 13px ${FF}`, cursor: 'pointer', transition: 'background .2s' }}>
-                          {urlCopied ? '✓ Copiado' : 'Copiar'}
-                        </button>
-                      </div>
-                      <div style={{ font: `400 12px ${FF}`, color: '#4a9a6a', marginTop: 8 }}>Envie este link ao aluno pelo WhatsApp ou e-mail. Ele escolhe o método de pagamento na hora.</div>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div style={{ background: '#f0f9f3', border: '1px solid #b7e0c6', borderRadius: 12, padding: '14px 18px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1B7a4a" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 12l3 3 5-6"/></svg>
-                      <div>
-                        <div style={{ font: `700 13.5px ${FF}`, color: '#1B7a4a' }}>Cobrança mensal ativa (3x R$ 247)</div>
-                        <div style={{ font: `400 12px ${FF}`, color: '#4a9a6a', marginTop: 2 }}>3 cobranças mensais · Pix, boleto ou cartão</div>
-                      </div>
-                    </div>
-                    <button
-                      type="button" onClick={handleCheckPayment} disabled={checkLoading2}
-                      style={{ flexShrink: 0, height: 36, padding: '0 14px', border: '1px solid #b7e0c6', background: '#fff', color: '#1B7a4a', borderRadius: 9, font: `600 12.5px ${FF}`, cursor: checkLoading2 ? 'default' : 'pointer', opacity: checkLoading2 ? .7 : 1, display: 'flex', alignItems: 'center', gap: 6 }}
-                    >
-                      {checkLoading2
-                        ? <><span style={{ width: 13, height: 13, border: '2px solid rgba(27,122,74,.3)', borderTopColor: '#1B7a4a', borderRadius: '50%', display: 'inline-block', animation: 'kspin .7s linear infinite' }} /></>
-                        : <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
-                      }
-                      Verificar pagamento
-                    </button>
-                  </div>
-                  {checkMsg && (
-                    <div style={{ marginTop: 10, font: `400 12px ${FF}`, color: '#4a9a6a' }}>{checkMsg}</div>
-                  )}
-                </div>
-              )}
-
               {payLoading ? (
                 <div style={{ font: `400 13px ${FF}`, color: '#9a948a', padding: '20px 0' }}>Carregando...</div>
               ) : payments.length === 0 ? (
