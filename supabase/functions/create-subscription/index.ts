@@ -63,7 +63,7 @@ Deno.serve(async (req) => {
       customerId = customer.id
     }
 
-    // Cria assinatura trimestral
+    // Cria assinatura mensal (3 cobranças = trimestral)
     const today = new Date().toISOString().split('T')[0]
     const subRes = await fetch(`${ASAAS_BASE}/subscriptions`, {
       method: 'POST',
@@ -71,10 +71,11 @@ Deno.serve(async (req) => {
       body: JSON.stringify({
         customer:    customerId,
         billingType: 'UNDEFINED', // aluno escolhe na hora: Pix, boleto ou cartão
-        value:       741,
+        value:       247,
         nextDueDate: today,
-        cycle:       'QUARTERLY',
-        description: 'Consultoria trimestral - Kinea',
+        cycle:       'MONTHLY',
+        maxPayments: 3,
+        description: 'Consultoria Kinea - 3x R$ 247,00',
       }),
     })
     const subscription = await subRes.json()

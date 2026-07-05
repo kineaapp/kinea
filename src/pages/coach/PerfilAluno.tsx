@@ -763,7 +763,7 @@ export default function PerfilAluno() {
                     <div>
                       <div style={{ font: `700 15px ${FF}`, color: '#1B2A4A', marginBottom: 4 }}>Cobrança automática via Asaas</div>
                       <div style={{ font: `400 13px ${FF}`, color: '#7c7869', maxWidth: 420 }}>
-                        Gera uma assinatura trimestral de <strong>R$ 741</strong>. O aluno recebe o link e escolhe Pix, boleto ou cartão na hora do pagamento. As renovações acontecem automaticamente.
+                        Gera <strong>3 cobranças mensais de R$ 247</strong> (total R$ 741). O aluno recebe o link e escolhe Pix, boleto ou cartão em cada parcela.
                       </div>
                     </div>
                     <button
@@ -805,8 +805,8 @@ export default function PerfilAluno() {
                     <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1B7a4a" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 12l3 3 5-6"/></svg>
                       <div>
-                        <div style={{ font: `700 13.5px ${FF}`, color: '#1B7a4a' }}>Assinatura trimestral ativa</div>
-                        <div style={{ font: `400 12px ${FF}`, color: '#4a9a6a', marginTop: 2 }}>Renovação automática a cada 3 meses via Asaas</div>
+                        <div style={{ font: `700 13.5px ${FF}`, color: '#1B7a4a' }}>Cobrança mensal ativa (3x R$ 247)</div>
+                        <div style={{ font: `400 12px ${FF}`, color: '#4a9a6a', marginTop: 2 }}>3 cobranças mensais · Pix, boleto ou cartão</div>
                       </div>
                     </div>
                     <button
