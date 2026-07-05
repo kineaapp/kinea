@@ -1,6 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
 
-const ASAAS_BASE = 'https://sandbox.asaas.com/api/v3'
+const ASAAS_BASE = 'https://api.asaas.com/api/v3'
 const ASAAS_KEY  = Deno.env.get('ASAAS_API_KEY') ?? ''
 
 const cors = {
