@@ -30,11 +30,18 @@ Deno.serve(async (req) => {
 
     if (dbErr || !student) throw new Error('Aluno não encontrado')
 
-    // Assinatura já ativa — não gera novo checkout
+    // Verifica se já existe assinatura ativa (ignora erros de ID inválido/ambiente diferente)
     if (student.stripe_subscription_id) {
-      const sub = await stripe.subscriptions.retrieve(student.stripe_subscription_id)
-      if (sub.status === 'active' || sub.status === 'trialing') {
-        throw new Error('Aluno já possui assinatura ativa')
+      try {
+        const sub = await stripe.subscriptions.retrieve(student.stripe_subscription_id)
+        if (sub.status === 'active' || sub.status === 'trialing') {
+          throw new Error('Aluno já possui assinatura ativa')
+        }
+      } catch (err) {
+        // Se o erro veio do throw acima, repropaga
+        if (err instanceof Error && err.message === 'Aluno já possui assinatura ativa') throw err
+        // Caso contrário (ID de outro ambiente, expirado etc.) — limpa e segue
+        await supabase.from('students').update({ stripe_subscription_id: null }).eq('id', studentId)
       }
     }
 
@@ -73,7 +80,7 @@ Deno.serve(async (req) => {
     const message = err instanceof Error ? err.message : 'Erro desconhecido'
     return new Response(
       JSON.stringify({ error: message }),
-      { status: 400, headers: { ...cors, 'Content-Type': 'application/json' } },
+      { status: 200, headers: { ...cors, 'Content-Type': 'application/json' } },
     )
   }
 })
