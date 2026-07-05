@@ -4,12 +4,6 @@ export type NotifCategory = 'mensagens' | 'pagamentos' | 'avaliacoes' | 'checkin
 
 const STORAGE_KEY = 'kinea-aluno-notif-prefs'
 
-const DEMO: Record<NotifCategory, { title: string; body: string; tag: string }> = {
-  mensagens:  { title: 'Mensagem do Coach', body: 'Ótimo treino hoje! Lembre de caprichar na contração do peitoral.', tag: 'kinea-msg' },
-  pagamentos: { title: 'Pagamento próximo', body: 'Sua mensalidade de R$ 180,00 vence em 3 dias.', tag: 'kinea-pay' },
-  avaliacoes: { title: 'Avaliação pendente', body: 'Você está há 32 dias sem avaliação física. Agende com seu coach!', tag: 'kinea-aval' },
-  checkins:   { title: 'Check-in semanal', body: 'Não esqueça de enviar seu check-in desta semana para o coach.', tag: 'kinea-checkin' },
-}
 
 function loadPrefs(): Record<NotifCategory, boolean> {
   try {
@@ -23,16 +17,6 @@ function savePrefs(prefs: Record<NotifCategory, boolean>) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(prefs))
 }
 
-async function sendDemoNotif(category: NotifCategory) {
-  const demo = DEMO[category]
-  const opts: NotificationOptions = { body: demo.body, tag: demo.tag, icon: '/favicon.svg', badge: '/favicon.svg', data: { url: '/aluno/home' } }
-  try {
-    const reg = await navigator.serviceWorker.ready
-    reg.showNotification(demo.title, opts)
-  } catch {
-    new Notification(demo.title, opts)
-  }
-}
 
 export function useAlunoNotifications() {
   const isSupported = typeof window !== 'undefined' && 'Notification' in window
@@ -63,7 +47,6 @@ export function useAlunoNotifications() {
     setPrefs(prev => {
       const next = { ...prev, [cat]: !prev[cat] }
       savePrefs(next)
-      if (next[cat]) sendDemoNotif(cat)
       return next
     })
   }, [permission])

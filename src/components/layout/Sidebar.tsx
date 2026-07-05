@@ -24,8 +24,8 @@ export default function Sidebar({ drawerOpen, onClose }: Props) {
   const { customLogoDataUrl } = useSettingsStore()
   const navigate = useNavigate()
 
-  const name     = user?.name     ?? 'Rafael Dias'
-  const initials = user?.initials ?? 'RD'
+  const name     = user?.name     ?? ''
+  const initials = user?.initials ?? ''
   const roleLabel = user?.role === 'super_admin' ? 'Super Admin'
                   : user?.role === 'student'      ? 'Aluno'
                   : 'Coach'

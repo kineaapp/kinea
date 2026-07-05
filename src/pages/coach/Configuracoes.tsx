@@ -76,9 +76,9 @@ export default function Configuracoes() {
   const toastRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
   // Profile
-  const [name, setName] = useState(user?.name ?? 'Rafael Dias')
-  const [specialty, setSpecialty] = useState('Musculação e Emagrecimento')
-  const [bio, setBio] = useState('Coach certificado com 8 anos de experiência. Especialista em emagrecimento funcional e hipertrofia.')
+  const [name, setName] = useState(user?.name ?? '')
+  const [specialty, setSpecialty] = useState('')
+  const [bio, setBio] = useState('')
 
   // Notifications
   const [notif, setNotif] = useState({

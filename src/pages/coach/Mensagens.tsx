@@ -76,7 +76,6 @@ export default function Mensagens() {
   const [recSecs,     setRecSecs]     = useState(0)
 
   const toastRef     = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
-  const autoReplyRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const threadRef    = useRef<HTMLDivElement>(null)
   const photoRef     = useRef<HTMLInputElement>(null)
   const fileRef      = useRef<HTMLInputElement>(null)
@@ -118,13 +117,6 @@ export default function Mensagens() {
       return { ...c, msgs: [...c.msgs, { type: 'msg', from: 'me', text: t, time: hh }], time: hh }
     }))
     setDraft('')
-    clearTimeout(autoReplyRef.current)
-    autoReplyRef.current = setTimeout(() => {
-      setConvs(prev => prev.map(c => {
-        if (c.id !== activeId) return c
-        return { ...c, msgs: [...c.msgs, { type: 'msg', from: 'them', text: 'Recebido, professor! 👊', time: hh }] }
-      }))
-    }, 1100)
   }
 
   // ── Attachment ────────────────────────────────────────────────────────────────

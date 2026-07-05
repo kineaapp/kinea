@@ -52,15 +52,11 @@ function ChargeDrawer({ charge, onClose, onMarkPaid, onRemind, onStub }: {
   const sm  = STATUS_MAP[charge.status]
   const pal = avatarPalette(charge.id)
 
-  const history: { label: string; date: string; dot: string }[] = [
-    { label: 'Cobrança gerada', date: '01 jun', dot: '#1B2A4A' },
-  ]
+  const history: { label: string; date: string; dot: string }[] = []
   if (charge.status === 'pago') {
-    history.push({ label: 'Lembrete enviado',      date: '03 jun',           dot: '#b06a12' })
     history.push({ label: 'Pagamento confirmado',  date: charge.paidOn ?? '—', dot: '#1B7a4a' })
   } else if (charge.status === 'atrasado') {
     history.push({ label: 'Vencimento',            date: charge.due,         dot: '#b06a12' })
-    history.push({ label: 'Cobrança em atraso',    date: 'hoje',             dot: '#c4421e' })
   } else {
     history.push({ label: 'Aguardando vencimento', date: charge.due,         dot: '#b06a12' })
   }

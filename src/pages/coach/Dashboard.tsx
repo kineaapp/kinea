@@ -27,9 +27,9 @@ function payInfo(p: PayStatus) {
 }
 
 function semInfo(s: SemColor) {
-  if (s === 'green')  return { color: '#2b9d5f', last: 'check-in hoje' }
-  if (s === 'yellow') return { color: '#E0A93B', last: 'há 6 dias'      }
-  return                     { color: '#E0533B', last: 'há 11 dias'     }
+  if (s === 'green')  return { color: '#2b9d5f', label: 'Engajado'  }
+  if (s === 'yellow') return { color: '#E0A93B', label: 'Em alerta' }
+  return                     { color: '#E0533B', label: 'Inativo'   }
 }
 
 function formatDate() {
@@ -252,7 +252,7 @@ export default function Dashboard() {
                     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, font: `600 11px ${FF}`, color: pay.color, background: pay.bg, borderRadius: 20, padding: '4px 11px', whiteSpace: 'nowrap' }}>{pay.label}</span>
                     <span className="k-hidesm" style={{ display: 'inline-flex', alignItems: 'center', gap: 7, minWidth: 96 }}>
                       <span style={{ width: 9, height: 9, borderRadius: '50%', background: sem.color, flexShrink: 0 }} />
-                      <span style={{ font: `400 12px ${FF}`, color: '#9a948a' }}>{sem.last}</span>
+                      <span style={{ font: `400 12px ${FF}`, color: '#9a948a' }}>{sem.label}</span>
                     </span>
                     <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#c5bfb0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
                       <path d="M9 18l6-6-6-6" />

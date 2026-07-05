@@ -36,9 +36,9 @@ export function payInfo(p: PayStatus) {
 }
 
 export function semInfo(s: SemColor) {
-  if (s === 'green')  return { color: '#2b9d5f', label: 'Engajado', last: 'check-in hoje' }
-  if (s === 'yellow') return { color: '#E0A93B', label: 'Em alerta', last: 'há 6 dias'   }
-  return                     { color: '#E0533B', label: 'Inativo',   last: 'há 11 dias'  }
+  if (s === 'green')  return { color: '#2b9d5f', label: 'Engajado'  }
+  if (s === 'yellow') return { color: '#E0A93B', label: 'Em alerta' }
+  return                     { color: '#E0533B', label: 'Inativo'   }
 }
 
 export function avatarPalette(idx: number): [string, string] {

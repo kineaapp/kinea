@@ -126,7 +126,7 @@ function QuickView({ student: s, onClose, onOpenProfile, onStub, onDelete }: {
               <div style={{ font: `800 20px ${FF}`, color: '#fff', letterSpacing: '-.4px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.name}</div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginTop: 4 }}>
                 <span style={{ width: 9, height: 9, borderRadius: '50%', background: sem.color }} />
-                <span style={{ font: `500 12.5px ${FF}`, color: '#aeb9cc' }}>{sem.label} · {sem.last}</span>
+                <span style={{ font: `500 12.5px ${FF}`, color: '#aeb9cc' }}>{sem.label}</span>
               </div>
             </div>
           </div>
@@ -456,7 +456,7 @@ export default function Alunos() {
                   </div>
                   <div className="k-col-last" style={{ width: 120, display: 'flex', alignItems: 'center', gap: 8 }}>
                     <span style={{ width: 9, height: 9, borderRadius: '50%', background: sem.color, flexShrink: 0 }} />
-                    <span style={{ font: `400 12px ${FF}`, color: '#9a948a', whiteSpace: 'nowrap' }}>{sem.last}</span>
+                    <span style={{ font: `400 12px ${FF}`, color: '#9a948a', whiteSpace: 'nowrap' }}>{sem.label}</span>
                   </div>
                   <div className="k-col-next" style={{ width: 96, font: `500 12.5px ${FF}`, color: '#7c7869' }}>{s.next}</div>
                   <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#c5bfb0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><path d="M9 18l6-6-6-6"/></svg>
