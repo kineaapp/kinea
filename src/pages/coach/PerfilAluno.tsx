@@ -733,7 +733,7 @@ export default function PerfilAluno() {
                 </div>
               </div>
               {/* ── Stripe Checkout ───────────────────────── */}
-              {!student.stripeSubId ? (
+              {student.plan !== 'Permuta' && (!student.stripeSubId ? (
                 <div style={{ background: '#fff', border: '2px dashed #d9d3c4', borderRadius: 14, padding: '22px 24px' }}>
                   <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
                     <div>
@@ -778,7 +778,7 @@ export default function PerfilAluno() {
                     <div style={{ font: `400 12px ${FF}`, color: '#4a9a6a', marginTop: 2 }}>Renovação automática mensal · Pix, boleto ou cartão</div>
                   </div>
                 </div>
-              )}
+              ))}
 
               {payLoading ? (
                 <div style={{ font: `400 13px ${FF}`, color: '#9a948a', padding: '20px 0' }}>Carregando...</div>
