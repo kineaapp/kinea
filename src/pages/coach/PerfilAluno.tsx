@@ -739,7 +739,7 @@ export default function PerfilAluno() {
                     <div>
                       <div style={{ font: `700 15px ${FF}`, color: '#1B2A4A', marginBottom: 4 }}>Cobrança automática via Stripe</div>
                       <div style={{ font: `400 13px ${FF}`, color: '#7c7869', maxWidth: 420 }}>
-                        Gera um link de pagamento de <strong>R$ 741 / trimestral</strong>. O aluno escolhe Pix, boleto ou cartão. Renovação automática a cada 3 meses.
+                        Gera um link de pagamento de <strong>R$ 247 / mês</strong>. O aluno escolhe Pix, boleto ou cartão. Renovação automática todo mês.
                       </div>
                     </div>
                     <button type="button" onClick={handleCreateCheckout} disabled={subLoading}
@@ -775,7 +775,7 @@ export default function PerfilAluno() {
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1B7a4a" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 12l3 3 5-6"/></svg>
                   <div>
                     <div style={{ font: `700 13.5px ${FF}`, color: '#1B7a4a' }}>Assinatura Stripe ativa</div>
-                    <div style={{ font: `400 12px ${FF}`, color: '#4a9a6a', marginTop: 2 }}>Renovação automática trimestral · Pix, boleto ou cartão</div>
+                    <div style={{ font: `400 12px ${FF}`, color: '#4a9a6a', marginTop: 2 }}>Renovação automática mensal · Pix, boleto ou cartão</div>
                   </div>
                 </div>
               )}
