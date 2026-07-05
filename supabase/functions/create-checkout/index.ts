@@ -60,6 +60,7 @@ Deno.serve(async (req) => {
       cancel_url:  `${appUrl}/aluno/perfil/pagamentos`,
       subscription_data: {
         metadata: { studentId: String(studentId) },
+        cancel_at: Math.floor(Date.now() / 1000) + 3 * 30 * 24 * 60 * 60, // cancela após 3 meses
       },
       metadata: { studentId: String(studentId) },
     })
