@@ -25,12 +25,21 @@ Deno.serve(async (req) => {
 
   try {
     if (event.type === 'invoice.paid') {
-      const invoice = event.data.object as Stripe.Invoice
+      const invoice    = event.data.object as Stripe.Invoice
       const customerId = typeof invoice.customer === 'string' ? invoice.customer : invoice.customer?.id
       const subId      = typeof invoice.subscription === 'string' ? invoice.subscription : invoice.subscription?.id
-      if (customerId) {
+      if (customerId && subId) {
+        // Na primeira cobrança aplica cancel_at = 3 meses a partir de agora
+        const { data: student } = await supabase.from('students')
+          .select('stripe_subscription_id')
+          .eq('stripe_customer_id', customerId)
+          .maybeSingle()
+        if (!student?.stripe_subscription_id) {
+          const cancelAt = Math.floor(Date.now() / 1000) + 3 * 30 * 24 * 60 * 60
+          await stripe.subscriptions.update(subId, { cancel_at: cancelAt })
+        }
         await supabase.from('students')
-          .update({ pay_status: 'active', stripe_subscription_id: subId ?? null })
+          .update({ pay_status: 'active', stripe_subscription_id: subId })
           .eq('stripe_customer_id', customerId)
       }
     } else if (event.type === 'invoice.payment_failed') {
