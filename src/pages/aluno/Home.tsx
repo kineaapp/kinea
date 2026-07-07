@@ -227,7 +227,7 @@ export default function Home() {
                 <div style={{ font: `400 12px ${FF}`, color: '#9a948a' }}>{todayWorkout.muscle_group}</div>
               </div>
               <button
-                onClick={() => navigate('/aluno/treinos/exec')}
+                onClick={() => navigate('/aluno/treinos/exec', { state: { workoutId: todayWorkout.id, workoutName: todayWorkout.name } })}
                 style={{ width: '100%', height: 42, border: 'none', background: '#1B2A4A', color: '#FAEEDA', font: `700 13px ${FF}`, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7 }}
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>

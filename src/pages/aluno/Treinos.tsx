@@ -185,7 +185,7 @@ export default function Treinos() {
                   {/* Action */}
                   <div style={{ padding: `${open ? '12px' : '0'} 16px 16px`, borderTop: open ? '1px solid #f4efe3' : 'none' }}>
                     <button
-                      onClick={() => navigate('/aluno/treinos/exec')}
+                      onClick={() => navigate('/aluno/treinos/exec', { state: { workoutId: w.id, workoutName: w.name } })}
                       style={{ width: '100%', height: 44, border: 'none', background: '#1B2A4A', color: '#FAEEDA', borderRadius: 10, font: `700 13.5px ${FF}`, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
                     >
                       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
