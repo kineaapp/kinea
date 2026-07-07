@@ -55,6 +55,9 @@ body { font-family: 'Libre Franklin', sans-serif; }
   .k-kpis { grid-template-columns: 1fr 1fr !important; }
   .k-aside { width: auto !important; }
   .k-pagepad { padding: 20px 18px 60px !important; }
+  .k-aval-grid { grid-template-columns: 1fr !important; }
+  .k-aval-grid > div { border-right: none !important; border-top: 1px solid #f1ece0; }
+  .k-aval-grid > div:first-child { border-top: none; }
 }
 @media (max-width: 560px) {
   .k-kpis { grid-template-columns: 1fr !important; }

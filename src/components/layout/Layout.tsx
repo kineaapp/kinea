@@ -1,9 +1,11 @@
-import { useState } from 'react'
-import { Outlet } from 'react-router-dom'
+import { useState, useEffect } from 'react'
+import { Outlet, useNavigate } from 'react-router-dom'
 import Sidebar from './Sidebar'
 import KineaLogo from '../KineaLogo'
 import { useNotificationBanner } from '../../hooks/useNotifications'
 import { useSettingsStore } from '../../store/settings'
+import { useAuthStore } from '../../store/auth'
+import { supabase } from '../../lib/supabase'
 
 const FF = '"Libre Franklin",sans-serif'
 
@@ -70,6 +72,22 @@ export default function Layout() {
   const [drawerOpen, setDrawerOpen] = useState(false)
   const { showBanner, requestPermission, dismiss } = useNotificationBanner()
   const { customLogoDataUrl } = useSettingsStore()
+  const { logout } = useAuthStore()
+  const navigate = useNavigate()
+
+  // Guard: if the Supabase session doesn't match the stored user (e.g. after
+  // signing up as a student in the same browser), force re-login immediately
+  // instead of silently showing blank pages due to RLS returning empty rows.
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      const storedUser = useAuthStore.getState().user
+      if (!storedUser) { navigate('/login', { replace: true }); return }
+      if (!session || session.user.id !== storedUser.id) {
+        logout()
+        navigate('/login', { replace: true })
+      }
+    })
+  }, [])
 
   return (
     <div style={{ minHeight: '100vh', background: '#F4EFE3' }}>

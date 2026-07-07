@@ -86,6 +86,27 @@ export default function PrimeiraAvaliacao() {
 
     setLoading(true)
     if (user?.id) {
+      // Fetch numeric student id
+      const { data: studentRow } = await supabase
+        .from('students')
+        .select('id')
+        .eq('student_id', user.id)
+        .maybeSingle()
+
+      if (studentRow) {
+        const today = new Date().toISOString().split('T')[0]
+        await supabase.from('assessments').insert({
+          student_id:  studentRow.id,
+          assessed_at: today,
+          weight_kg:   parseFloat(peso),
+          height_cm:   parseFloat(altura),
+          waist_cm:    cintura ? parseFloat(cintura) : null,
+          hip_cm:      quadril ? parseFloat(quadril) : null,
+          chest_cm:    torax   ? parseFloat(torax)   : null,
+          arm_cm:      braco   ? parseFloat(braco)   : null,
+        })
+      }
+
       await supabase.from('profiles').update({ assessment_completed: true }).eq('id', user.id)
     }
     if (user) setUser({ ...user, assessmentCompleted: true })

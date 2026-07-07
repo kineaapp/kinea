@@ -1,8 +1,10 @@
-import { Outlet, useLocation, NavLink, Navigate } from 'react-router-dom'
+import { Outlet, useLocation, NavLink, Navigate, useNavigate } from 'react-router-dom'
 import { Home, Dumbbell, MessageCircle, Activity, User } from 'lucide-react'
 import { useAuthStore } from '../../store/auth'
 import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
+
+const FF = '"Libre Franklin",sans-serif'
 
 const TABS = [
   { to: '/aluno/home',       icon: Home,          label: 'Início'    },
@@ -12,24 +14,129 @@ const TABS = [
   { to: '/aluno/perfil',     icon: User,          label: 'Perfil'    },
 ]
 
+function AssessmentReminderModal({ daysPastDue, onStart, onSnooze }: {
+  daysPastDue: number
+  onStart: () => void
+  onSnooze: () => void
+}) {
+  const daysUsed = Math.min(daysPastDue, 7)
+  const pct = (daysUsed / 7) * 100
+
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 200,
+      display: 'flex', flexDirection: 'column', justifyContent: 'flex-end',
+      background: 'rgba(0,0,0,.45)',
+    }}>
+      <div style={{
+        background: '#F4EFE3', borderRadius: '20px 20px 0 0',
+        padding: '28px 22px 40px', maxWidth: 390, width: '100%', margin: '0 auto',
+      }}>
+        {/* Icon */}
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 18 }}>
+          <div style={{ width: 56, height: 56, borderRadius: '50%', background: '#fff3ee', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#E8542A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+              <path d="M16 2v4M8 2v4M3 10h18" />
+            </svg>
+          </div>
+        </div>
+
+        <h2 style={{ font: `800 20px ${FF}`, color: '#1B2A4A', margin: '0 0 8px', textAlign: 'center', letterSpacing: '-.3px' }}>
+          {daysPastDue === 0 ? 'Sua avaliação é hoje!' : `Avaliação há ${daysPastDue} dia${daysPastDue > 1 ? 's' : ''}`}
+        </h2>
+        <p style={{ font: `400 13px/1.6 ${FF}`, color: '#7C7869', margin: '0 0 20px', textAlign: 'center' }}>
+          {daysPastDue === 0
+            ? 'Chegou o dia da sua avaliação periódica. Faça agora ou escolha outro momento.'
+            : `Você tem até ${7 - daysPastDue} dia${7 - daysPastDue !== 1 ? 's' : ''} para fazer sua avaliação periódica.`}
+        </p>
+
+        {/* Progress bar */}
+        <div style={{ marginBottom: 24 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+            <span style={{ font: `600 11px ${FF}`, color: '#A39E90' }}>Prazo utilizado</span>
+            <span style={{ font: `600 11px ${FF}`, color: daysUsed >= 6 ? '#D2402A' : '#A39E90' }}>
+              {daysUsed} / 7 dias
+            </span>
+          </div>
+          <div style={{ height: 6, background: '#EDE8DC', borderRadius: 4, overflow: 'hidden' }}>
+            <div style={{
+              height: '100%', borderRadius: 4,
+              width: `${pct}%`,
+              background: daysUsed >= 6 ? '#D2402A' : daysUsed >= 4 ? '#E8542A' : '#4CAF50',
+              transition: 'width .3s',
+            }} />
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={onStart}
+          style={{
+            width: '100%', padding: '15px 0', marginBottom: 12,
+            background: '#E8542A', border: 'none', borderRadius: 14,
+            boxShadow: '0 4px 0 #C4421E',
+            font: `700 16px ${FF}`, color: '#fff', cursor: 'pointer',
+          }}
+        >
+          Fazer avaliação agora
+        </button>
+
+        <button
+          type="button"
+          onClick={onSnooze}
+          style={{
+            width: '100%', padding: '13px 0',
+            background: 'none', border: '1.5px solid #D6CFBE', borderRadius: 14,
+            font: `600 14px ${FF}`, color: '#7C7869', cursor: 'pointer',
+          }}
+        >
+          Fazer depois
+        </button>
+      </div>
+    </div>
+  )
+}
+
 export default function AlunoLayout() {
   const { pathname } = useLocation()
+  const navigate = useNavigate()
   const { user } = useAuthStore()
   const [blocked, setBlocked] = useState(false)
+  const [nextAssessment, setNextAssessment] = useState<string | null>(null)
+  const [assessmentSnoozed, setAssessmentSnoozed] = useState(false)
+  const [dataLoaded, setDataLoaded] = useState(false)
 
   useEffect(() => {
     if (!user?.id) return
     supabase
       .from('students')
-      .select('blocked')
+      .select('blocked, next_assessment')
       .eq('student_id', user.id)
       .maybeSingle()
-      .then(({ data }) => { if (data?.blocked) setBlocked(true) })
+      .then(({ data }) => {
+        if (data?.blocked) setBlocked(true)
+        const na = data?.next_assessment ?? null
+        setNextAssessment(na)
+
+        if (na) {
+          try {
+            const raw = localStorage.getItem('kinea-assessment-snooze')
+            if (raw) {
+              const { date, assessmentDate } = JSON.parse(raw)
+              const today = new Date().toISOString().split('T')[0]
+              if (date === today && assessmentDate === na) setAssessmentSnoozed(true)
+            }
+          } catch {}
+        }
+        setDataLoaded(true)
+      })
   }, [user?.id])
 
   const isAnamnese          = pathname.includes('/anamnese')
   const isPrimeiraAvaliacao = pathname.includes('/primeira-avaliacao')
-  const hideTabBar = pathname.includes('/exec') || pathname.includes('/pagamentos') || pathname.includes('/notificacoes') || pathname.includes('/configuracoes') || isAnamnese || isPrimeiraAvaliacao
+  const isNovaAvaliacao     = pathname.includes('/nova-avaliacao')
+  const hideTabBar = pathname.includes('/exec') || pathname.includes('/pagamentos') || pathname.includes('/notificacoes') || pathname.includes('/configuracoes') || isAnamnese || isPrimeiraAvaliacao || isNovaAvaliacao
 
   if (!user || user.role !== 'student') return <Navigate to="/login" replace />
 
@@ -48,12 +155,29 @@ export default function AlunoLayout() {
   )
 
   // Block going back to already completed onboarding pages
-  if (isAnamnese && user.anamneseCompleted)                     return <Navigate to="/aluno/home" replace />
-  if (isPrimeiraAvaliacao && user.assessmentCompleted)           return <Navigate to="/aluno/home" replace />
+  if (isAnamnese && user.anamneseCompleted)           return <Navigate to="/aluno/home" replace />
+  if (isPrimeiraAvaliacao && user.assessmentCompleted) return <Navigate to="/aluno/home" replace />
 
   // Enforce onboarding order: anamnese first, then assessment
-  if (!user.anamneseCompleted && !isAnamnese)                   return <Navigate to="/aluno/anamnese" replace />
-  if (user.anamneseCompleted && !user.assessmentCompleted && !isPrimeiraAvaliacao) return <Navigate to="/aluno/primeira-avaliacao" replace />
+  if (!user.anamneseCompleted && !isAnamnese)                                          return <Navigate to="/aluno/anamnese" replace />
+  if (user.anamneseCompleted && !user.assessmentCompleted && !isPrimeiraAvaliacao)     return <Navigate to="/aluno/primeira-avaliacao" replace />
+
+  // Assessment enforcement (only after onboarding complete and data loaded)
+  const daysPastDue = (dataLoaded && nextAssessment)
+    ? Math.floor((new Date().setHours(0, 0, 0, 0) - new Date(nextAssessment + 'T00:00:00').getTime()) / 86_400_000)
+    : null
+
+  const isAssessmentForced = daysPastDue !== null && daysPastDue >= 8
+  const isAssessmentDue    = daysPastDue !== null && daysPastDue >= 0
+
+  // Force redirect on day 8+
+  if (isAssessmentForced && !isNovaAvaliacao) return <Navigate to="/aluno/nova-avaliacao" replace />
+
+  function snoozeAssessment() {
+    const today = new Date().toISOString().split('T')[0]
+    localStorage.setItem('kinea-assessment-snooze', JSON.stringify({ date: today, assessmentDate: nextAssessment }))
+    setAssessmentSnoozed(true)
+  }
 
   return (
     <div style={{ minHeight: '100dvh', background: '#C8C2B2', display: 'flex', justifyContent: 'center' }}>
@@ -93,6 +217,15 @@ export default function AlunoLayout() {
               </NavLink>
             ))}
           </nav>
+        )}
+
+        {/* Assessment reminder bottom sheet */}
+        {isAssessmentDue && !isAssessmentForced && !assessmentSnoozed && !isNovaAvaliacao && daysPastDue !== null && (
+          <AssessmentReminderModal
+            daysPastDue={daysPastDue}
+            onStart={() => navigate('/aluno/nova-avaliacao')}
+            onSnooze={snoozeAssessment}
+          />
         )}
       </div>
     </div>

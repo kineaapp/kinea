@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useStudentsStore } from '../../store/students'
 import { useAuthStore } from '../../store/auth'
 import { NewStudentModal } from '../../components/coach/NewStudentModal'
+import { supabase } from '../../lib/supabase'
 
 // ── Types & data ───────────────────────────────────────────
 const FF = '"Libre Franklin",sans-serif'
@@ -38,6 +39,20 @@ function formatDate() {
   const months = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro']
   return `${days[d.getDay()]}, ${d.getDate()} de ${months[d.getMonth()]}`
 }
+
+function fmtShort(iso: string) {
+  const [, m, d] = iso.split('-')
+  return `${d}/${m}`
+}
+
+function diffDays(iso: string) {
+  const today = new Date(); today.setHours(0,0,0,0)
+  const other = new Date(iso + 'T00:00:00')
+  return Math.round((other.getTime() - today.getTime()) / 86_400_000)
+}
+
+type RecentAssessment = { id: number; assessed_at: string; weight_kg: number | null; students: { name: string } | null }
+type StudentAssessment = { id: number; name: string; next_assessment: string }
 
 // ── Sub-components ──────────────────────────────────────────
 function KpiCard({ label, value, sub, subColor, iconBg, iconColor, icon }: {
@@ -135,7 +150,41 @@ export default function Dashboard() {
   const { students, addStudent, fetchStudents } = useStudentsStore()
   const { user } = useAuthStore()
 
+  const [recentAssessments,   setRecentAssessments]   = useState<RecentAssessment[]>([])
+  const [upcomingAssessments, setUpcomingAssessments] = useState<StudentAssessment[]>([])
+  const [pendingAssessments,  setPendingAssessments]  = useState<StudentAssessment[]>([])
+
   useEffect(() => { if (user?.id) fetchStudents(user.id) }, [user?.id])
+
+  useEffect(() => {
+    if (!user?.id) return
+    const today = new Date().toISOString().split('T')[0]
+
+    supabase
+      .from('assessments')
+      .select('id, assessed_at, weight_kg, students(name)')
+      .order('assessed_at', { ascending: false })
+      .limit(5)
+      .then(({ data }) => setRecentAssessments((data as RecentAssessment[] | null) ?? []))
+
+    supabase
+      .from('students')
+      .select('id, name, next_assessment')
+      .eq('coach_id', user.id)
+      .gte('next_assessment', today)
+      .order('next_assessment', { ascending: true })
+      .limit(5)
+      .then(({ data }) => setUpcomingAssessments((data as StudentAssessment[] | null) ?? []))
+
+    supabase
+      .from('students')
+      .select('id, name, next_assessment')
+      .eq('coach_id', user.id)
+      .lt('next_assessment', today)
+      .not('next_assessment', 'is', null)
+      .order('next_assessment', { ascending: true })
+      .then(({ data }) => setPendingAssessments((data as StudentAssessment[] | null) ?? []))
+  }, [user?.id])
 
   const shown = filter === 'all' ? students : students.filter(s => s.sem === filter)
   const count = (c: SemColor) => students.filter(s => s.sem === c).length
@@ -177,7 +226,12 @@ export default function Dashboard() {
         <KpiCard label="Leads novos" value={0} sub="no funil esta semana" subColor="#7c7869" iconBg="#f7ecd9" iconColor="#b06a12"
           icon={<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3v18h18" /><path d="M7 14l4-4 3 3 5-6" /></svg>}
         />
-        <KpiCard label="Avaliações" value={0} sub="a vencer em 7 dias" subColor="#7c7869" iconBg="#eef1f6" iconColor="#1B2A4A"
+        <KpiCard
+          label="Aval. pendentes"
+          value={pendingAssessments.length}
+          sub={pendingAssessments.length > 0 ? 'em atraso' : 'Sem atrasos'}
+          subColor={pendingAssessments.length > 0 ? '#D2402A' : '#2b9d5f'}
+          iconBg="#eef1f6" iconColor="#1B2A4A"
           icon={<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4" /><path d="M8 2v4" /><path d="M3 10h18" /></svg>}
         />
       </div>
@@ -306,12 +360,101 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* Upcoming assessments */}
-          <div style={{ background: '#fff', border: '1px solid #ece7d9', borderRadius: 14, padding: '18px 18px 8px' }}>
-            <h2 style={{ font: `700 15px ${FF}`, color: '#1B2A4A', margin: '0 0 6px' }}>Próximas avaliações</h2>
-            <div style={{ padding: '18px 0', borderTop: '1px solid #f1ece0', font: `400 13px ${FF}`, color: '#9a948a', textAlign: 'center' }}>
-              Nenhuma avaliação agendada
+        </div>
+      </div>
+
+      {/* ── Assessments panel ───────────────────────────────── */}
+      <div style={{ marginTop: 16, background: '#fff', border: '1px solid #ece7d9', borderRadius: 14, overflow: 'hidden' }}>
+        <div style={{ padding: '18px 22px 14px', borderBottom: '1px solid #f1ece0' }}>
+          <h2 style={{ font: `700 16px ${FF}`, color: '#1B2A4A', margin: 0 }}>Avaliações</h2>
+        </div>
+
+        <div className="k-aval-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr' }}>
+
+          {/* ─ Últimas 5 ─ */}
+          <div style={{ borderRight: '1px solid #f1ece0' }}>
+            <div style={{ padding: '14px 18px 10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ font: `600 12px ${FF}`, color: '#7c7869', textTransform: 'uppercase', letterSpacing: '.4px' }}>Últimas realizadas</span>
+              <span style={{ font: `600 11px ${FF}`, color: '#a39e90', background: '#f7f3ea', borderRadius: 20, padding: '2px 9px' }}>5</span>
             </div>
+            {recentAssessments.length === 0
+              ? <div style={{ padding: '20px 18px', font: `400 13px ${FF}`, color: '#b0a898', textAlign: 'center' }}>Nenhuma avaliação ainda</div>
+              : recentAssessments.map((a, i) => {
+                  const pal = AVATAR_PALETTE[i % AVATAR_PALETTE.length]
+                  const name = a.students?.name ?? '—'
+                  return (
+                    <div key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '10px 18px', borderTop: '1px solid #f7f3ea' }}>
+                      <div style={{ width: 34, height: 34, borderRadius: '50%', background: pal[0], color: pal[1], display: 'flex', alignItems: 'center', justifyContent: 'center', font: `700 12px ${FF}`, flexShrink: 0 }}>
+                        {getInitials(name)}
+                      </div>
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <div style={{ font: `600 13.5px ${FF}`, color: '#1B2A4A', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{name}</div>
+                        {a.weight_kg != null && (
+                          <div style={{ font: `400 11.5px ${FF}`, color: '#9a948a' }}>{a.weight_kg} kg</div>
+                        )}
+                      </div>
+                      <span style={{ font: `600 12px ${FF}`, color: '#7c7869', flexShrink: 0 }}>{fmtShort(a.assessed_at)}</span>
+                    </div>
+                  )
+                })
+            }
+          </div>
+
+          {/* ─ Próximas 5 ─ */}
+          <div style={{ borderRight: '1px solid #f1ece0' }}>
+            <div style={{ padding: '14px 18px 10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ font: `600 12px ${FF}`, color: '#7c7869', textTransform: 'uppercase', letterSpacing: '.4px' }}>Próximas agendadas</span>
+              <span style={{ font: `600 11px ${FF}`, color: '#a39e90', background: '#f7f3ea', borderRadius: 20, padding: '2px 9px' }}>5</span>
+            </div>
+            {upcomingAssessments.length === 0
+              ? <div style={{ padding: '20px 18px', font: `400 13px ${FF}`, color: '#b0a898', textAlign: 'center' }}>Nenhuma agendada</div>
+              : upcomingAssessments.map((s, i) => {
+                  const pal = AVATAR_PALETTE[i % AVATAR_PALETTE.length]
+                  const diff = diffDays(s.next_assessment)
+                  const label = diff === 0 ? 'hoje' : diff === 1 ? 'amanhã' : `em ${diff} dias`
+                  return (
+                    <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '10px 18px', borderTop: '1px solid #f7f3ea' }}>
+                      <div style={{ width: 34, height: 34, borderRadius: '50%', background: pal[0], color: pal[1], display: 'flex', alignItems: 'center', justifyContent: 'center', font: `700 12px ${FF}`, flexShrink: 0 }}>
+                        {getInitials(s.name)}
+                      </div>
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <div style={{ font: `600 13.5px ${FF}`, color: '#1B2A4A', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.name}</div>
+                        <div style={{ font: `400 11.5px ${FF}`, color: diff <= 3 ? '#b06a12' : '#9a948a' }}>{label}</div>
+                      </div>
+                      <span style={{ font: `600 12px ${FF}`, color: '#7c7869', flexShrink: 0 }}>{fmtShort(s.next_assessment)}</span>
+                    </div>
+                  )
+                })
+            }
+          </div>
+
+          {/* ─ Pendentes ─ */}
+          <div>
+            <div style={{ padding: '14px 18px 10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ font: `600 12px ${FF}`, color: '#7c7869', textTransform: 'uppercase', letterSpacing: '.4px' }}>Pendentes / em atraso</span>
+              {pendingAssessments.length > 0 && (
+                <span style={{ font: `600 11px ${FF}`, color: '#D2402A', background: '#fbe6e1', borderRadius: 20, padding: '2px 9px' }}>{pendingAssessments.length}</span>
+              )}
+            </div>
+            {pendingAssessments.length === 0
+              ? <div style={{ padding: '20px 18px', font: `400 13px ${FF}`, color: '#b0a898', textAlign: 'center' }}>Nenhum aluno em atraso</div>
+              : pendingAssessments.map((s, i) => {
+                  const pal = AVATAR_PALETTE[i % AVATAR_PALETTE.length]
+                  const overdue = Math.abs(diffDays(s.next_assessment))
+                  return (
+                    <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '10px 18px', borderTop: '1px solid #f7f3ea' }}>
+                      <div style={{ width: 34, height: 34, borderRadius: '50%', background: pal[0], color: pal[1], display: 'flex', alignItems: 'center', justifyContent: 'center', font: `700 12px ${FF}`, flexShrink: 0 }}>
+                        {getInitials(s.name)}
+                      </div>
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <div style={{ font: `600 13.5px ${FF}`, color: '#1B2A4A', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.name}</div>
+                        <div style={{ font: `400 11.5px ${FF}`, color: '#D2402A' }}>{overdue} dia{overdue !== 1 ? 's' : ''} em atraso</div>
+                      </div>
+                      <span style={{ font: `600 12px ${FF}`, color: '#D2402A', flexShrink: 0 }}>{fmtShort(s.next_assessment)}</span>
+                    </div>
+                  )
+                })
+            }
           </div>
 
         </div>
