@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { ChevronLeft, MoreHorizontal, Check } from 'lucide-react'
 import { useAuthStore } from '../../store/auth'
@@ -7,17 +7,43 @@ import { supabase } from '../../lib/supabase'
 const FF = '"Libre Franklin",sans-serif'
 const TIMER_MAX = 60
 const CIRC = 2 * Math.PI * 70
+const STORAGE_KEY = 'kinea_exec_progress'
 
 interface ExerciseData {
-  name:       string
-  muscle:     string
-  sets:       number
+  name:        string
+  muscle:      string
+  sets:        number
   defaultReps: number
-  restSec:    number
+  restSec:     number
+}
+
+interface SavedProgress {
+  workoutId: number
+  exIdx:     number
+  setsDone:  number[]
+  reps:      number
 }
 
 function parseReps(reps: string): number {
   return parseInt(reps) || 12
+}
+
+function loadSaved(workoutId: number, totalExs: number): SavedProgress | null {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY)
+    if (!raw) return null
+    const s: SavedProgress = JSON.parse(raw)
+    if (s.workoutId !== workoutId || s.exIdx >= totalExs) return null
+    return s
+  } catch { return null }
+}
+
+function saveProg(workoutId: number, exIdx: number, setsDone: number[], reps: number) {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ workoutId, exIdx, setsDone, reps })) } catch {}
+}
+
+function clearProg() {
+  try { localStorage.removeItem(STORAGE_KEY) } catch {}
 }
 
 export default function Execucao() {
@@ -27,9 +53,12 @@ export default function Execucao() {
 
   const state = location.state as { workoutId?: number; workoutName?: string } | null
 
+  const workoutIdRef = useRef<number | null>(null)
+
   const [exercises,    setExercises]    = useState<ExerciseData[]>([])
   const [workoutName,  setWorkoutName]  = useState(state?.workoutName ?? '')
   const [loading,      setLoading]      = useState(true)
+  const [resumed,      setResumed]      = useState(false)
 
   const [exIdx,        setExIdx]        = useState(0)
   const [setsDone,     setSetsDone]     = useState<number[]>([])
@@ -44,7 +73,6 @@ export default function Execucao() {
 
     let workoutId = state?.workoutId
 
-    // Se não veio workoutId na navegação, busca o mais recente
     if (!workoutId) {
       const { data: studentRow } = await supabase
         .from('students').select('id').eq('student_id', user!.id).single()
@@ -65,6 +93,8 @@ export default function Execucao() {
 
     if (!workoutId) { setLoading(false); return }
 
+    workoutIdRef.current = workoutId
+
     const { data: exRows } = await supabase
       .from('exercises')
       .select('name, muscle_group, sets, reps, rest_sec')
@@ -80,8 +110,19 @@ export default function Execucao() {
         restSec:     e.rest_sec ?? 60,
       }))
       setExercises(mapped)
-      setReps(mapped[0].defaultReps)
-      setTimerSec(mapped[0].restSec)
+
+      const saved = loadSaved(workoutId, mapped.length)
+      if (saved) {
+        setExIdx(saved.exIdx)
+        setSetsDone(saved.setsDone)
+        setReps(saved.reps)
+        setTimerSec(mapped[saved.exIdx].restSec)
+        setResumed(true)
+        setTimeout(() => setResumed(false), 2500)
+      } else {
+        setReps(mapped[0].defaultReps)
+        setTimerSec(mapped[0].restSec)
+      }
     }
     setLoading(false)
   }
@@ -128,20 +169,25 @@ export default function Execucao() {
   const isLast     = currentSet >= ex.sets - 1 && exIdx >= totalExs - 1
 
   function handleSerieConc() {
+    const wid  = workoutIdRef.current
     const next = [...setsDone, reps]
     if (next.length >= ex.sets) {
       if (exIdx < totalExs - 1) {
-        const nextEx = exercises[exIdx + 1]
-        setExIdx(exIdx + 1)
+        const nextIdx = exIdx + 1
+        const nextEx  = exercises[nextIdx]
+        setExIdx(nextIdx)
         setSetsDone([])
         setReps(nextEx.defaultReps)
         setTimerSec(nextEx.restSec)
+        if (wid) saveProg(wid, nextIdx, [], nextEx.defaultReps)
       } else {
+        clearProg()
         navigate('/aluno/treinos')
         return
       }
     } else {
       setSetsDone(next)
+      if (wid) saveProg(wid, exIdx, next, reps)
     }
     setTimerSec(ex.restSec)
     setTimerRunning(true)
@@ -168,6 +214,13 @@ export default function Execucao() {
       <div style={{ margin: '0 18px 20px', background: 'rgba(255,255,255,.1)', height: 4, borderRadius: 4 }}>
         <div style={{ height: '100%', width: `${progress * 100}%`, background: '#E8542A', borderRadius: 4, transition: 'width 400ms ease' }} />
       </div>
+
+      {/* Resume toast */}
+      {resumed && (
+        <div style={{ margin: '-12px 18px 14px', background: 'rgba(76,175,138,.15)', border: '1px solid rgba(76,175,138,.3)', borderRadius: 10, padding: '8px 14px', font: `600 12px ${FF}`, color: '#4CAF8A', textAlign: 'center' }}>
+          Treino retomado do ponto onde você parou
+        </div>
+      )}
 
       {/* Exercise name */}
       <div style={{ padding: '0 22px 16px' }}>
