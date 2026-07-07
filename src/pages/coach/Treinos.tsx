@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect, type DragEvent } from 'react'
 import { getInitials, avatarPalette } from '../../data/mock'
 import { useStudentsStore } from '../../store/students'
+import { useAuthStore } from '../../store/auth'
+import { supabase } from '../../lib/supabase'
 
 const FF = '"Libre Franklin",sans-serif'
 
@@ -637,8 +639,17 @@ function NewTreinoModal({ onClose, onAdd }: {
   )
 }
 
+// ── Helpers ──────────────────────────────────────────────────
+function parseScheme(scheme: string): { sets: number; reps: string } {
+  const m = scheme.match(/^(\d+)\s*[×x]\s*(.+)$/)
+  return m ? { sets: parseInt(m[1]), reps: m[2].trim() } : { sets: 3, reps: scheme }
+}
+function parseRest(rest: string): number { return parseInt(rest) || 60 }
+function parseDuration(dur: string): number { return parseInt(dur) || 45 }
+
 // ── Main ─────────────────────────────────────────────────────
 export default function Treinos() {
+  const { user }     = useAuthStore()
   const { students } = useStudentsStore()
   const [treinos,    setTreinos]    = useState<Treino[]>([])
   const [library,    setLibrary]    = useState<LibraryExercise[]>([])
@@ -650,8 +661,65 @@ export default function Treinos() {
   const [newOpen,    setNewOpen]    = useState(false)
   const [toast,      setToast]      = useState('')
   const toastRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
-  const nextId   = useRef(1)
   const nextK    = useRef(9000)
+
+  useEffect(() => { if (user?.id) void fetchTreinos() }, [user?.id])
+  useEffect(() => () => clearTimeout(toastRef.current), [])
+
+  async function fetchTreinos() {
+    if (!user?.id) return
+    const { data, error } = await supabase
+      .from('workouts')
+      .select('*, exercises(*)')
+      .eq('coach_id', user.id)
+      .order('created_at', { ascending: false })
+    if (error || !data) return
+
+    const wIds = data.map((w: any) => w.id)
+    const { data: asgn } = wIds.length
+      ? await supabase.from('workout_assignments').select('workout_id').in('workout_id', wIds)
+      : { data: [] }
+    const countMap: Record<number, number> = {}
+    for (const a of (asgn ?? []) as any[]) {
+      countMap[a.workout_id] = (countMap[a.workout_id] ?? 0) + 1
+    }
+
+    setTreinos((data as any[]).map(w => ({
+      id:       w.id,
+      name:     w.name,
+      split:    w.muscle_group ?? '',
+      goal:     (w.goal as Goal) ?? 'Hipertrofia',
+      duration: w.duration_min ? `${w.duration_min} min` : '— min',
+      assigned: countMap[w.id] ?? 0,
+      ex: [...(w.exercises ?? [])]
+        .sort((a: any, b: any) => a.sort_order - b.sort_order)
+        .map((e: any) => ({
+          _k:     e.id,
+          name:   e.name,
+          muscle: e.muscle_group ?? '—',
+          scheme: `${e.sets} × ${e.reps}`,
+          rest:   e.rest_sec ? `${e.rest_sec}s` : '60s',
+        })),
+    })))
+  }
+
+  async function syncExercisesToDB(treino: Treino) {
+    await supabase.from('exercises').delete().eq('workout_id', treino.id)
+    if (treino.ex.length === 0) return
+    const rows = treino.ex.map((ex, i) => {
+      const { sets, reps } = parseScheme(ex.scheme)
+      return {
+        workout_id:   treino.id,
+        name:         ex.name,
+        muscle_group: ex.muscle,
+        sets,
+        reps,
+        rest_sec:     parseRest(ex.rest),
+        sort_order:   i,
+      }
+    })
+    await supabase.from('exercises').insert(rows)
+  }
 
   function handleAddToLibrary(ex: LibraryExercise) {
     setLibrary(prev => {
@@ -659,8 +727,6 @@ export default function Treinos() {
       return [...prev, ex]
     })
   }
-
-  useEffect(() => () => clearTimeout(toastRef.current), [])
 
   function showToast(msg: string) {
     setToast(msg); clearTimeout(toastRef.current)
@@ -680,6 +746,7 @@ export default function Treinos() {
 
   function handleUpdate(updated: Treino) {
     setTreinos(prev => prev.map(t => t.id === updated.id ? updated : t))
+    void syncExercisesToDB(updated)
   }
 
   function handleToggleStudent(id: number) {
@@ -690,49 +757,79 @@ export default function Treinos() {
     })
   }
 
-  function handleConfirmAssign() {
+  async function handleConfirmAssign() {
     const n = selected.size
     if (!n) { showToast('Selecione ao menos um aluno.'); return }
+    const rows = Array.from(selected).map(studentId => ({
+      workout_id: openId!,
+      student_id: studentId,
+    }))
+    const { error } = await supabase.from('workout_assignments').insert(rows)
+    if (error) { showToast('Erro ao atribuir treino.'); return }
     setTreinos(prev => prev.map(t => t.id === openId ? { ...t, assigned: t.assigned + n } : t))
     setAssignOpen(false); setOpenId(null); setSelected(new Set())
     showToast(`${n} aluno${n > 1 ? 's' : ''} recebeu o treino.`)
   }
 
-  function handleDuplicate(id: number) {
+  async function handleDuplicate(id: number) {
     const original = treinos.find(t => t.id === id)
-    if (!original) return
-    const newId = nextId.current++
+    if (!original || !user?.id) return
+    const { data: newW, error } = await supabase
+      .from('workouts')
+      .insert({
+        coach_id:     user.id,
+        name:         original.name + ' (cópia)',
+        goal:         original.goal,
+        muscle_group: original.split,
+        duration_min: parseDuration(original.duration),
+      })
+      .select()
+      .single()
+    if (error || !newW) { showToast('Erro ao duplicar.'); return }
+    if (original.ex.length > 0) {
+      const exRows = original.ex.map((ex, i) => {
+        const { sets, reps } = parseScheme(ex.scheme)
+        return { workout_id: (newW as any).id, name: ex.name, muscle_group: ex.muscle, sets, reps, rest_sec: parseRest(ex.rest), sort_order: i }
+      })
+      await supabase.from('exercises').insert(exRows)
+    }
     let baseK = nextK.current
     const copy: Treino = {
-      ...original,
-      id:       newId,
-      name:     original.name + ' (cópia)',
+      id:       (newW as any).id,
+      name:     (newW as any).name,
+      split:    original.split,
+      goal:     original.goal,
+      duration: original.duration,
       assigned: 0,
       ex:       original.ex.map(ex => ({ ...ex, _k: baseK++ })),
     }
     nextK.current = baseK
     setTreinos(prev => {
       const idx = prev.findIndex(t => t.id === id)
-      const next = [...prev]
-      next.splice(idx + 1, 0, copy)
-      return next
+      const next = [...prev]; next.splice(idx + 1, 0, copy); return next
     })
-    setOpenId(newId)
+    setOpenId((newW as any).id)
     showToast('Treino duplicado.')
   }
 
-  function handleDelete(id: number) {
+  async function handleDelete(id: number) {
+    await supabase.from('workouts').delete().eq('id', id)
     setTreinos(prev => prev.filter(t => t.id !== id))
     setOpenId(null)
     showToast('Treino excluído.')
   }
 
-  function handleAddTreino(name: string, goal: Goal) {
-    if (!name.trim()) { showToast('Dê um nome ao treino.'); return }
-    const id = nextId.current++
-    const t: Treino = { id, name: name.trim(), split: goal + ' · Novo', goal, duration: '— min', assigned: 0, ex: [] }
+  async function handleAddTreino(name: string, goal: Goal) {
+    if (!name.trim() || !user?.id) { showToast('Dê um nome ao treino.'); return }
+    const { data, error } = await supabase
+      .from('workouts')
+      .insert({ coach_id: user.id, name: name.trim(), goal, muscle_group: goal + ' · Novo', duration_min: 45 })
+      .select()
+      .single()
+    if (error || !data) { showToast('Erro ao criar treino.'); return }
+    const t: Treino = { id: (data as any).id, name: (data as any).name, split: (data as any).muscle_group, goal, duration: '45 min', assigned: 0, ex: [] }
     setTreinos(prev => [t, ...prev])
-    setNewOpen(false); setOpenId(id)
+    setNewOpen(false); setOpenId((data as any).id)
     showToast('Treino criado. Adicione os exercícios.')
   }
 
