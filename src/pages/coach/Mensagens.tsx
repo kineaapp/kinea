@@ -1,5 +1,8 @@
 import { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useStudentsStore } from '../../store/students'
+import { useAuthStore } from '../../store/auth'
+import { useCoachChatStore, SEED_MSGS } from '../../store/coachChat'
 
 const FF = '"Libre Franklin",sans-serif'
 
@@ -66,7 +69,6 @@ function Toast({ msg }: { msg: string }) {
 // ── Page ───────────────────────────────────────────────────────────────────────
 export default function Mensagens() {
   const navigate = useNavigate()
-  const [convs,       setConvs]       = useState<Conv[]>([])
   const [activeId,    setActiveId]    = useState<number | null>(null)
   const [query,       setQuery]       = useState('')
   const [draft,       setDraft]       = useState('')
@@ -74,6 +76,23 @@ export default function Mensagens() {
   const [attachMenu,  setAttachMenu]  = useState(false)
   const [recording,   setRecording]   = useState(false)
   const [recSecs,     setRecSecs]     = useState(0)
+
+  const { user }                            = useAuthStore()
+  const { students, fetchStudents }         = useStudentsStore()
+  const { msgs: storeMsgs, unread: storeUnread, addMsg, markRead, seedStudent } = useCoachChatStore()
+
+  const convs: Conv[] = students.map(s => {
+    const studentMsgs = storeMsgs[s.id] ?? []
+    const lastMsg = [...studentMsgs].reverse().find((m): m is Extract<MsgEntry, { type: 'msg' }> => m.type === 'msg')
+    return {
+      id:     s.id,
+      name:   s.name,
+      online: false,
+      time:   lastMsg?.time ?? '',
+      unread: storeUnread[s.id] ?? 0,
+      msgs:   studentMsgs,
+    }
+  })
 
   const toastRef     = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const threadRef    = useRef<HTMLDivElement>(null)
@@ -100,36 +119,40 @@ export default function Mensagens() {
     }, 30)
   }
 
+  useEffect(() => {
+    if (user?.id) fetchStudents(user.id)
+  }, [user?.id])
+
+  useEffect(() => {
+    if (students.length > 0) {
+      seedStudent(students[0].id, SEED_MSGS)
+      setActiveId(id => id ?? students[0].id)
+    }
+  }, [students.length])
+
   useEffect(() => { if (active) scrollBottom() }, [active?.msgs.length])
 
   function openConv(id: number) {
-    setConvs(prev => prev.map(c => c.id === id ? { ...c, unread: 0 } : c))
+    markRead(id)
     setActiveId(id)
     setAttachMenu(false)
   }
 
   function send(text?: string) {
+    if (activeId === null) return
     const t = (text ?? draft).trim()
     if (!t) return
     const hh = now_hhmm()
-    setConvs(prev => prev.map(c => {
-      if (c.id !== activeId) return c
-      return { ...c, msgs: [...c.msgs, { type: 'msg', from: 'me', text: t, time: hh }], time: hh }
-    }))
+    addMsg(activeId, { type: 'msg', from: 'me', text: t, time: hh })
     setDraft('')
   }
 
   // ── Attachment ────────────────────────────────────────────────────────────────
   function handleFile(kind: AttachKind, file: File) {
+    if (activeId === null) return
     const url = URL.createObjectURL(file)
     const hh  = now_hhmm()
-    setConvs(prev => prev.map(c =>
-      c.id !== activeId ? c : {
-        ...c,
-        msgs: [...c.msgs, { type: 'attach', from: 'me', kind, url, name: file.name, size: fmtSize(file.size), time: hh }],
-        time: hh,
-      }
-    ))
+    addMsg(activeId, { type: 'attach', from: 'me', kind, url, name: file.name, size: fmtSize(file.size), time: hh })
     setAttachMenu(false)
   }
 
@@ -153,13 +176,9 @@ export default function Mensagens() {
         const url  = URL.createObjectURL(blob)
         const hh   = now_hhmm()
         const dur  = fmtDur(recSecsRef.current)
-        setConvs(prev => prev.map(c =>
-          c.id !== activeId ? c : {
-            ...c,
-            msgs: [...c.msgs, { type: 'attach', from: 'me', kind: 'audio', url, name: `Áudio ${hh}`, size: dur, time: hh }],
-            time: hh,
-          }
-        ))
+        if (activeId !== null) {
+          addMsg(activeId, { type: 'attach', from: 'me', kind: 'audio', url, name: `Áudio ${hh}`, size: dur, time: hh })
+        }
         setRecording(false); setRecSecs(0); recSecsRef.current = 0
       }
       recRef.current = mr
@@ -425,7 +444,7 @@ export default function Mensagens() {
           </div>
 
           {/* Quick replies */}
-          {activeId === 1 && (
+          {active && (
             <div style={{ flexShrink: 0, padding: '10px 22px 0', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               {QUICK_REPLIES.map(q => (
                 <button

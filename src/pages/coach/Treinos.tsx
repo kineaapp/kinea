@@ -525,15 +525,18 @@ function TreinoDrawer({ treino, library, onClose, onOpenAssign, onDuplicate, onU
   )
 }
 
+const DAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
+
 // ── Assign modal ─────────────────────────────────────────────
 function AssignModal({ treinoName, students, selected, onToggle, onConfirm, onClose }: {
   treinoName: string
   students:   { id: number; name: string; goal: string }[]
   selected:   Set<number>
   onToggle:   (id: number) => void
-  onConfirm:  () => void
+  onConfirm:  (dayOfWeek: number | null) => void
   onClose:    () => void
 }) {
+  const [dayOfWeek, setDayOfWeek] = useState<number | null>(null)
   const n = selected.size
   const label = n ? `Atribuir a ${n} aluno${n > 1 ? 's' : ''}` : 'Atribuir treino'
 
@@ -549,6 +552,29 @@ function AssignModal({ treinoName, students, selected, onToggle, onConfirm, onCl
         <p style={{ font: `400 13px ${FF}`, color: '#9a948a', margin: '0 0 16px' }}>
           <strong style={{ color: '#1B2A4A' }}>{treinoName}</strong> — selecione os alunos
         </p>
+
+        {/* Dia da semana */}
+        <div style={{ marginBottom: 18 }}>
+          <div style={{ font: `600 11px ${FF}`, color: '#6b6657', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 10 }}>
+            Dia da semana <span style={{ font: `400 11px ${FF}`, color: '#b0a99c', textTransform: 'none', letterSpacing: 0 }}>(opcional)</span>
+          </div>
+          <div style={{ display: 'flex', gap: 6 }}>
+            {DAYS.map((d, i) => {
+              const active = dayOfWeek === i
+              return (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => setDayOfWeek(active ? null : i)}
+                  style={{ flex: 1, height: 38, border: `1.5px solid ${active ? '#E8542A' : '#e0d9c8'}`, background: active ? '#E8542A' : '#fff', color: active ? '#fff' : '#7c7869', font: `700 11.5px ${FF}`, borderRadius: 9, cursor: 'pointer', transition: 'all .1s' }}
+                >
+                  {d}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
         <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 7 }}>
           {students.length === 0 && (
             <div style={{ padding: '30px 16px', textAlign: 'center', font: `400 13px ${FF}`, color: '#a89f8e' }}>
@@ -579,8 +605,11 @@ function AssignModal({ treinoName, students, selected, onToggle, onConfirm, onCl
             )
           })}
         </div>
-        <button type="button" onClick={onConfirm} style={{ marginTop: 16, width: '100%', height: 48, border: 'none', background: '#E8542A', color: '#fff', borderRadius: 10, font: `700 14.5px ${FF}`, cursor: 'pointer', boxShadow: '0 2px 0 #c4421e' }}>
+
+        <button type="button" onClick={() => onConfirm(dayOfWeek)}
+          style={{ marginTop: 16, width: '100%', height: 48, border: 'none', background: '#E8542A', color: '#fff', borderRadius: 10, font: `700 14.5px ${FF}`, cursor: 'pointer', boxShadow: '0 2px 0 #c4421e' }}>
           {label}
+          {dayOfWeek !== null && <span style={{ font: `500 13px ${FF}`, opacity: .85 }}> · {DAYS[dayOfWeek]}</span>}
         </button>
       </div>
     </div>
@@ -757,12 +786,13 @@ export default function Treinos() {
     })
   }
 
-  async function handleConfirmAssign() {
+  async function handleConfirmAssign(dayOfWeek: number | null) {
     const n = selected.size
     if (!n) { showToast('Selecione ao menos um aluno.'); return }
     const rows = Array.from(selected).map(studentId => ({
-      workout_id: openId!,
-      student_id: studentId,
+      workout_id:  openId!,
+      student_id:  studentId,
+      day_of_week: dayOfWeek,
     }))
     const { error } = await supabase.from('workout_assignments').insert(rows)
     if (error) { showToast('Erro ao atribuir treino.'); return }

@@ -7,7 +7,7 @@ import { supabase } from '../../lib/supabase'
 
 const FF = '"Libre Franklin",sans-serif'
 
-type Tab = 'overview' | 'anamnese' | 'treino' | 'avaliacoes' | 'pagamentos' | 'anexos' | 'historico'
+type Tab = 'overview' | 'anamnese' | 'treino' | 'feedback' | 'avaliacoes' | 'pagamentos' | 'anexos' | 'historico'
 
 // ── Interfaces ─────────────────────────────────────────────────
 interface AnamneseRow {
@@ -34,6 +34,7 @@ interface AssessmentRow {
   weight_kg: number | null; body_fat_pct: number | null
   chest_cm: number | null; waist_cm: number | null; hip_cm: number | null
   arm_cm: number | null; thigh_cm: number | null; notes: string | null
+  photo_url: string | null
 }
 
 interface PaymentRow {
@@ -42,6 +43,15 @@ interface PaymentRow {
 }
 
 interface CheckInRow { id: number; content: string; created_at: string }
+
+interface SessionRow {
+  id:           number
+  completed_at: string
+  intensity:    number | null
+  pain:         number | null
+  notes:        string | null
+  workouts:     { name: string } | null
+}
 
 // ── Helpers ────────────────────────────────────────────────────
 const MONTHS_PT: Record<string, number> = {
@@ -99,6 +109,12 @@ export default function PerfilAluno() {
   const { user }  = useAuthStore()
   const studentId = parseInt(id ?? '0', 10)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [compareMode,     setCompareMode]     = useState(false)
+  const [compareSelected, setCompareSelected] = useState<number[]>([])
+  const [showComparison,  setShowComparison]  = useState(false)
+  const [uploadingAssId,  setUploadingAssId]  = useState<number | null>(null)
+  const assessPhotoRef  = useRef<HTMLInputElement>(null)
+  const pendingAssIdRef = useRef<number | null>(null)
   const [showPlanPicker, setShowPlanPicker]   = useState(false)
   const [savingPlan,    setSavingPlan]        = useState(false)
   const [showEditModal, setShowEditModal]     = useState(false)
@@ -129,6 +145,8 @@ export default function PerfilAluno() {
   const [payLoading,      setPayLoading]      = useState(false)
   const [checkins,        setCheckins]        = useState<CheckInRow[]>([])
   const [checkLoading,    setCheckLoading]    = useState(false)
+  const [sessions,        setSessions]        = useState<SessionRow[]>([])
+  const [sessionsLoading, setSessionsLoading] = useState(false)
   const loaded = useRef(new Set<string>())
 
   const fetchAnamnese = useCallback(async () => {
@@ -157,8 +175,8 @@ export default function PerfilAluno() {
     loaded.current.add('assessments')
     setAssessLoading(true)
     const { data } = await supabase.from('assessments')
-      .select('id,assessed_at,weight_kg,body_fat_pct,chest_cm,waist_cm,hip_cm,arm_cm,thigh_cm,notes')
-      .eq('student_id', studentId).order('assessed_at', { ascending: false })
+      .select('id,assessed_at,weight_kg,body_fat_pct,chest_cm,waist_cm,hip_cm,arm_cm,thigh_cm,notes,photo_url')
+      .eq('student_id', studentId).order('assessed_at', { ascending: true })
     setAssessments((data as AssessmentRow[] | null) ?? [])
     setAssessLoading(false)
   }, [studentId])
@@ -185,11 +203,26 @@ export default function PerfilAluno() {
     setCheckLoading(false)
   }, [studentId])
 
+  const fetchSessions = useCallback(async () => {
+    if (!studentId || loaded.current.has('sessions')) return
+    loaded.current.add('sessions')
+    setSessionsLoading(true)
+    const { data } = await supabase
+      .from('workout_sessions')
+      .select('id, completed_at, intensity, pain, notes, workouts(name)')
+      .eq('student_id', studentId)
+      .order('completed_at', { ascending: false })
+      .limit(50)
+    setSessions((data as SessionRow[] | null) ?? [])
+    setSessionsLoading(false)
+  }, [studentId])
+
   useEffect(() => {
     if (!student) return
     if (tab === 'overview')   { fetchAssignments(); fetchCheckins() }
     if (tab === 'anamnese')   fetchAnamnese()
     if (tab === 'treino')     fetchAssignments()
+    if (tab === 'feedback')   fetchSessions()
     if (tab === 'avaliacoes') fetchAssessments()
     if (tab === 'pagamentos') fetchPayments()
     if (tab === 'historico')  { fetchCheckins(); fetchAssessments(); fetchPayments() }
@@ -200,11 +233,28 @@ export default function PerfilAluno() {
   const pay  = student ? payInfo(student.pay)  : payInfo('pending')
   const sem  = student ? semInfo(student.sem)  : semInfo('green')
   const semanas      = student ? calcSemanas(student.since) : 0
-  const lastAssess   = assessments[0] ?? null
+  const lastAssess   = assessments.length > 0 ? assessments[assessments.length - 1] : null
   const pesoAtual    = lastAssess?.weight_kg    != null ? `${lastAssess.weight_kg.toFixed(1)} kg`    : null
   const gorduraAtual = lastAssess?.body_fat_pct != null ? `${lastAssess.body_fat_pct.toFixed(1)}%`  : null
 
   const PLANS = ['Mensal', 'Trimestral', 'Semestral', 'Permuta']
+
+  async function handleAssessmentPhotoUpload(file: File) {
+    const assId = pendingAssIdRef.current
+    if (!assId) return
+    setUploadingAssId(assId)
+    const ext  = file.name.split('.').pop()?.toLowerCase() ?? 'jpg'
+    const path = `${studentId}/${assId}.${ext}`
+    const { error } = await supabase.storage
+      .from('assessment-photos').upload(path, file, { upsert: true })
+    if (!error) {
+      const { data: pd } = supabase.storage.from('assessment-photos').getPublicUrl(path)
+      await supabase.from('assessments').update({ photo_url: pd.publicUrl }).eq('id', assId)
+      setAssessments(prev => prev.map(a => a.id === assId ? { ...a, photo_url: pd.publicUrl } : a))
+    }
+    setUploadingAssId(null)
+    pendingAssIdRef.current = null
+  }
 
   async function handleCreateCheckout() {
     setSubLoading(true); setSubError(null); setCheckoutUrl(null)
@@ -268,6 +318,7 @@ export default function PerfilAluno() {
     { key: 'overview',   label: 'Visão geral' },
     { key: 'anamnese',   label: 'Anamnese'    },
     { key: 'treino',     label: 'Treino'      },
+    { key: 'feedback',   label: 'Feedback'    },
     { key: 'avaliacoes', label: 'Avaliações'  },
     { key: 'pagamentos', label: 'Pagamentos'  },
     { key: 'anexos',     label: 'Anexos'      },
@@ -633,59 +684,308 @@ export default function PerfilAluno() {
             </div>
           )}
 
-          {/* AVALIAÇÕES */}
-          {tab === 'avaliacoes' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
-                <h2 style={{ font: `800 20px ${FF}`, color: '#1B2A4A', margin: 0, letterSpacing: '-.4px' }}>Avaliações físicas</h2>
-                <button type="button" onClick={() => showToast('Em breve!')}
-                  style={{ height: 42, padding: '0 18px', border: '1.5px solid #d6cfbe', background: '#fff', color: '#1B2A4A', borderRadius: 10, font: `600 13.5px ${FF}`, cursor: 'pointer' }}>
-                  + Nova avaliação
-                </button>
+          {/* FEEDBACK */}
+          {tab === 'feedback' && (() => {
+            const INTENSITY_LABEL: Record<number, { emoji: string; label: string; color: string; bg: string }> = {
+              1: { emoji: '😴', label: 'Muito fácil', color: '#1B7a4a', bg: '#e7f3ea' },
+              2: { emoji: '🙂', label: 'Fácil',       color: '#1B7a4a', bg: '#e7f3ea' },
+              3: { emoji: '💪', label: 'Moderado',    color: '#b06a12', bg: '#f7ecd9' },
+              4: { emoji: '🔥', label: 'Difícil',     color: '#c4421e', bg: '#fbe6e1' },
+              5: { emoji: '😤', label: 'Exaustivo',   color: '#c4421e', bg: '#fbe6e1' },
+            }
+            const PAIN_LABEL: Record<number, { label: string; color: string }> = {
+              0: { label: 'Nenhuma dor',   color: '#1B7a4a' },
+              1: { label: 'Dor leve',      color: '#b06a12' },
+              2: { label: 'Dor moderada',  color: '#c4421e' },
+              3: { label: 'Dor intensa',   color: '#c4421e' },
+            }
+            return (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+                  <div>
+                    <h2 style={{ font: `800 20px ${FF}`, color: '#1B2A4A', margin: 0, letterSpacing: '-.4px' }}>Feedback dos treinos</h2>
+                    {!sessionsLoading && sessions.length > 0 && (
+                      <p style={{ font: `400 13px ${FF}`, color: '#7c7869', margin: '3px 0 0' }}>{sessions.length} sessão{sessions.length !== 1 ? 'ões' : ''} registrada{sessions.length !== 1 ? 's' : ''}</p>
+                    )}
+                  </div>
+                </div>
+                {sessionsLoading ? (
+                  <div style={{ font: `400 13px ${FF}`, color: '#9a948a', padding: '20px 0' }}>Carregando…</div>
+                ) : sessions.length === 0 ? (
+                  <Empty icon="💬" title="Nenhum feedback ainda" sub="Os feedbacks dos treinos concluídos pelo aluno aparecerão aqui." />
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {sessions.map(s => {
+                      const intensity = s.intensity != null ? INTENSITY_LABEL[s.intensity] : null
+                      const pain      = s.pain      != null ? PAIN_LABEL[s.pain]           : null
+                      return (
+                        <div key={s.id} style={{ background: '#fff', border: '1px solid #ece7d9', borderRadius: 14, padding: '16px 18px' }}>
+                          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 10 }}>
+                            <div>
+                              <div style={{ font: `700 14px ${FF}`, color: '#1B2A4A' }}>{s.workouts?.name ?? 'Treino'}</div>
+                              <div style={{ font: `400 12px ${FF}`, color: '#9a948a', marginTop: 2 }}>
+                                {new Date(s.completed_at).toLocaleDateString('pt-BR', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                              </div>
+                            </div>
+                            {intensity && (
+                              <span style={{ flexShrink: 0, font: `600 11px ${FF}`, color: intensity.color, background: intensity.bg, borderRadius: 20, padding: '4px 10px', display: 'flex', alignItems: 'center', gap: 4 }}>
+                                {intensity.emoji} {intensity.label}
+                              </span>
+                            )}
+                          </div>
+                          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                            {pain && (
+                              <span style={{ font: `600 11px ${FF}`, color: pain.color, background: pain.color === '#1B7a4a' ? '#e7f3ea' : '#fbe6e1', borderRadius: 20, padding: '3px 10px' }}>
+                                {pain.label}
+                              </span>
+                            )}
+                            {s.notes && (
+                              <span style={{ font: `400 12px ${FF}`, color: '#4a4742', background: '#f4efe3', borderRadius: 8, padding: '4px 10px', flex: 1 }}>
+                                {s.notes}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
               </div>
-              {assessLoading ? (
-                <div style={{ font: `400 13px ${FF}`, color: '#9a948a', padding: '20px 0' }}>Carregando...</div>
-              ) : assessments.length === 0 ? (
-                <Empty icon="📊" title="Nenhuma avaliação registrada" sub="Clique em '+ Nova avaliação' para registrar a primeira avaliação deste aluno." />
-              ) : (
-                <>
-                  {/* Resumo últimos dados */}
-                  {lastAssess && (
-                    <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                      {[
-                        { label: 'Peso atual',   val: lastAssess.weight_kg    != null ? `${lastAssess.weight_kg.toFixed(1)} kg`    : '—' },
-                        { label: '% Gordura',    val: lastAssess.body_fat_pct != null ? `${lastAssess.body_fat_pct.toFixed(1)}%`   : '—' },
-                        { label: 'Cintura',      val: lastAssess.waist_cm     != null ? `${lastAssess.waist_cm.toFixed(1)} cm`     : '—' },
-                        { label: 'Quadril',      val: lastAssess.hip_cm       != null ? `${lastAssess.hip_cm.toFixed(1)} cm`       : '—' },
-                      ].map(({ label, val }) => (
-                        <div key={label} style={{ flex: 1, minWidth: 120, background: '#fff', border: '1px solid #ece7d9', borderRadius: 12, padding: 16 }}>
-                          <div style={{ font: `500 11px ${FF}`, color: '#9a948a' }}>{label}</div>
-                          <div style={{ font: `800 22px ${FF}`, color: '#1B2A4A', marginTop: 4 }}>{val}</div>
+            )
+          })()}
+
+          {/* AVALIAÇÕES */}
+          {tab === 'avaliacoes' && (() => {
+            type MetricKey = 'weight_kg' | 'body_fat_pct' | 'chest_cm' | 'waist_cm' | 'hip_cm' | 'arm_cm' | 'thigh_cm'
+            const METRICS: { key: MetricKey; label: string; unit: string; dec: number; lib: boolean | null }[] = [
+              { key: 'weight_kg',    label: 'Peso',      unit: 'kg', dec: 1, lib: true  },
+              { key: 'body_fat_pct', label: '% Gordura', unit: '%',  dec: 1, lib: true  },
+              { key: 'chest_cm',     label: 'Peito',     unit: 'cm', dec: 0, lib: null  },
+              { key: 'waist_cm',     label: 'Cintura',   unit: 'cm', dec: 0, lib: true  },
+              { key: 'hip_cm',       label: 'Quadril',   unit: 'cm', dec: 0, lib: null  },
+              { key: 'arm_cm',       label: 'Braço',     unit: 'cm', dec: 0, lib: null  },
+              { key: 'thigh_cm',     label: 'Coxa',      unit: 'cm', dec: 0, lib: null  },
+            ]
+
+            // garantir que compLeft é o mais antigo
+            const rawA = assessments.find(a => a.id === compareSelected[0]) ?? null
+            const rawB = assessments.find(a => a.id === compareSelected[1]) ?? null
+            const [compLeft, compRight] = (rawA && rawB && new Date(rawA.assessed_at) > new Date(rawB.assessed_at))
+              ? [rawB, rawA] : [rawA, rawB]
+
+            const fmtVal  = (v: number | null, dec: number, unit: string) => v == null ? '—' : `${v.toFixed(dec)} ${unit}`
+            const fmtDelta = (d: number, dec: number, unit: string) => {
+              const s = Math.abs(d).toFixed(dec)
+              return d > 0 ? `+${s} ${unit}` : `−${s} ${unit}`
+            }
+
+            return (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                {/* hidden photo input */}
+                <input ref={assessPhotoRef} type="file" accept="image/*" style={{ display: 'none' }}
+                  onChange={e => { const f = e.target.files?.[0]; if (f) void handleAssessmentPhotoUpload(f) }} />
+
+                {/* Header */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+                  <div>
+                    <h2 style={{ font: `800 20px ${FF}`, color: '#1B2A4A', margin: 0, letterSpacing: '-.4px' }}>Avaliações físicas</h2>
+                    {assessments.length > 0 && <p style={{ font: `400 13px ${FF}`, color: '#7c7869', margin: '3px 0 0' }}>{assessments.length} avaliação{assessments.length !== 1 ? 'ões' : ''} · ordem cronológica</p>}
+                  </div>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    {assessments.length >= 2 && (
+                      <button type="button"
+                        onClick={() => { setCompareMode(v => !v); setCompareSelected([]); setShowComparison(false) }}
+                        style={{ height: 42, padding: '0 16px', border: `1.5px solid ${compareMode ? '#E8542A' : '#d6cfbe'}`, background: compareMode ? '#fff8f6' : '#fff', color: compareMode ? '#E8542A' : '#1B2A4A', borderRadius: 10, font: `600 13px ${FF}`, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
+                        {compareMode
+                          ? <><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg> Cancelar</>
+                          : <><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8h1a4 4 0 010 8h-1M2 8h16v9a4 4 0 01-4 4H6a4 4 0 01-4-4V8zM6 1v3M10 1v3M14 1v3"/></svg> Comparar</>
+                        }
+                      </button>
+                    )}
+                    <button type="button" onClick={() => showToast('Em breve!')}
+                      style={{ height: 42, padding: '0 18px', border: '1.5px solid #d6cfbe', background: '#fff', color: '#1B2A4A', borderRadius: 10, font: `600 13.5px ${FF}`, cursor: 'pointer' }}>
+                      + Nova avaliação
+                    </button>
+                  </div>
+                </div>
+
+                {assessLoading ? (
+                  <div style={{ font: `400 13px ${FF}`, color: '#9a948a', padding: '20px 0' }}>Carregando...</div>
+                ) : assessments.length === 0 ? (
+                  <Empty icon="📊" title="Nenhuma avaliação registrada" sub="Clique em '+ Nova avaliação' para registrar a primeira avaliação deste aluno." />
+                ) : showComparison && compLeft && compRight ? (
+
+                  /* ── COMPARAÇÃO ───────────────────────────────── */
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                    <button type="button" onClick={() => setShowComparison(false)}
+                      style={{ alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: 6, font: `600 13px ${FF}`, color: '#7c7869', background: 'none', border: 'none', cursor: 'pointer', padding: '0 2px' }}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+                      Voltar à lista
+                    </button>
+
+                    {/* Fotos lado a lado */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                      {([compLeft, compRight] as AssessmentRow[]).map((a, ci) => (
+                        <div key={ci} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                          <div style={{ font: `600 12px ${FF}`, color: '#1B2A4A', textAlign: 'center' }}>
+                            {ci === 0 ? 'Antes' : 'Depois'} · {fmtDate(a.assessed_at)}
+                          </div>
+                          {a.photo_url ? (
+                            <img src={a.photo_url} alt="" style={{ width: '100%', aspectRatio: '3/4', objectFit: 'cover', borderRadius: 12 }} />
+                          ) : (
+                            <div style={{ width: '100%', aspectRatio: '3/4', background: '#f4efe3', border: '1.5px dashed #d6cfbe', borderRadius: 12, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#c8bfb0" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                              <button type="button"
+                                onClick={() => { pendingAssIdRef.current = a.id; assessPhotoRef.current?.click() }}
+                                style={{ font: `600 11px ${FF}`, color: '#E8542A', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>
+                                + Adicionar foto
+                              </button>
+                            </div>
+                          )}
                         </div>
                       ))}
                     </div>
-                  )}
-                  {/* Lista de avaliações */}
-                  <div style={{ background: '#fff', border: '1px solid #ece7d9', borderRadius: 14, overflow: 'hidden' }}>
-                    <div style={{ padding: '12px 18px', background: '#fbf8f1', borderBottom: '1px solid #ece7d9', font: `700 11px ${FF}`, color: '#9a948a', textTransform: 'uppercase', letterSpacing: '.5px' }}>
-                      Histórico de avaliações
-                    </div>
-                    {assessments.map((a, i) => (
-                      <div key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '13px 18px', borderTop: i === 0 ? 'none' : '1px solid #f1ece0' }}>
-                        <div style={{ font: `600 13px ${FF}`, color: '#1B2A4A', minWidth: 100 }}>{fmtDate(a.assessed_at)}</div>
-                        <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', flex: 1 }}>
-                          {a.weight_kg    != null && <span style={{ font: `400 12.5px ${FF}`, color: '#4a4742' }}>⚖️ {a.weight_kg.toFixed(1)} kg</span>}
-                          {a.body_fat_pct != null && <span style={{ font: `400 12.5px ${FF}`, color: '#4a4742' }}>📊 {a.body_fat_pct.toFixed(1)}% gordura</span>}
-                          {a.waist_cm     != null && <span style={{ font: `400 12.5px ${FF}`, color: '#4a4742' }}>📏 Cintura {a.waist_cm.toFixed(0)} cm</span>}
-                        </div>
-                        {i === 0 && <span style={{ font: `600 10px ${FF}`, color: '#1B7a4a', background: '#e7f3ea', borderRadius: 20, padding: '3px 9px', whiteSpace: 'nowrap' }}>Mais recente</span>}
+
+                    {/* Tabela de comparação */}
+                    <div style={{ background: '#fff', border: '1px solid #ece7d9', borderRadius: 14, overflow: 'hidden' }}>
+                      {/* Cabeçalho */}
+                      <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr 1fr', padding: '11px 16px', background: '#fbf8f1', borderBottom: '1px solid #ece7d9', gap: 8 }}>
+                        {['Métrica', fmtDate(compLeft.assessed_at), fmtDate(compRight.assessed_at), 'Variação'].map((h, hi) => (
+                          <div key={hi} style={{ font: `700 11px ${FF}`, color: hi === 0 ? '#9a948a' : '#1B2A4A', textTransform: hi === 0 || hi === 3 ? 'uppercase' : 'none', letterSpacing: '.4px', textAlign: hi > 0 ? 'center' : 'left' }}>{h}</div>
+                        ))}
                       </div>
-                    ))}
+                      {METRICS.map((m, mi) => {
+                        const vA = compLeft[m.key]  as number | null
+                        const vB = compRight[m.key] as number | null
+                        if (vA == null && vB == null) return null
+                        const delta = vA != null && vB != null ? vB - vA : null
+                        let dc = '#7c7869'
+                        if (delta != null && m.lib !== null) {
+                          dc = (m.lib ? delta < 0 : delta > 0) ? '#1B7a4a' : delta !== 0 ? '#c4421e' : '#7c7869'
+                        }
+                        return (
+                          <div key={m.key} style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr 1fr', padding: '11px 16px', borderTop: mi === 0 ? 'none' : '1px solid #f1ece0', gap: 8, alignItems: 'center' }}>
+                            <div style={{ font: `500 13px ${FF}`, color: '#4a4742' }}>{m.label}</div>
+                            <div style={{ font: `600 13px ${FF}`, color: '#1B2A4A', textAlign: 'center' }}>{fmtVal(vA, m.dec, m.unit)}</div>
+                            <div style={{ font: `600 13px ${FF}`, color: '#1B2A4A', textAlign: 'center' }}>{fmtVal(vB, m.dec, m.unit)}</div>
+                            <div style={{ font: `700 13px ${FF}`, color: dc, textAlign: 'center' }}>
+                              {delta == null ? '—' : delta === 0 ? '=' : fmtDelta(delta, m.dec, m.unit)}
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
                   </div>
-                </>
-              )}
-            </div>
-          )}
+
+                ) : (
+
+                  /* ── LISTA NORMAL ──────────────────────────────── */
+                  <>
+                    {/* Resumo mais recente */}
+                    {lastAssess && !compareMode && (
+                      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                        {[
+                          { label: 'Peso atual',  val: lastAssess.weight_kg    != null ? `${lastAssess.weight_kg.toFixed(1)} kg`   : '—' },
+                          { label: '% Gordura',   val: lastAssess.body_fat_pct != null ? `${lastAssess.body_fat_pct.toFixed(1)}%`  : '—' },
+                          { label: 'Cintura',     val: lastAssess.waist_cm     != null ? `${lastAssess.waist_cm.toFixed(1)} cm`    : '—' },
+                          { label: 'Quadril',     val: lastAssess.hip_cm       != null ? `${lastAssess.hip_cm.toFixed(1)} cm`      : '—' },
+                        ].map(({ label, val }) => (
+                          <div key={label} style={{ flex: 1, minWidth: 120, background: '#fff', border: '1px solid #ece7d9', borderRadius: 12, padding: 16 }}>
+                            <div style={{ font: `500 11px ${FF}`, color: '#9a948a' }}>{label}</div>
+                            <div style={{ font: `800 22px ${FF}`, color: '#1B2A4A', marginTop: 4 }}>{val}</div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Dica do modo comparação */}
+                    {compareMode && (
+                      <div style={{ background: '#fff8f6', border: '1.5px solid rgba(232,84,42,.2)', borderRadius: 12, padding: '11px 16px', font: `500 13px ${FF}`, color: '#E8542A', display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg>
+                        {compareSelected.length === 0 && 'Selecione 2 avaliações para comparar'}
+                        {compareSelected.length === 1 && 'Selecione mais 1 avaliação'}
+                        {compareSelected.length === 2 && '2 avaliações selecionadas — clique em "Ver comparação"'}
+                      </div>
+                    )}
+
+                    {/* Lista cronológica */}
+                    <div style={{ background: '#fff', border: '1px solid #ece7d9', borderRadius: 14, overflow: 'hidden' }}>
+                      <div style={{ padding: '11px 18px', background: '#fbf8f1', borderBottom: '1px solid #ece7d9', font: `700 11px ${FF}`, color: '#9a948a', textTransform: 'uppercase', letterSpacing: '.5px' }}>
+                        Histórico · mais antigo primeiro
+                      </div>
+                      {assessments.map((a, i) => {
+                        const isLatest   = i === assessments.length - 1
+                        const isSelected = compareSelected.includes(a.id)
+                        return (
+                          <div key={a.id}
+                            onClick={compareMode ? () => setCompareSelected(prev =>
+                              prev.includes(a.id) ? prev.filter(x => x !== a.id) : prev.length < 2 ? [...prev, a.id] : [prev[1], a.id]
+                            ) : undefined}
+                            style={{ borderTop: i === 0 ? 'none' : '1px solid #f1ece0', background: isSelected ? '#fff8f6' : '#fff', cursor: compareMode ? 'pointer' : 'default', transition: 'background .12s' }}>
+                            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '14px 18px' }}>
+
+                              {/* Checkbox comparação */}
+                              {compareMode && (
+                                <div style={{ flexShrink: 0, marginTop: 3, width: 20, height: 20, borderRadius: '50%', border: `2px solid ${isSelected ? '#E8542A' : '#d6cfbe'}`, background: isSelected ? '#E8542A' : '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                  {isSelected && <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5"/></svg>}
+                                </div>
+                              )}
+
+                              {/* Thumbnail / botão foto */}
+                              <div style={{ flexShrink: 0 }}>
+                                {a.photo_url ? (
+                                  <img src={a.photo_url} alt="" style={{ width: 56, height: 72, objectFit: 'cover', borderRadius: 8, display: 'block' }} />
+                                ) : (
+                                  <button type="button"
+                                    onClick={e => { e.stopPropagation(); pendingAssIdRef.current = a.id; assessPhotoRef.current?.click() }}
+                                    disabled={uploadingAssId === a.id}
+                                    style={{ width: 56, height: 72, background: '#f4efe3', border: '1.5px dashed #d6cfbe', borderRadius: 8, cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3 }}>
+                                    {uploadingAssId === a.id
+                                      ? <span style={{ width: 14, height: 14, border: '2px solid #d6cfbe', borderTopColor: '#E8542A', borderRadius: '50%', display: 'block', animation: 'kspin .7s linear infinite' }} />
+                                      : <>
+                                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#b0a99c" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                                          <span style={{ font: `500 9px ${FF}`, color: '#b0a99c' }}>+ Foto</span>
+                                        </>
+                                    }
+                                  </button>
+                                )}
+                              </div>
+
+                              {/* Métricas */}
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
+                                  <span style={{ font: `600 13px ${FF}`, color: '#1B2A4A' }}>{fmtDate(a.assessed_at)}</span>
+                                  {isLatest && <span style={{ font: `600 10px ${FF}`, color: '#1B7a4a', background: '#e7f3ea', borderRadius: 20, padding: '2px 9px' }}>Mais recente</span>}
+                                </div>
+                                <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                                  {a.weight_kg    != null && <span style={{ font: `400 12.5px ${FF}`, color: '#4a4742' }}>⚖️ {a.weight_kg.toFixed(1)} kg</span>}
+                                  {a.body_fat_pct != null && <span style={{ font: `400 12.5px ${FF}`, color: '#4a4742' }}>📊 {a.body_fat_pct.toFixed(1)}%</span>}
+                                  {a.waist_cm     != null && <span style={{ font: `400 12.5px ${FF}`, color: '#4a4742' }}>Cintura {a.waist_cm.toFixed(0)} cm</span>}
+                                  {a.hip_cm       != null && <span style={{ font: `400 12.5px ${FF}`, color: '#4a4742' }}>Quadril {a.hip_cm.toFixed(0)} cm</span>}
+                                  {a.arm_cm       != null && <span style={{ font: `400 12.5px ${FF}`, color: '#4a4742' }}>Braço {a.arm_cm.toFixed(0)} cm</span>}
+                                  {a.thigh_cm     != null && <span style={{ font: `400 12.5px ${FF}`, color: '#4a4742' }}>Coxa {a.thigh_cm.toFixed(0)} cm</span>}
+                                </div>
+                                {a.notes && <div style={{ font: `400 12px ${FF}`, color: '#9a948a', marginTop: 6, fontStyle: 'italic' }}>{a.notes}</div>}
+                              </div>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+
+                    {/* Botão ver comparação */}
+                    {compareMode && compareSelected.length === 2 && (
+                      <button type="button" onClick={() => setShowComparison(true)}
+                        style={{ height: 48, border: 'none', background: '#1B2A4A', color: '#fff', borderRadius: 12, font: `700 14px ${FF}`, cursor: 'pointer', boxShadow: '0 2px 0 #0f1a2e', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="18"/><rect x="14" y="3" width="7" height="18"/></svg>
+                        Ver comparação das avaliações selecionadas
+                      </button>
+                    )}
+                  </>
+                )}
+              </div>
+            )
+          })()}
 
           {/* PAGAMENTOS */}
           {tab === 'pagamentos' && (

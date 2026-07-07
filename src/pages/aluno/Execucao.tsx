@@ -26,6 +26,7 @@ interface SavedProgress {
   reps:         number
   weight:       number
   allCompleted: CompletedSet[]
+  startedAt:    number
 }
 
 type Phase = 'loading' | 'already_done' | 'workout' | 'feedback' | 'summary'
@@ -34,6 +35,13 @@ function parseReps(reps: string): number { return parseInt(reps) || 12 }
 
 function fmtWeight(w: number): string {
   return w === Math.floor(w) ? `${w}` : w.toFixed(1).replace('.', ',')
+}
+
+function fmtDuration(sec: number): string {
+  if (sec <= 0) return '—'
+  const m = Math.floor(sec / 60)
+  const h = Math.floor(m / 60)
+  return h > 0 ? `${h}h ${m % 60}min` : `${m} min`
 }
 
 function loadSaved(workoutId: number, totalExs: number): SavedProgress | null {
@@ -75,10 +83,10 @@ function roundRect(
 ) {
   ctx.beginPath()
   ctx.moveTo(x + r, y)
-  ctx.lineTo(x + w - r, y);  ctx.arcTo(x + w, y,     x + w, y + r,     r)
+  ctx.lineTo(x + w - r, y);     ctx.arcTo(x + w, y,     x + w, y + r,     r)
   ctx.lineTo(x + w, y + h - r); ctx.arcTo(x + w, y + h, x + w - r, y + h, r)
-  ctx.lineTo(x + r, y + h); ctx.arcTo(x, y + h, x, y + h - r, r)
-  ctx.lineTo(x, y + r);    ctx.arcTo(x, y,     x + r, y,       r)
+  ctx.lineTo(x + r, y + h);     ctx.arcTo(x, y + h,     x, y + h - r,     r)
+  ctx.lineTo(x, y + r);         ctx.arcTo(x, y,         x + r, y,         r)
   ctx.closePath()
 }
 
@@ -90,14 +98,16 @@ export default function Execucao() {
 
   const workoutIdRef  = useRef<number | null>(null)
   const studentIdRef  = useRef<number | null>(null)
+  const startedAtRef  = useRef<number>(0)
   const photoInputRef = useRef<HTMLInputElement>(null)
 
-  const [phase,        setPhase]        = useState<Phase>('loading')
-  const [exercises,    setExercises]    = useState<ExerciseData[]>([])
-  const [workoutName,  setWorkoutName]  = useState(state?.workoutName ?? '')
-  const [resumed,      setResumed]      = useState(false)
-  const [lastWeights,  setLastWeights]  = useState<Record<string, number>>({})
-  const [allCompleted, setAllCompleted] = useState<CompletedSet[]>([])
+  const [phase,               setPhase]               = useState<Phase>('loading')
+  const [exercises,           setExercises]           = useState<ExerciseData[]>([])
+  const [workoutName,         setWorkoutName]         = useState(state?.workoutName ?? '')
+  const [resumed,             setResumed]             = useState(false)
+  const [lastWeights,         setLastWeights]         = useState<Record<string, number>>({})
+  const [allCompleted,        setAllCompleted]        = useState<CompletedSet[]>([])
+  const [workoutDurationSec,  setWorkoutDurationSec]  = useState(0)
 
   const [exIdx,        setExIdx]        = useState(0)
   const [setsDone,     setSetsDone]     = useState<SetResult[]>([])
@@ -194,12 +204,14 @@ export default function Execucao() {
         setWeight(saved.weight)
         setAllCompleted(saved.allCompleted ?? [])
         setTimerSec(mapped[saved.exIdx].restSec)
+        startedAtRef.current = saved.startedAt || Date.now()
         setResumed(true)
         setTimeout(() => setResumed(false), 2500)
       } else {
         setReps(mapped[0].defaultReps)
         setWeight(lw[mapped[0].name] ?? 0)
         setTimerSec(mapped[0].restSec)
+        startedAtRef.current = Date.now()
       }
     }
     setPhase('workout')
@@ -232,7 +244,7 @@ export default function Execucao() {
   function handleSerieConc() {
     const wid = workoutIdRef.current
     const ex  = exercises[exIdx]
-    const next: SetResult[]    = [...setsDone, { reps, weight }]
+    const next: SetResult[]     = [...setsDone, { reps, weight }]
     const newAll: CompletedSet[] = [...allCompleted, { exerciseName: ex.name, reps, weight }]
     setAllCompleted(newAll)
     void saveLog(ex.name, reps, weight)
@@ -244,16 +256,17 @@ export default function Execucao() {
         const nw  = lastWeights[nex.name] ?? 0
         setExIdx(ni); setSetsDone([]); setReps(nex.defaultReps)
         setWeight(nw); setTimerSec(nex.restSec)
-        if (wid) saveProg({ workoutId: wid, exIdx: ni, setsDone: [], reps: nex.defaultReps, weight: nw, allCompleted: newAll })
+        if (wid) saveProg({ workoutId: wid, exIdx: ni, setsDone: [], reps: nex.defaultReps, weight: nw, allCompleted: newAll, startedAt: startedAtRef.current })
       } else {
         clearProg()
         setTimerRunning(false)
+        setWorkoutDurationSec(Math.floor((Date.now() - startedAtRef.current) / 1000))
         setPhase('feedback')
         return
       }
     } else {
       setSetsDone(next)
-      if (wid) saveProg({ workoutId: wid, exIdx, setsDone: next, reps, weight, allCompleted: newAll })
+      if (wid) saveProg({ workoutId: wid, exIdx, setsDone: next, reps, weight, allCompleted: newAll, startedAt: startedAtRef.current })
     }
     setTimerSec(ex.restSec)
     setTimerRunning(true)
@@ -302,27 +315,22 @@ export default function Execucao() {
       ctx.fillRect(0, 0, W, H)
     }
 
-    // App name
     ctx.fillStyle = '#E8542A'
     ctx.font = `700 56px sans-serif`
     ctx.textAlign = 'center'
     ctx.fillText('KINEA', W / 2, 130)
 
-    // Date
     const dateStr = new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })
     ctx.fillStyle = '#8B97AD'
     ctx.font = `400 34px sans-serif`
     ctx.fillText(dateStr, W / 2, 185)
 
-    // Workout name
     ctx.fillStyle = '#FAEEDA'
     ctx.font = `900 76px sans-serif`
     wrapText(ctx, workoutName, W / 2, 300, W - 100, 92)
 
-    // Stats box
-    const uniqueExs  = [...new Set(allCompleted.map(s => s.exerciseName))].length
-    const totalSets  = allCompleted.length
-    const totalLoad  = allCompleted.reduce((sum, s) => sum + s.reps * s.weight, 0)
+    const uniqueExs = [...new Set(allCompleted.map(s => s.exerciseName))].length
+    const totalSets = allCompleted.length
     const statsY = 480
     ctx.fillStyle = 'rgba(255,255,255,0.08)'
     roundRect(ctx, 50, statsY, W - 100, 190, 30); ctx.fill()
@@ -330,7 +338,7 @@ export default function Execucao() {
     const cols = [
       { label: 'Exercícios', value: `${uniqueExs}` },
       { label: 'Séries',     value: `${totalSets}` },
-      { label: 'Carga total', value: totalLoad > 0 ? `${totalLoad.toLocaleString('pt-BR')} kg` : '—' },
+      { label: 'Duração',    value: fmtDuration(workoutDurationSec) },
     ]
     const colW = (W - 100) / 3
     cols.forEach((c, i) => {
@@ -341,7 +349,6 @@ export default function Execucao() {
       ctx.fillText(c.label, cx, statsY + 135)
     })
 
-    // Exercise list
     let y = statsY + 240
     ctx.fillStyle = '#8B97AD'; ctx.font = `600 30px sans-serif`; ctx.textAlign = 'left'
     ctx.fillText('EXERCÍCIOS', 60, y); y += 20
@@ -349,17 +356,15 @@ export default function Execucao() {
     const exNames = [...new Set(allCompleted.map(s => s.exerciseName))]
     for (const name of exNames.slice(0, 8)) {
       const sets = allCompleted.filter(s => s.exerciseName === name)
-      const load = sets.reduce((sum, s) => sum + s.reps * s.weight, 0)
       y += 64
       ctx.fillStyle = 'rgba(255,255,255,0.06)'
       roundRect(ctx, 50, y - 40, W - 100, 58, 14); ctx.fill()
       ctx.fillStyle = '#FAEEDA'; ctx.font = `600 30px sans-serif`; ctx.textAlign = 'left'
       ctx.fillText(name, 80, y)
       ctx.fillStyle = '#E8542A'; ctx.font = `700 28px sans-serif`; ctx.textAlign = 'right'
-      ctx.fillText(load > 0 ? `${load.toLocaleString('pt-BR')} kg` : `${sets.length} séries`, W - 80, y)
+      ctx.fillText(`${sets.length} série${sets.length !== 1 ? 's' : ''}`, W - 80, y)
     }
 
-    // Footer
     ctx.fillStyle = 'rgba(139,151,173,0.5)'; ctx.font = `400 28px sans-serif`; ctx.textAlign = 'center'
     ctx.fillText('kinea.app', W / 2, H - 80)
 
@@ -380,11 +385,11 @@ export default function Execucao() {
         const a = document.createElement('a'); a.href = url; a.download = 'treino-kinea.png'; a.click()
         URL.revokeObjectURL(url)
       }
-    } catch { /* user cancelled share */ }
+    } catch { /* user cancelled */ }
     setSharing(false)
   }
 
-  // ── already done ────────────────────────────────────────────────────────────
+  // ── already done ─────────────────────────────────────────────────────────────
   if (phase === 'already_done') return (
     <div style={{ background: '#1B2A4A', minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 22, padding: 32 }}>
       <div style={{ width: 72, height: 72, borderRadius: 20, background: 'rgba(76,175,138,.15)', border: '1.5px solid rgba(76,175,138,.4)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -403,21 +408,21 @@ export default function Execucao() {
     </div>
   )
 
-  // ── loading ─────────────────────────────────────────────────────────────────
+  // ── loading ───────────────────────────────────────────────────────────────────
   if (phase === 'loading') return (
     <div style={{ background: '#1B2A4A', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <div style={{ font: `500 14px ${FF}`, color: '#8B97AD' }}>Carregando treino…</div>
     </div>
   )
 
-  // ── feedback ────────────────────────────────────────────────────────────────
+  // ── feedback ──────────────────────────────────────────────────────────────────
   if (phase === 'feedback') {
     const INTENSITY = [
-      { v: 1, label: 'Muito\nfácil',  emoji: '😴' },
-      { v: 2, label: 'Fácil',         emoji: '🙂' },
-      { v: 3, label: 'Moderado',      emoji: '💪' },
-      { v: 4, label: 'Difícil',       emoji: '🔥' },
-      { v: 5, label: 'Exaustivo',     emoji: '😤' },
+      { v: 1, label: 'Muito\nfácil', emoji: '😴' },
+      { v: 2, label: 'Fácil',        emoji: '🙂' },
+      { v: 3, label: 'Moderado',     emoji: '💪' },
+      { v: 4, label: 'Difícil',      emoji: '🔥' },
+      { v: 5, label: 'Exaustivo',    emoji: '😤' },
     ]
     const PAIN = [
       { v: 0, label: 'Nenhuma' },
@@ -438,7 +443,6 @@ export default function Execucao() {
         </div>
 
         <div style={{ flex: 1, overflowY: 'auto', padding: '26px 20px 12px' }}>
-          {/* Intensidade */}
           <div style={{ marginBottom: 28 }}>
             <div style={{ font: `700 13px ${FF}`, color: '#FAEEDA', marginBottom: 14 }}>Intensidade do treino</div>
             <div style={{ display: 'flex', gap: 8 }}>
@@ -452,7 +456,6 @@ export default function Execucao() {
             </div>
           </div>
 
-          {/* Dores */}
           <div style={{ marginBottom: 28 }}>
             <div style={{ font: `700 13px ${FF}`, color: '#FAEEDA', marginBottom: 14 }}>Sentiu dor durante o treino?</div>
             <div style={{ display: 'flex', gap: 8 }}>
@@ -465,7 +468,6 @@ export default function Execucao() {
             </div>
           </div>
 
-          {/* Observações */}
           <div style={{ marginBottom: 12 }}>
             <div style={{ font: `700 13px ${FF}`, color: '#FAEEDA', marginBottom: 12 }}>Observações <span style={{ font: `400 12px ${FF}`, color: '#8B97AD' }}>(opcional)</span></div>
             <textarea
@@ -488,15 +490,14 @@ export default function Execucao() {
     )
   }
 
-  // ── summary ─────────────────────────────────────────────────────────────────
+  // ── summary ───────────────────────────────────────────────────────────────────
   if (phase === 'summary') {
-    const uniqueExCount = [...new Set(allCompleted.map(s => s.exerciseName))].length
+    const uniqueExCount  = [...new Set(allCompleted.map(s => s.exerciseName))].length
     const totalSetsCount = allCompleted.length
-    const totalLoad = allCompleted.reduce((sum, s) => sum + s.reps * s.weight, 0)
-    const exSummary = exercises.map(e => {
-      const sets = allCompleted.filter(s => s.exerciseName === e.name)
-      return { name: e.name, sets: sets.length, load: sets.reduce((sum, s) => sum + s.reps * s.weight, 0) }
-    }).filter(e => e.sets > 0)
+    const exSummary = exercises.map(e => ({
+      name: e.name,
+      sets: allCompleted.filter(s => s.exerciseName === e.name).length,
+    })).filter(e => e.sets > 0)
 
     return (
       <div style={{ background: '#1B2A4A', minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
@@ -505,7 +506,6 @@ export default function Execucao() {
           onChange={e => { const f = e.target.files?.[0]; if (f) void doShare(f) }}
         />
 
-        {/* Top bar */}
         <div style={{ padding: '20px 20px 0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <div style={{ width: 38, height: 38, borderRadius: 10, background: 'rgba(76,175,138,.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -527,12 +527,11 @@ export default function Execucao() {
             {workoutName}
           </div>
 
-          {/* Stats */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 26 }}>
             {[
               { label: 'Exercícios', value: `${uniqueExCount}` },
               { label: 'Séries',     value: `${totalSetsCount}` },
-              { label: 'Carga total', value: totalLoad > 0 ? `${totalLoad.toLocaleString('pt-BR')} kg` : '—' },
+              { label: 'Duração',    value: fmtDuration(workoutDurationSec) },
             ].map(s => (
               <div key={s.label} style={{ background: 'rgba(255,255,255,.07)', borderRadius: 14, padding: '14px 10px', textAlign: 'center' }}>
                 <div style={{ font: `900 22px ${FF}`, color: '#FAEEDA' }}>{s.value}</div>
@@ -541,16 +540,14 @@ export default function Execucao() {
             ))}
           </div>
 
-          {/* Per-exercise */}
           <div style={{ font: `700 11px ${FF}`, color: '#8B97AD', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 10 }}>Por exercício</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 28 }}>
             {exSummary.map(e => (
-              <div key={e.name} style={{ background: 'rgba(255,255,255,.06)', borderRadius: 12, padding: '12px 14px', display: 'flex', alignItems: 'center' }}>
+              <div key={e.name} style={{ background: 'rgba(255,255,255,.06)', borderRadius: 12, padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <span style={{ font: `600 13px ${FF}`, color: '#FAEEDA', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.name}</span>
-                <div style={{ textAlign: 'right', flexShrink: 0, marginLeft: 12 }}>
-                  <div style={{ font: `700 13px ${FF}`, color: '#E8542A' }}>{e.load > 0 ? `${e.load.toLocaleString('pt-BR')} kg` : '—'}</div>
-                  <div style={{ font: `400 10px ${FF}`, color: '#8B97AD' }}>{e.sets} série{e.sets !== 1 ? 's' : ''}</div>
-                </div>
+                <span style={{ font: `700 12px ${FF}`, color: '#E8542A', flexShrink: 0, marginLeft: 12 }}>
+                  {e.sets} série{e.sets !== 1 ? 's' : ''}
+                </span>
               </div>
             ))}
           </div>
@@ -571,14 +568,11 @@ export default function Execucao() {
           </button>
         </div>
 
-        {/* Share bottom sheet */}
         {shareAskPhoto && (
           <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.55)', display: 'flex', alignItems: 'flex-end', zIndex: 100 }} onClick={() => setShareAskPhoto(false)}>
             <div style={{ background: '#1e3056', borderRadius: '20px 20px 0 0', padding: '28px 20px 44px', width: '100%' }} onClick={e => e.stopPropagation()}>
               <div style={{ width: 36, height: 4, background: 'rgba(255,255,255,.2)', borderRadius: 2, margin: '0 auto 22px' }} />
-              <div style={{ font: `900 17px ${FF}`, color: '#FAEEDA', textAlign: 'center', marginBottom: 8 }}>
-                Adicionar foto de fundo?
-              </div>
+              <div style={{ font: `900 17px ${FF}`, color: '#FAEEDA', textAlign: 'center', marginBottom: 8 }}>Adicionar foto de fundo?</div>
               <div style={{ font: `400 13px ${FF}`, color: '#8B97AD', textAlign: 'center', marginBottom: 26, lineHeight: 1.55 }}>
                 Tire uma foto e ela será usada como fundo do card do treino.
               </div>
@@ -603,7 +597,7 @@ export default function Execucao() {
     )
   }
 
-  // ── workout ──────────────────────────────────────────────────────────────────
+  // ── workout ───────────────────────────────────────────────────────────────────
   if (exercises.length === 0) return (
     <div style={{ background: '#1B2A4A', minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16, padding: 24 }}>
       <div style={{ font: `700 16px ${FF}`, color: '#FAEEDA', textAlign: 'center' }}>Nenhum exercício encontrado neste treino.</div>
@@ -627,7 +621,6 @@ export default function Execucao() {
   return (
     <div style={{ background: '#1B2A4A', minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
 
-      {/* Top bar */}
       <div style={{ padding: '16px 18px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <button onClick={() => navigate('/aluno/treinos')}
           style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(255,255,255,.1)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -640,7 +633,6 @@ export default function Execucao() {
         <div style={{ width: 36 }} />
       </div>
 
-      {/* Progress bar */}
       <div style={{ margin: '0 18px 20px', background: 'rgba(255,255,255,.1)', height: 4, borderRadius: 4 }}>
         <div style={{ height: '100%', width: `${progress * 100}%`, background: '#E8542A', borderRadius: 4, transition: 'width 400ms ease' }} />
       </div>
@@ -651,7 +643,6 @@ export default function Execucao() {
         </div>
       )}
 
-      {/* Exercise name */}
       <div style={{ padding: '0 22px 16px' }}>
         <div style={{ font: `500 11px ${FF}`, color: '#8B97AD', textTransform: 'uppercase', letterSpacing: '.3px', marginBottom: 6 }}>
           {ex.muscle.toUpperCase()}
@@ -671,7 +662,6 @@ export default function Execucao() {
         </div>
       </div>
 
-      {/* Timer */}
       <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 20 }}>
         <svg width={160} height={160} viewBox="0 0 160 160" onClick={() => setTimerRunning(r => !r)} style={{ cursor: 'pointer' }}>
           <circle cx={80} cy={80} r={70} fill="none" stroke="rgba(255,255,255,.08)" strokeWidth={8} />
@@ -689,7 +679,6 @@ export default function Execucao() {
         </svg>
       </div>
 
-      {/* Sets block */}
       <div style={{ margin: '0 18px', background: 'rgba(255,255,255,.06)', borderRadius: 18, padding: 18, flex: 1 }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {Array.from({ length: ex.sets }).map((_, i) => {
@@ -711,7 +700,6 @@ export default function Execucao() {
                   <span style={{ font: `700 13px ${FF}`, color: '#FAEEDA' }}>Série {i + 1} — atual</span>
                 </div>
                 <div style={{ display: 'flex', gap: 10 }}>
-                  {/* Reps */}
                   <div style={{ flex: 1, background: 'rgba(255,255,255,.07)', borderRadius: 10, padding: '10px 12px' }}>
                     <div style={{ font: `500 10px ${FF}`, color: '#8B97AD', textTransform: 'uppercase', letterSpacing: '.4px', marginBottom: 8 }}>Repetições</div>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -720,7 +708,6 @@ export default function Execucao() {
                       <button onClick={() => setReps(r => r + 1)} style={{ width: 30, height: 30, background: 'rgba(255,255,255,.1)', border: 'none', borderRadius: 8, cursor: 'pointer', color: '#FAEEDA', font: `700 18px ${FF}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>
                     </div>
                   </div>
-                  {/* Carga */}
                   <div style={{ flex: 1, background: 'rgba(255,255,255,.07)', borderRadius: 10, padding: '10px 12px' }}>
                     <div style={{ font: `500 10px ${FF}`, color: '#8B97AD', textTransform: 'uppercase', letterSpacing: '.4px', marginBottom: 8 }}>Carga (kg)</div>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -752,7 +739,6 @@ export default function Execucao() {
         </div>
       </div>
 
-      {/* CTA */}
       <div style={{ padding: '16px 18px 32px' }}>
         <button onClick={handleSerieConc}
           style={{ width: '100%', padding: 16, background: '#E8542A', border: 'none', borderRadius: 14, font: `700 16px ${FF}`, color: '#fff', cursor: 'pointer', boxShadow: '0 4px 0 #C4421E' }}>
