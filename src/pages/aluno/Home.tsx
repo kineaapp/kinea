@@ -1,8 +1,16 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { MessageCircle } from 'lucide-react'
 import { useAuthStore } from '../../store/auth'
 import { supabase } from '../../lib/supabase'
+
+const GOAL_STYLE: Record<string, { color: string; bg: string }> = {
+  Hipertrofia:     { color: '#c4421e', bg: '#fbe6e1' },
+  Emagrecimento:   { color: '#1B7a4a', bg: '#e7f3ea' },
+  Força:           { color: '#1B2A4A', bg: '#eef1f6' },
+  Condicionamento: { color: '#b06a12', bg: '#f7ecd9' },
+  Mobilidade:      { color: '#5a4ea0', bg: '#ece9f6' },
+}
 
 const FF = '"Libre Franklin",sans-serif'
 
@@ -28,6 +36,29 @@ export default function Home() {
   const [editSaving,  setEditSaving]  = useState(false)
   const [editError,   setEditError]   = useState('')
   const [saved,       setSaved]       = useState(false)
+
+  const [todayWorkout, setTodayWorkout] = useState<{ id: number; name: string; goal: string; muscle_group: string; exercise_count: number } | null>(null)
+
+  useEffect(() => { if (user?.id) void loadTodayWorkout() }, [user?.id])
+
+  async function loadTodayWorkout() {
+    const { data: studentRow } = await supabase
+      .from('students').select('id').eq('student_id', user!.id).single()
+    if (!studentRow) return
+
+    const { data } = await supabase
+      .from('workout_assignments')
+      .select('workouts ( id, name, goal, muscle_group, exercises ( id ) )')
+      .eq('student_id', (studentRow as any).id)
+      .order('assigned_at', { ascending: false })
+      .limit(1)
+      .single()
+
+    if (data && (data as any).workouts) {
+      const w = (data as any).workouts
+      setTodayWorkout({ id: w.id, name: w.name, goal: w.goal, muscle_group: w.muscle_group, exercise_count: (w.exercises ?? []).length })
+    }
+  }
 
   async function openEdit() {
     setEditName(user?.name ?? '')
@@ -183,17 +214,40 @@ export default function Home() {
           </button>
         </div>
 
-        <div style={{ background: '#fff', borderRadius: 16, border: '1.5px dashed #D6CFBE', padding: '28px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, textAlign: 'center' }}>
-          <div style={{ width: 48, height: 48, borderRadius: 14, background: '#eef1f6', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#1B2A4A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M18 8h1a4 4 0 0 1 0 8h-1" /><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z" /><line x1="6" y1="1" x2="6" y2="4" /><line x1="10" y1="1" x2="10" y2="4" /><line x1="14" y1="1" x2="14" y2="4" />
-            </svg>
+        {todayWorkout ? (() => {
+          const g = GOAL_STYLE[todayWorkout.goal] ?? { color: '#1B2A4A', bg: '#eef1f6' }
+          return (
+            <div style={{ background: '#fff', borderRadius: 16, border: '1px solid #ece7d9', overflow: 'hidden' }}>
+              <div style={{ padding: '14px 16px 12px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <span style={{ font: `600 11px ${FF}`, color: g.color, background: g.bg, borderRadius: 20, padding: '3px 9px' }}>{todayWorkout.goal}</span>
+                  <span style={{ font: `500 11px ${FF}`, color: '#9a948a' }}>{todayWorkout.exercise_count} exercício{todayWorkout.exercise_count !== 1 ? 's' : ''}</span>
+                </div>
+                <div style={{ font: `800 16px ${FF}`, color: '#1B2A4A', letterSpacing: '-.3px', marginBottom: 2 }}>{todayWorkout.name}</div>
+                <div style={{ font: `400 12px ${FF}`, color: '#9a948a' }}>{todayWorkout.muscle_group}</div>
+              </div>
+              <button
+                onClick={() => navigate('/aluno/treinos/exec')}
+                style={{ width: '100%', height: 42, border: 'none', background: '#1B2A4A', color: '#FAEEDA', font: `700 13px ${FF}`, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7 }}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                Iniciar treino
+              </button>
+            </div>
+          )
+        })() : (
+          <div style={{ background: '#fff', borderRadius: 16, border: '1.5px dashed #D6CFBE', padding: '28px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, textAlign: 'center' }}>
+            <div style={{ width: 48, height: 48, borderRadius: 14, background: '#eef1f6', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#1B2A4A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M18 8h1a4 4 0 0 1 0 8h-1" /><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z" /><line x1="6" y1="1" x2="6" y2="4" /><line x1="10" y1="1" x2="10" y2="4" /><line x1="14" y1="1" x2="14" y2="4" />
+              </svg>
+            </div>
+            <div style={{ font: `700 14px ${FF}`, color: '#1B2A4A' }}>Nenhum treino cadastrado ainda</div>
+            <div style={{ font: `400 12.5px ${FF}`, color: '#9a948a', lineHeight: 1.5 }}>
+              Seu coach ainda está preparando seu programa.<br />Você será notificado quando estiver pronto.
+            </div>
           </div>
-          <div style={{ font: `700 14px ${FF}`, color: '#1B2A4A' }}>Nenhum treino cadastrado ainda</div>
-          <div style={{ font: `400 12.5px ${FF}`, color: '#9a948a', lineHeight: 1.5 }}>
-            Seu coach ainda está preparando seu programa.<br />Você será notificado quando estiver pronto.
-          </div>
-        </div>
+        )}
       </div>
 
       {/* Mensagem do Coach */}
