@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase'
 
 const MONTHS = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez']
 
-export type NewStudentData = { name: string; email: string; goal: string; plan: string }
+export type NewStudentData = { name: string; email?: string; goal?: string; plan?: string }
 
 interface StudentsStore {
   students: Student[]
@@ -102,9 +102,10 @@ export const useStudentsStore = create<StudentsStore>((set) => ({
 
   addStudent: async (data, coachId) => {
     const today = new Date().toISOString().split('T')[0]
+    const plan = data.plan ?? 'Sem plano'
     const { data: row, error } = await supabase
       .from('students')
-      .insert({ coach_id: coachId, name: data.name, email: data.email, goal: data.goal, plan: data.plan, since: today, pay_status: data.plan === 'Permuta' ? 'active' : 'pending' })
+      .insert({ coach_id: coachId, name: data.name, email: data.email ?? '', goal: data.goal ?? '', plan, since: today, pay_status: plan === 'Permuta' ? 'active' : 'pending' })
       .select()
       .single()
     if (!error && row) set(s => ({ students: [mapRow(row as Row), ...s.students] }))
