@@ -1,4 +1,6 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
+import { useStudentsStore } from '../../store/students'
+import { useAuthStore } from '../../store/auth'
 
 const FF = '"Libre Franklin",sans-serif'
 
@@ -200,8 +202,89 @@ function StudentDrawer({ student, onClose, onRemind, onRegister }: {
   )
 }
 
+// ── Student picker (searchable) ────────────────────────────────────────────────
+function StudentPicker({ roster, value, onChange, error }: {
+  roster:   { id: number; name: string }[]
+  value:    string
+  onChange: (name: string) => void
+  error:    boolean
+}) {
+  const [open,   setOpen]   = useState(false)
+  const [query,  setQuery]  = useState('')
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    function handle(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handle)
+    return () => document.removeEventListener('mousedown', handle)
+  }, [open])
+
+  const filtered = roster.filter(s => s.name.toLowerCase().includes(query.toLowerCase()))
+
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <button
+        type="button"
+        onClick={() => { setOpen(o => !o); setQuery('') }}
+        style={{
+          width: '100%', height: 44, border: `1.5px solid ${error ? '#c4421e' : open ? '#E8542A' : '#d9d3c4'}`,
+          boxShadow: open ? '0 0 0 3px rgba(232,84,42,.13)' : 'none',
+          borderRadius: 10, background: '#fff', padding: '0 12px',
+          font: `400 14px ${FF}`, color: value ? '#1B2A4A' : '#aaa',
+          outline: 'none', boxSizing: 'border-box' as const, textAlign: 'left' as const,
+          cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        }}
+      >
+        <span>{value || 'Selecionar aluno…'}</span>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9a948a" strokeWidth="2.2" strokeLinecap="round" style={{ flexShrink: 0, transform: open ? 'rotate(180deg)' : 'none', transition: 'transform .15s' }}>
+          <path d="M6 9l6 6 6-6"/>
+        </svg>
+      </button>
+
+      {open && (
+        <div style={{ position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, background: '#fff', border: '1px solid #ece7d9', borderRadius: 12, boxShadow: '0 12px 32px rgba(27,42,74,.16)', zIndex: 20, overflow: 'hidden' }}>
+          <div style={{ padding: '8px 10px', borderBottom: '1px solid #f0ebe0' }}>
+            <input
+              autoFocus
+              type="text"
+              placeholder="Buscar aluno…"
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              style={{ width: '100%', height: 36, border: '1.5px solid #d9d3c4', borderRadius: 8, padding: '0 10px', font: `400 13px ${FF}`, outline: 'none', boxSizing: 'border-box' as const, color: '#1B2A4A' }}
+            />
+          </div>
+          <div style={{ maxHeight: 220, overflowY: 'auto' }}>
+            {filtered.length === 0
+              ? <div style={{ padding: 14, font: `400 13px ${FF}`, color: '#9a948a', textAlign: 'center' }}>Nenhum aluno encontrado.</div>
+              : filtered.map(s => {
+                  const active = value === s.name
+                  return (
+                    <button
+                      key={s.id}
+                      type="button"
+                      onClick={() => { onChange(s.name); setOpen(false) }}
+                      style={{ display: 'block', width: '100%', padding: '10px 14px', border: 'none', background: active ? '#f4f6fa' : 'none', color: active ? '#1B2A4A' : '#4a4437', font: `${active ? 700 : 500} 13.5px ${FF}`, cursor: 'pointer', textAlign: 'left' as const }}
+                      onMouseEnter={e => { if (!active) e.currentTarget.style.background = '#fbf8f1' }}
+                      onMouseLeave={e => { if (!active) e.currentTarget.style.background = 'none' }}
+                    >
+                      {s.name}
+                    </button>
+                  )
+                })
+            }
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── New Assessment Modal ───────────────────────────────────────────────────────
-function NewAssessmentModal({ initial, onClose, onSave }: {
+function NewAssessmentModal({ roster, initial, onClose, onSave }: {
+  roster:  { id: number; name: string }[]
   initial: string
   onClose: () => void
   onSave:  (name: string, weight: string, bf: number) => void
@@ -271,7 +354,7 @@ function NewAssessmentModal({ initial, onClose, onSave }: {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               <div>
                 <label style={{ display: 'block', font: `600 11px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#6b6657', marginBottom: 7 }}>Aluno</label>
-                <input type="text" value={name} placeholder="Nome do aluno" onChange={e => { setName(e.target.value); setErr('') }} style={inputBase} onFocus={focusOn} onBlur={focusOff} />
+                <StudentPicker roster={roster} value={name} onChange={v => { setName(v); setErr('') }} error={!!err && !name} />
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 90px', gap: 12 }}>
                 <div>
@@ -366,6 +449,10 @@ function NewAssessmentModal({ initial, onClose, onSave }: {
 type Tab = 'all' | 'em-dia' | 'pendente'
 
 export default function Avaliacoes() {
+  const { user } = useAuthStore()
+  const { students: roster, fetchStudents } = useStudentsStore()
+  useEffect(() => { if (user?.id) fetchStudents(user.id) }, [user?.id])
+
   const [students, setStudents] = useState<Student[]>([])
   const [nextId, setNextId] = useState(1)
   const [tab, setTab] = useState<Tab>('all')
@@ -594,6 +681,7 @@ export default function Avaliacoes() {
 
       {newOpen && (
         <NewAssessmentModal
+          roster={roster.map(s => ({ id: s.id, name: s.name }))}
           initial={newInitial}
           onClose={() => setNewOpen(false)}
           onSave={handleSave}
