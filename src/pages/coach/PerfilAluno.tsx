@@ -133,6 +133,7 @@ function CoachAnamneseDrawer({ studentName, studentUuid, existing, onClose, onSa
   }
 
   async function save() {
+    if (!studentUuid) { setError('Este aluno ainda não criou conta no app. Convide-o para que ele se cadastre e então preencha a anamnese.'); return }
     if (!form.nome.trim()) { setError('Informe o nome do aluno.'); return }
     setSaving(true)
     const payload = {
@@ -1498,7 +1499,7 @@ export default function PerfilAluno() {
         />
       )}
 
-      {showAnamneseForm && student?.studentUuid && (
+      {showAnamneseForm && student && (
         <CoachAnamneseDrawer
           studentName={student.name}
           studentUuid={student.studentUuid}
