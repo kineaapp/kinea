@@ -34,8 +34,14 @@ const PHOTO_SLOTS: { key: PhotoKey; label: string }[] = [
   { key: 'ladoDir', label: 'Lado Direito'   },
   { key: 'costas',  label: 'Costas'         },
 ]
+const KEY_TO_COL: Record<PhotoKey, string> = {
+  frente:  'photo_frente_url',
+  ladoEsq: 'photo_lado_esq_url',
+  ladoDir: 'photo_lado_dir_url',
+  costas:  'photo_costas_url',
+}
 
-function pickPhoto(key: PhotoKey, onPick: (key: PhotoKey, dataUrl: string) => void) {
+function pickPhoto(key: PhotoKey, onPick: (key: PhotoKey, preview: string, file: File) => void) {
   const input = document.createElement('input')
   input.type = 'file'
   input.accept = 'image/*'
@@ -43,7 +49,7 @@ function pickPhoto(key: PhotoKey, onPick: (key: PhotoKey, dataUrl: string) => vo
     const file = (e.target as HTMLInputElement).files?.[0]
     if (!file) return
     const reader = new FileReader()
-    reader.onload = (ev) => onPick(key, ev.target?.result as string)
+    reader.onload = (ev) => onPick(key, ev.target?.result as string, file)
     reader.readAsDataURL(file)
   }
   input.click()
@@ -59,19 +65,24 @@ export default function PrimeiraAvaliacao() {
   const [quadril, setQuadril] = useState('')
   const [torax,   setTorax]   = useState('')
   const [braco,   setBraco]   = useState('')
-  const [photos,  setPhotos]  = useState<Record<PhotoKey, string>>({ frente: '', ladoEsq: '', ladoDir: '', costas: '' })
+  const [photos,  setPhotos]  = useState<Record<PhotoKey, { preview: string; file: File | null }>>({
+    frente:  { preview: '', file: null },
+    ladoEsq: { preview: '', file: null },
+    ladoDir: { preview: '', file: null },
+    costas:  { preview: '', file: null },
+  })
   const [errors,  setErrors]  = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(false)
   const [done,    setDone]    = useState(false)
 
-  function handlePick(key: PhotoKey, dataUrl: string) {
-    setPhotos(p => ({ ...p, [key]: dataUrl }))
+  function handlePick(key: PhotoKey, preview: string, file: File) {
+    setPhotos(p => ({ ...p, [key]: { preview, file } }))
     setErrors(e => ({ ...e, fotos: '' }))
   }
 
   function removePhoto(key: PhotoKey, e: React.MouseEvent) {
     e.stopPropagation()
-    setPhotos(p => ({ ...p, [key]: '' }))
+    setPhotos(p => ({ ...p, [key]: { preview: '', file: null } }))
   }
 
   async function submit() {
@@ -80,13 +91,12 @@ export default function PrimeiraAvaliacao() {
     const a = parseFloat(altura)
     if (!peso.trim()   || isNaN(p) || p < 20  || p > 400) errs.peso   = 'Informe um peso válido (kg).'
     if (!altura.trim() || isNaN(a) || a < 100 || a > 250) errs.altura = 'Informe uma altura válida (cm).'
-    const missingPhotos = PHOTO_SLOTS.filter(s => !photos[s.key])
+    const missingPhotos = PHOTO_SLOTS.filter(s => !photos[s.key].preview)
     if (missingPhotos.length > 0) errs.fotos = 'Envie as 4 fotos (frente, lados e costas).'
     if (Object.keys(errs).length) { setErrors(errs); return }
 
     setLoading(true)
     if (user?.id) {
-      // Fetch numeric student id
       const { data: studentRow } = await supabase
         .from('students')
         .select('id')
@@ -95,7 +105,7 @@ export default function PrimeiraAvaliacao() {
 
       if (studentRow) {
         const today = new Date().toISOString().split('T')[0]
-        await supabase.from('assessments').insert({
+        const { data: assessRow } = await supabase.from('assessments').insert({
           student_id:  studentRow.id,
           assessed_at: today,
           weight_kg:   parseFloat(peso),
@@ -104,7 +114,27 @@ export default function PrimeiraAvaliacao() {
           hip_cm:      quadril ? parseFloat(quadril) : null,
           chest_cm:    torax   ? parseFloat(torax)   : null,
           arm_cm:      braco   ? parseFloat(braco)   : null,
-        })
+        }).select().single()
+
+        if (assessRow) {
+          const urlUpdates: Record<string, string> = {}
+          for (const slot of PHOTO_SLOTS) {
+            const ph = photos[slot.key]
+            if (ph.file) {
+              const ext  = ph.file.name.split('.').pop()?.toLowerCase() ?? 'jpg'
+              const path = `${studentRow.id}/${assessRow.id}/${slot.key}.${ext}`
+              const { error: upErr } = await supabase.storage
+                .from('assessment-photos').upload(path, ph.file, { upsert: true })
+              if (!upErr) {
+                const { data: pd } = supabase.storage.from('assessment-photos').getPublicUrl(path)
+                urlUpdates[KEY_TO_COL[slot.key]] = pd.publicUrl
+              }
+            }
+          }
+          if (Object.keys(urlUpdates).length > 0) {
+            await supabase.from('assessments').update(urlUpdates).eq('id', assessRow.id)
+          }
+        }
       }
 
       await supabase.from('profiles').update({ assessment_completed: true }).eq('id', user.id)
@@ -225,17 +255,17 @@ export default function PrimeiraAvaliacao() {
                 style={{
                   width: '100%', aspectRatio: '3/4', padding: 0,
                   borderRadius: 12, cursor: 'pointer', overflow: 'hidden', position: 'relative',
-                  border: photos[slot.key]
+                  border: photos[slot.key].preview
                     ? 'none'
                     : `1.5px dashed ${errors.fotos ? '#D2402A' : '#D6CFBE'}`,
-                  background: photos[slot.key] ? 'transparent' : (errors.fotos ? '#fef5f3' : '#fff'),
+                  background: photos[slot.key].preview ? 'transparent' : (errors.fotos ? '#fef5f3' : '#fff'),
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                 }}
               >
-                {photos[slot.key] ? (
+                {photos[slot.key].preview ? (
                   <>
                     <img
-                      src={photos[slot.key]} alt={slot.label}
+                      src={photos[slot.key].preview} alt={slot.label}
                       style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
                     />
                     <div

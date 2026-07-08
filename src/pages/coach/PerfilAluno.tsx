@@ -36,7 +36,10 @@ interface AssessmentRow {
   weight_kg: number | null; body_fat_pct: number | null
   chest_cm: number | null; waist_cm: number | null; hip_cm: number | null
   arm_cm: number | null; thigh_cm: number | null; notes: string | null
-  photo_url: string | null
+  photo_frente_url: string | null
+  photo_lado_esq_url: string | null
+  photo_lado_dir_url: string | null
+  photo_costas_url: string | null
 }
 
 interface PaymentRow {
@@ -178,7 +181,7 @@ export default function PerfilAluno() {
     loaded.current.add('assessments')
     setAssessLoading(true)
     const { data } = await supabase.from('assessments')
-      .select('id,assessed_at,weight_kg,body_fat_pct,chest_cm,waist_cm,hip_cm,arm_cm,thigh_cm,notes,photo_url')
+      .select('id,assessed_at,weight_kg,body_fat_pct,chest_cm,waist_cm,hip_cm,arm_cm,thigh_cm,notes,photo_frente_url,photo_lado_esq_url,photo_lado_dir_url,photo_costas_url')
       .eq('student_id', studentId).order('assessed_at', { ascending: true })
     setAssessments((data as AssessmentRow[] | null) ?? [])
     setAssessLoading(false)
@@ -247,13 +250,13 @@ export default function PerfilAluno() {
     if (!assId) return
     setUploadingAssId(assId)
     const ext  = file.name.split('.').pop()?.toLowerCase() ?? 'jpg'
-    const path = `${studentId}/${assId}.${ext}`
+    const path = `${studentId}/${assId}/frente.${ext}`
     const { error } = await supabase.storage
       .from('assessment-photos').upload(path, file, { upsert: true })
     if (!error) {
       const { data: pd } = supabase.storage.from('assessment-photos').getPublicUrl(path)
-      await supabase.from('assessments').update({ photo_url: pd.publicUrl }).eq('id', assId)
-      setAssessments(prev => prev.map(a => a.id === assId ? { ...a, photo_url: pd.publicUrl } : a))
+      await supabase.from('assessments').update({ photo_frente_url: pd.publicUrl }).eq('id', assId)
+      setAssessments(prev => prev.map(a => a.id === assId ? { ...a, photo_frente_url: pd.publicUrl } : a))
     }
     setUploadingAssId(null)
     pendingAssIdRef.current = null
@@ -863,8 +866,8 @@ export default function PerfilAluno() {
                           <div style={{ font: `600 12px ${FF}`, color: '#1B2A4A', textAlign: 'center' }}>
                             {ci === 0 ? 'Antes' : 'Depois'} · {fmtDate(a.assessed_at)}
                           </div>
-                          {a.photo_url ? (
-                            <img src={a.photo_url} alt="" style={{ width: '100%', aspectRatio: '3/4', objectFit: 'cover', borderRadius: 12 }} />
+                          {a.photo_frente_url ? (
+                            <img src={a.photo_frente_url} alt="" style={{ width: '100%', aspectRatio: '3/4', objectFit: 'cover', borderRadius: 12 }} />
                           ) : (
                             <div style={{ width: '100%', aspectRatio: '3/4', background: '#f4efe3', border: '1.5px dashed #d6cfbe', borderRadius: 12, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
                               <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#c8bfb0" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
@@ -966,8 +969,8 @@ export default function PerfilAluno() {
 
                               {/* Thumbnail / botão foto */}
                               <div style={{ flexShrink: 0 }}>
-                                {a.photo_url ? (
-                                  <img src={a.photo_url} alt="" style={{ width: 56, height: 72, objectFit: 'cover', borderRadius: 8, display: 'block' }} />
+                                {a.photo_frente_url ? (
+                                  <img src={a.photo_frente_url} alt="" style={{ width: 56, height: 72, objectFit: 'cover', borderRadius: 8, display: 'block' }} />
                                 ) : (
                                   <button type="button"
                                     onClick={e => { e.stopPropagation(); pendingAssIdRef.current = a.id; assessPhotoRef.current?.click() }}
@@ -1215,7 +1218,7 @@ export default function PerfilAluno() {
           studentUuid={student.studentUuid}
           onClose={() => setShowNewAssessment(false)}
           onSaved={(row: SavedAssessmentRow) => {
-            setAssessments(prev => [...prev, row].sort(
+            setAssessments(prev => [...prev, row as AssessmentRow].sort(
               (a, b) => new Date(a.assessed_at).getTime() - new Date(b.assessed_at).getTime()
             ))
             showToast('Avaliação salva com sucesso.')

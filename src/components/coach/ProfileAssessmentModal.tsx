@@ -38,12 +38,29 @@ const MEASURES = [
   { key: 'thigh_cm',  label: 'Coxa'    },
 ] as const
 
+type PhotoKey = 'frente' | 'ladoEsq' | 'ladoDir' | 'costas'
+const PHOTO_SLOTS: { key: PhotoKey; label: string }[] = [
+  { key: 'frente',  label: 'Frente'     },
+  { key: 'ladoEsq', label: 'Lado Esq.'  },
+  { key: 'ladoDir', label: 'Lado Dir.'  },
+  { key: 'costas',  label: 'Costas'     },
+]
+const KEY_TO_COL: Record<PhotoKey, string> = {
+  frente:  'photo_frente_url',
+  ladoEsq: 'photo_lado_esq_url',
+  ladoDir: 'photo_lado_dir_url',
+  costas:  'photo_costas_url',
+}
+
 export interface SavedAssessmentRow {
   id: number; assessed_at: string
   weight_kg: number | null; body_fat_pct: number | null
   chest_cm: number | null; waist_cm: number | null; hip_cm: number | null
   arm_cm: number | null; thigh_cm: number | null; notes: string | null
-  photo_url: string | null
+  photo_frente_url: string | null
+  photo_lado_esq_url: string | null
+  photo_lado_dir_url: string | null
+  photo_costas_url: string | null
 }
 
 interface Props {
@@ -63,11 +80,16 @@ export function ProfileAssessmentModal({ studentId, studentName, studentUuid, on
   const [dobras,    setDobras]    = useState<Record<SFKey, string>>({ d1:'',d2:'',d3:'',d4:'',d5:'',d6:'',d7:'' })
   const [circ,      setCirc]      = useState<Record<string, string>>({ chest_cm:'',waist_cm:'',hip_cm:'',arm_cm:'',thigh_cm:'' })
   const [notes,     setNotes]     = useState('')
-  const [photo,     setPhoto]     = useState<File | null>(null)
-  const [photoPreview, setPhotoPreview] = useState<string | null>(null)
+  const [photos,    setPhotos]    = useState<Record<PhotoKey, { file: File | null; preview: string | null }>>({
+    frente:  { file: null, preview: null },
+    ladoEsq: { file: null, preview: null },
+    ladoDir: { file: null, preview: null },
+    costas:  { file: null, preview: null },
+  })
   const [saving,    setSaving]    = useState(false)
   const [err,       setErr]       = useState('')
-  const photoRef = useRef<HTMLInputElement>(null)
+  const photoInputRef  = useRef<HTMLInputElement>(null)
+  const currentSlotRef = useRef<PhotoKey | null>(null)
 
   useEffect(() => {
     if (!studentUuid) return
@@ -107,6 +129,11 @@ export function ProfileAssessmentModal({ studentId, studentName, studentUuid, on
     e.currentTarget.style.boxShadow   = 'none'
   }
 
+  function pickSlot(key: PhotoKey) {
+    currentSlotRef.current = key
+    photoInputRef.current?.click()
+  }
+
   async function handleSave() {
     if (!weight.trim()) { setErr('Informe o peso.'); return }
     if (!date) { setErr('Informe a data da avaliação.'); return }
@@ -128,16 +155,24 @@ export function ProfileAssessmentModal({ studentId, studentName, studentUuid, on
 
     let saved = data as SavedAssessmentRow
 
-    if (photo && saved.id) {
-      const ext  = photo.name.split('.').pop()?.toLowerCase() ?? 'jpg'
-      const path = `${studentId}/${saved.id}.${ext}`
-      const { error: upErr } = await supabase.storage
-        .from('assessment-photos').upload(path, photo, { upsert: true })
-      if (!upErr) {
-        const { data: pd } = supabase.storage.from('assessment-photos').getPublicUrl(path)
-        await supabase.from('assessments').update({ photo_url: pd.publicUrl }).eq('id', saved.id)
-        saved = { ...saved, photo_url: pd.publicUrl }
+    const urlUpdates: Record<string, string> = {}
+    for (const slot of PHOTO_SLOTS) {
+      const p = photos[slot.key]
+      if (p.file && saved.id) {
+        const ext  = p.file.name.split('.').pop()?.toLowerCase() ?? 'jpg'
+        const path = `${studentId}/${saved.id}/${slot.key}.${ext}`
+        const { error: upErr } = await supabase.storage
+          .from('assessment-photos').upload(path, p.file, { upsert: true })
+        if (!upErr) {
+          const { data: pd } = supabase.storage.from('assessment-photos').getPublicUrl(path)
+          urlUpdates[KEY_TO_COL[slot.key]] = pd.publicUrl
+        }
       }
+    }
+
+    if (Object.keys(urlUpdates).length > 0) {
+      await supabase.from('assessments').update(urlUpdates).eq('id', saved.id)
+      saved = { ...saved, ...urlUpdates } as SavedAssessmentRow
     }
 
     setSaving(false)
@@ -271,44 +306,69 @@ export function ProfileAssessmentModal({ studentId, studentName, studentUuid, on
             </div>
           )}
 
-          {/* Foto */}
+          {/* Fotos corporais */}
           <div>
-            <label style={{ display: 'block', font: `600 11px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#6b6657', marginBottom: 10 }}>Foto corporal <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0, color: '#9a948a' }}>— opcional</span></label>
-            <input ref={photoRef} type="file" accept="image/*" style={{ display: 'none' }}
+            <div style={{ font: `700 10.5px ${FF}`, letterSpacing: '.6px', textTransform: 'uppercase', color: '#9a948a', marginBottom: 4 }}>
+              Fotos corporais <span style={{ fontWeight: 500, textTransform: 'none', letterSpacing: 0, fontSize: 10 }}>— opcional</span>
+            </div>
+            <p style={{ font: `400 11.5px ${FF}`, color: '#b0a99c', margin: '0 0 12px', lineHeight: 1.4 }}>
+              Frente, lado esquerdo, lado direito e costas.
+            </p>
+            <input
+              ref={photoInputRef}
+              type="file"
+              accept="image/*"
+              style={{ display: 'none' }}
               onChange={e => {
-                const f = e.target.files?.[0] ?? null
-                setPhoto(f)
-                if (f) {
-                  const reader = new FileReader()
-                  reader.onload = ev => setPhotoPreview(ev.target?.result as string)
-                  reader.readAsDataURL(f)
-                } else {
-                  setPhotoPreview(null)
-                }
+                const f = e.target.files?.[0]
+                const key = currentSlotRef.current
+                if (!f || !key) return
+                const reader = new FileReader()
+                reader.onload = ev => setPhotos(prev => ({ ...prev, [key]: { file: f, preview: ev.target?.result as string } }))
+                reader.readAsDataURL(f)
+                if (photoInputRef.current) photoInputRef.current.value = ''
               }}
             />
-            {photoPreview ? (
-              <div style={{ position: 'relative', display: 'inline-block' }}>
-                <img src={photoPreview} alt="preview" style={{ width: 120, height: 160, objectFit: 'cover', borderRadius: 10, display: 'block', border: '1.5px solid #e0d9c8' }} />
-                <button type="button"
-                  onClick={() => { setPhoto(null); setPhotoPreview(null); if (photoRef.current) photoRef.current.value = '' }}
-                  style={{ position: 'absolute', top: 6, right: 6, width: 26, height: 26, borderRadius: '50%', border: 'none', background: 'rgba(0,0,0,.55)', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
-                </button>
-                <button type="button" onClick={() => photoRef.current?.click()}
-                  style={{ marginTop: 8, width: 120, height: 34, border: '1.5px solid #d9d3c4', background: '#fff', borderRadius: 8, font: `600 12px ${FF}`, color: '#7c7869', cursor: 'pointer' }}>
-                  Trocar foto
-                </button>
-              </div>
-            ) : (
-              <button type="button" onClick={() => photoRef.current?.click()}
-                style={{ width: 120, height: 160, border: '1.5px dashed #d9d3c4', borderRadius: 10, background: '#faf7ee', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#b0a99c" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/>
-                </svg>
-                <span style={{ font: `600 11.5px ${FF}`, color: '#b0a99c' }}>+ Adicionar foto</span>
-              </button>
-            )}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+              {PHOTO_SLOTS.map(slot => {
+                const p = photos[slot.key]
+                return (
+                  <div key={slot.key} style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                    <div
+                      onClick={() => pickSlot(slot.key)}
+                      style={{
+                        width: '100%', aspectRatio: '3/4', borderRadius: 10, overflow: 'hidden',
+                        border: p.preview ? 'none' : '1.5px dashed #d9d3c4',
+                        background: p.preview ? 'transparent' : '#faf7ee',
+                        cursor: 'pointer', position: 'relative',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      }}
+                    >
+                      {p.preview ? (
+                        <>
+                          <img src={p.preview} alt={slot.label} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                          <button
+                            type="button"
+                            onClick={ev => { ev.stopPropagation(); setPhotos(prev => ({ ...prev, [slot.key]: { file: null, preview: null } })) }}
+                            style={{ position: 'absolute', top: 4, right: 4, width: 22, height: 22, borderRadius: '50%', border: 'none', background: 'rgba(0,0,0,.55)', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}
+                          >
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
+                          </button>
+                        </>
+                      ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#b0a99c" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/>
+                          </svg>
+                          <span style={{ font: `500 9.5px ${FF}`, color: '#b0a99c' }}>Adicionar</span>
+                        </div>
+                      )}
+                    </div>
+                    <span style={{ font: `600 9.5px ${FF}`, color: '#7c7869', textAlign: 'center', letterSpacing: '.2px' }}>{slot.label}</span>
+                  </div>
+                )
+              })}
+            </div>
           </div>
 
           {/* Observações */}
