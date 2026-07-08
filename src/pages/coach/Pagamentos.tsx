@@ -12,14 +12,21 @@ type Status = 'pago' | 'pendente' | 'atrasado'
 type Tab    = 'all' | Status
 
 interface Charge {
-  id:     number
-  name:   string
-  plan:   string
-  value:  number
-  method: string
-  due:    string
-  status: Status
-  paidOn: string | null
+  id:        number
+  studentId: number
+  name:      string
+  plan:      string
+  value:     number
+  method:    string
+  due:       string
+  status:    Status
+  paidOn:    string | null
+}
+
+interface Student {
+  id:   number
+  name: string
+  plan: string
 }
 
 interface PlanRequest {
@@ -43,6 +50,19 @@ const PLANS: Record<string, number> = { Mensal: 399, Trimestral: 247, Semestral:
 
 function brl(n: number) {
   return 'R$ ' + Number(n).toLocaleString('pt-BR')
+}
+
+function formatDate(dateStr: string): string {
+  if (!dateStr) return '—'
+  const [y, m, d] = dateStr.split('-')
+  return `${d}/${m}/${y}`
+}
+
+function mapStatus(dbStatus: string, dueDate: string): Status {
+  if (dbStatus === 'active') return 'pago'
+  if (dbStatus === 'overdue') return 'atrasado'
+  const today = new Date(); today.setHours(0, 0, 0, 0)
+  return new Date(dueDate + 'T00:00:00') < today ? 'atrasado' : 'pendente'
 }
 
 // ── Toast ───────────────────────────────────────────────────
@@ -173,12 +193,15 @@ function ChargeDrawer({ charge, onClose, onMarkPaid, onRemind, onStub }: {
 }
 
 // ── New charge modal ─────────────────────────────────────────
-function NewChargeModal({ onClose, onAdd }: {
-  onClose: () => void
-  onAdd:   (name: string, plan: string) => void
+function NewChargeModal({ students, onClose, onAdd }: {
+  students: Student[]
+  onClose:  () => void
+  onAdd:    (studentId: number, dueDate: string) => void
 }) {
-  const [name, setName] = useState('')
-  const [plan, setPlan] = useState('Mensal')
+  const [studentId, setStudentId] = useState<number | ''>(students[0]?.id ?? '')
+  const [dueDate,   setDueDate]   = useState(new Date().toISOString().split('T')[0])
+
+  const selected = students.find(s => s.id === studentId)
 
   return (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(20,25,40,.5)', zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
@@ -191,33 +214,42 @@ function NewChargeModal({ onClose, onAdd }: {
         </div>
 
         <label style={{ display: 'block', font: `600 11px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#6b6657', marginBottom: 7 }}>Aluno</label>
+        <select
+          value={studentId}
+          onChange={e => setStudentId(Number(e.target.value))}
+          style={{ width: '100%', height: 46, border: '1.5px solid #d9d3c4', borderRadius: 10, background: '#fff', padding: '0 14px', font: `400 14px ${FF}`, color: '#1B2A4A', outline: 'none', marginBottom: 14, cursor: 'pointer' }}
+        >
+          <option value="">Selecione um aluno…</option>
+          {students.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+        </select>
+
+        {selected && (
+          <div style={{ display: 'flex', gap: 10, marginBottom: 14 }}>
+            <div style={{ flex: 1, background: '#faf7ee', border: '1px solid #ece7d9', borderRadius: 10, padding: '12px 14px' }}>
+              <div style={{ font: `600 10px ${FF}`, color: '#9a948a', marginBottom: 3, textTransform: 'uppercase', letterSpacing: '.5px' }}>Plano</div>
+              <div style={{ font: `700 14px ${FF}`, color: '#1B2A4A' }}>{selected.plan}</div>
+            </div>
+            <div style={{ flex: 1, background: '#faf7ee', border: '1px solid #ece7d9', borderRadius: 10, padding: '12px 14px' }}>
+              <div style={{ font: `600 10px ${FF}`, color: '#9a948a', marginBottom: 3, textTransform: 'uppercase', letterSpacing: '.5px' }}>Valor</div>
+              <div style={{ font: `700 14px ${FF}`, color: '#1B2A4A' }}>{brl(PLANS[selected.plan] ?? 247)}/mês</div>
+            </div>
+          </div>
+        )}
+
+        <label style={{ display: 'block', font: `600 11px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#6b6657', marginBottom: 7 }}>Vencimento</label>
         <input
-          type="text" placeholder="Nome do aluno" value={name}
-          onChange={e => setName(e.target.value)}
-          style={{ width: '100%', height: 46, border: '1.5px solid #d9d3c4', borderRadius: 10, background: '#fff', padding: '0 14px', font: `400 14px ${FF}`, color: '#1B2A4A', outline: 'none', marginBottom: 14 }}
+          type="date" value={dueDate}
+          onChange={e => setDueDate(e.target.value)}
+          style={{ width: '100%', height: 46, border: '1.5px solid #d9d3c4', borderRadius: 10, background: '#fff', padding: '0 14px', font: `400 14px ${FF}`, color: '#1B2A4A', outline: 'none', marginBottom: 18 }}
           onFocus={e => { e.currentTarget.style.borderColor = '#E8542A'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(232,84,42,.13)' }}
           onBlur={e => { e.currentTarget.style.borderColor = '#d9d3c4'; e.currentTarget.style.boxShadow = 'none' }}
         />
 
-        <label style={{ display: 'block', font: `600 11px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#6b6657', marginBottom: 8 }}>Plano</label>
-        <div style={{ display: 'flex', gap: 7, marginBottom: 18 }}>
-          {Object.entries(PLANS).map(([label, price]) => {
-            const active = plan === label
-            return (
-              <button
-                key={label} type="button" onClick={() => setPlan(label)}
-                style={{ flex: 1, border: `1.5px solid ${active ? '#E8542A' : '#e0d9c8'}`, background: active ? '#fdf3ee' : '#fff', color: active ? '#c4421e' : '#7c7869', font: `600 12px ${FF}`, borderRadius: 10, padding: '11px 6px', cursor: 'pointer', textAlign: 'center' }}
-              >
-                <div style={{ fontWeight: 700 }}>{label}</div>
-                <div style={{ font: `600 11px ${FF}`, opacity: .75, marginTop: 2 }}>{brl(price)}/mês</div>
-              </button>
-            )
-          })}
-        </div>
-
         <button
-          type="button" onClick={() => onAdd(name, plan)}
-          style={{ width: '100%', height: 48, border: 'none', background: '#E8542A', color: '#fff', borderRadius: 10, font: `700 14.5px ${FF}`, cursor: 'pointer', boxShadow: '0 2px 0 #c4421e' }}
+          type="button"
+          onClick={() => { if (studentId !== '') onAdd(studentId as number, dueDate) }}
+          disabled={!studentId}
+          style={{ width: '100%', height: 48, border: 'none', background: studentId ? '#E8542A' : '#d9d3c4', color: '#fff', borderRadius: 10, font: `700 14.5px ${FF}`, cursor: studentId ? 'pointer' : 'not-allowed', boxShadow: studentId ? '0 2px 0 #c4421e' : 'none' }}
         >
           Gerar cobrança
         </button>
@@ -230,6 +262,7 @@ function NewChargeModal({ onClose, onAdd }: {
 export default function Pagamentos() {
   const { user }   = useAuthStore()
   const [charges,   setCharges]   = useState<Charge[]>([])
+  const [students,  setStudents]  = useState<Student[]>([])
   const [requests,  setRequests]  = useState<PlanRequest[]>([])
   const [tab,       setTab]       = useState<Tab>('all')
   const [query,     setQuery]     = useState('')
@@ -237,10 +270,45 @@ export default function Pagamentos() {
   const [newOpen,   setNewOpen]   = useState(false)
   const [toast,     setToast]     = useState('')
   const toastRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
-  const nextId   = useRef(1)
 
   useEffect(() => () => clearTimeout(toastRef.current), [])
 
+  // Load students (for new-charge modal selector)
+  useEffect(() => {
+    if (!user?.id) return
+    supabase
+      .from('students')
+      .select('id, name, plan')
+      .eq('coach_id', user.id)
+      .order('name')
+      .then(({ data }) => { if (data) setStudents(data as Student[]) })
+  }, [user?.id])
+
+  // Load payments from DB
+  useEffect(() => {
+    if (!user?.id) return
+    supabase
+      .from('payments')
+      .select('id, amount, status, due_date, paid_at, students!inner(id, name, plan, coach_id)')
+      .eq('students.coach_id', user.id)
+      .order('due_date', { ascending: false })
+      .then(({ data }) => {
+        if (!data) return
+        setCharges(data.map((p: any) => ({
+          id:        p.id,
+          studentId: p.students.id,
+          name:      p.students.name,
+          plan:      p.students.plan,
+          value:     p.amount,
+          method:    'Pix',
+          due:       formatDate(p.due_date),
+          status:    mapStatus(p.status, p.due_date),
+          paidOn:    p.paid_at ? new Date(p.paid_at).toLocaleDateString('pt-BR') : null,
+        })))
+      })
+  }, [user?.id])
+
+  // Load plan change requests
   useEffect(() => {
     if (!user?.id) return
     supabase
@@ -267,9 +335,12 @@ export default function Pagamentos() {
     toastRef.current = setTimeout(() => setToast(''), 1900)
   }
 
-  function handleMarkPaid(id: number) {
+  async function handleMarkPaid(id: number) {
     const c = charges.find(x => x.id === id)
-    setCharges(prev => prev.map(x => x.id === id ? { ...x, status: 'pago', paidOn: 'hoje' } : x))
+    const paidAt = new Date().toISOString()
+    await supabase.from('payments').update({ status: 'active', paid_at: paidAt }).eq('id', id)
+    const paidOn = new Date().toLocaleDateString('pt-BR')
+    setCharges(prev => prev.map(x => x.id === id ? { ...x, status: 'pago', paidOn } : x))
     setOpenId(null)
     if (c) showToast(c.name.split(' ')[0] + ' — pagamento confirmado ✓')
   }
@@ -294,12 +365,29 @@ export default function Pagamentos() {
       : `Solicitação de ${req.studentName.split(' ')[0]} recusada.`)
   }
 
-  function handleAddCharge(name: string, plan: string) {
-    if (!name.trim()) { showToast('Informe o nome do aluno.'); return }
-    const id = nextId.current++
-    setCharges(prev => [{ id, name: name.trim(), plan, value: PLANS[plan] ?? 390, method: 'Pix', due: 'venc. 30d', status: 'pendente', paidOn: null }, ...prev])
+  async function handleAddCharge(studentId: number, dueDate: string) {
+    const st = students.find(s => s.id === studentId)
+    if (!st) return
+    const amount = PLANS[st.plan] ?? 247
+    const { data, error } = await supabase
+      .from('payments')
+      .insert({ student_id: studentId, amount, status: 'pending', due_date: dueDate, description: `${st.plan} – cobrança manual` })
+      .select('id')
+      .single()
+    if (error || !data) { showToast('Erro ao gerar cobrança.'); return }
+    setCharges(prev => [{
+      id:        data.id,
+      studentId,
+      name:      st.name,
+      plan:      st.plan,
+      value:     amount,
+      method:    'Pix',
+      due:       formatDate(dueDate),
+      status:    mapStatus('pending', dueDate),
+      paidOn:    null,
+    }, ...prev])
     setNewOpen(false)
-    showToast('Cobrança gerada para ' + name.trim().split(' ')[0] + '.')
+    showToast('Cobrança gerada para ' + st.name.split(' ')[0] + '.')
   }
 
   // Stats
@@ -532,7 +620,7 @@ export default function Pagamentos() {
       )}
 
       {/* New charge modal */}
-      {newOpen && <NewChargeModal onClose={() => setNewOpen(false)} onAdd={handleAddCharge} />}
+      {newOpen && <NewChargeModal students={students} onClose={() => setNewOpen(false)} onAdd={handleAddCharge} />}
 
       <Toast msg={toast} />
     </div>
