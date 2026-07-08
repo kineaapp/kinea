@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { useStudentsStore } from '../../store/students'
 import { useAuthStore } from '../../store/auth'
+import { supabase } from '../../lib/supabase'
 
 const FF = '"Libre Franklin",sans-serif'
 
@@ -282,17 +283,48 @@ function StudentPicker({ roster, value, onChange, error }: {
   )
 }
 
+// ── Age helper ─────────────────────────────────────────────────────────────────
+function calcAgeFromISO(iso: string): number {
+  const birth = new Date(iso)
+  const today = new Date()
+  let age = today.getFullYear() - birth.getFullYear()
+  const m = today.getMonth() - birth.getMonth()
+  if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--
+  return age
+}
+
 // ── New Assessment Modal ───────────────────────────────────────────────────────
 function NewAssessmentModal({ roster, initial, onClose, onSave }: {
-  roster:  { id: number; name: string }[]
+  roster:  { id: number; name: string; uuid: string }[]
   initial: string
   onClose: () => void
   onSave:  (name: string, weight: string, bf: number) => void
 }) {
-  const [name,   setName]   = useState(initial)
-  const [weight, setWeight] = useState('')
-  const [sex,    setSex]    = useState<'M' | 'F'>('F')
-  const [age,    setAge]    = useState('')
+  const [name,       setName]       = useState(initial)
+  const [weight,     setWeight]     = useState('')
+  const [sex,        setSex]        = useState<'M' | 'F'>('F')
+  const [age,        setAge]        = useState('')
+  const [ageFromDb,  setAgeFromDb]  = useState(false)
+
+  useEffect(() => {
+    const entry = roster.find(s => s.name === name)
+    if (!entry?.uuid) { setAgeFromDb(false); return }
+    supabase
+      .from('anamneses')
+      .select('data_nasc')
+      .eq('student_id', entry.uuid)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single()
+      .then(({ data }) => {
+        if (data?.data_nasc) {
+          const a = calcAgeFromISO(data.data_nasc)
+          if (a > 0) { setAge(String(a)); setAgeFromDb(true) }
+        } else {
+          setAgeFromDb(false)
+        }
+      })
+  }, [name])
   const [dobras, setDobras] = useState<Record<SFKey, string>>({
     d1: '', d2: '', d3: '', d4: '', d5: '', d6: '', d7: '',
   })
@@ -362,8 +394,11 @@ function NewAssessmentModal({ roster, initial, onClose, onSave }: {
                   <input type="text" value={weight} placeholder="Ex: 78,4" onChange={e => { setWeight(e.target.value); setErr('') }} style={inputBase} onFocus={focusOn} onBlur={focusOff} />
                 </div>
                 <div>
-                  <label style={{ display: 'block', font: `600 11px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#6b6657', marginBottom: 7 }}>Idade</label>
-                  <input type="text" value={age} placeholder="25" onChange={e => { setAge(e.target.value); setErr('') }} style={{ ...inputBase, textAlign: 'center' }} onFocus={focusOn} onBlur={focusOff} />
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 7 }}>
+                    <label style={{ display: 'block', font: `600 11px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#6b6657' }}>Idade</label>
+                    {ageFromDb && <span style={{ font: `500 10px ${FF}`, color: '#1B7a4a', background: '#e7f3ea', borderRadius: 20, padding: '2px 8px' }}>da anamnese</span>}
+                  </div>
+                  <input type="text" value={age} placeholder="25" onChange={e => { setAge(e.target.value); setAgeFromDb(false); setErr('') }} style={{ ...inputBase, textAlign: 'center', borderColor: ageFromDb ? '#8ecfad' : '#d9d3c4', background: ageFromDb ? '#f4fbf7' : '#fff' }} onFocus={focusOn} onBlur={focusOff} />
                 </div>
               </div>
               <div>
@@ -681,7 +716,7 @@ export default function Avaliacoes() {
 
       {newOpen && (
         <NewAssessmentModal
-          roster={roster.map(s => ({ id: s.id, name: s.name }))}
+          roster={roster.map(s => ({ id: s.id, name: s.name, uuid: s.studentUuid }))}
           initial={newInitial}
           onClose={() => setNewOpen(false)}
           onSave={handleSave}
