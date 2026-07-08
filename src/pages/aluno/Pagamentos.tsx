@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ChevronLeft, Check, CreditCard } from 'lucide-react'
 
@@ -10,8 +11,17 @@ const HISTORY = [
   { date: '01/03/2025', desc: 'Plano Mensal', value: 'R$ 350,00', status: 'Pago' },
 ]
 
+const PLANS = [
+  { id: 'mensal', label: 'Mensal', price: 'R$ 350,00', period: '/mês', sub: 'Cobrado mensalmente', renew: 'Renova em 01/07/2025' },
+  { id: 'anual', label: 'Anual', price: 'R$ 262,50', period: '/mês', sub: 'R$ 3.150,00 cobrado anualmente', renew: 'Renova em 01/07/2026', badge: 'ECONOMIZE 25%' },
+]
+
 export default function Pagamentos() {
   const navigate = useNavigate()
+  const [selectedPlan, setSelectedPlan] = useState('mensal')
+  const [confirming, setConfirming] = useState(false)
+
+  const activePlan = PLANS.find(p => p.id === selectedPlan)!
 
   return (
     <div style={{ background: '#F4EFE3', minHeight: '100%', paddingBottom: 32 }}>
@@ -40,6 +50,72 @@ export default function Pagamentos() {
             ))}
           </div>
         </div>
+      </div>
+
+      {/* Plan selector */}
+      <div style={{ margin: '0 18px 16px' }}>
+        <div style={{ font: `600 11px "Libre Franklin",sans-serif`, color: '#A39E90', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 10 }}>Trocar Plano</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {PLANS.map(plan => {
+            const active = selectedPlan === plan.id
+            return (
+              <button
+                key={plan.id}
+                onClick={() => { setSelectedPlan(plan.id); setConfirming(false) }}
+                style={{
+                  background: active ? '#fff' : '#EDE8DC',
+                  border: active ? '2px solid #1B2A4A' : '2px solid transparent',
+                  borderRadius: 14,
+                  padding: '14px 16px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 12,
+                  textAlign: 'left',
+                  boxShadow: active ? '0 2px 8px rgba(27,42,74,.10)' : 'none',
+                  transition: 'all .15s',
+                }}
+              >
+                <div style={{
+                  width: 20, height: 20, borderRadius: '50%',
+                  border: active ? '6px solid #1B2A4A' : '2px solid #A39E90',
+                  flexShrink: 0, transition: 'all .15s',
+                }} />
+                <div style={{ flex: 1 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
+                    <span style={{ font: `700 14px "Libre Franklin",sans-serif`, color: '#1B2A4A' }}>{plan.label}</span>
+                    {plan.badge && (
+                      <span style={{ font: `700 9px "Libre Franklin",sans-serif`, color: '#fff', background: '#E8542A', borderRadius: 6, padding: '2px 6px', letterSpacing: '.3px' }}>{plan.badge}</span>
+                    )}
+                  </div>
+                  <div style={{ font: `400 12px "Libre Franklin",sans-serif`, color: '#A39E90' }}>{plan.sub}</div>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <span style={{ font: `800 16px "Libre Franklin",sans-serif`, color: '#1B2A4A' }}>{plan.price}</span>
+                  <span style={{ font: `400 12px "Libre Franklin",sans-serif`, color: '#A39E90' }}>{plan.period}</span>
+                </div>
+              </button>
+            )
+          })}
+        </div>
+        {selectedPlan !== 'mensal' && !confirming && (
+          <button
+            onClick={() => setConfirming(true)}
+            style={{ width: '100%', marginTop: 12, background: '#1B2A4A', border: 'none', borderRadius: 14, padding: '14px 0', font: `700 14px "Libre Franklin",sans-serif`, color: '#FAEEDA', cursor: 'pointer', letterSpacing: '-.2px' }}
+          >
+            Mudar para {activePlan.label}
+          </button>
+        )}
+        {confirming && (
+          <div style={{ marginTop: 12, background: '#fff', borderRadius: 14, padding: '16px 18px', boxShadow: '0 2px 8px rgba(27,42,74,.07)' }}>
+            <div style={{ font: `600 13px "Libre Franklin",sans-serif`, color: '#1B2A4A', marginBottom: 4 }}>Confirmar mudança para o Plano {activePlan.label}?</div>
+            <div style={{ font: `400 12px "Libre Franklin",sans-serif`, color: '#A39E90', marginBottom: 14 }}>{activePlan.sub} · {activePlan.renew}</div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={() => setConfirming(false)} style={{ flex: 1, background: '#F4EFE3', border: 'none', borderRadius: 10, padding: '11px 0', font: `600 13px "Libre Franklin",sans-serif`, color: '#1B2A4A', cursor: 'pointer' }}>Cancelar</button>
+              <button onClick={() => setConfirming(false)} style={{ flex: 1, background: '#E8542A', border: 'none', borderRadius: 10, padding: '11px 0', font: `700 13px "Libre Franklin",sans-serif`, color: '#fff', cursor: 'pointer' }}>Confirmar</button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Payment method */}
