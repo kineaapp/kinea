@@ -25,13 +25,13 @@ Deno.serve(async (req) => {
 
   try {
     if (event.type === 'checkout.session.completed') {
-      // Salva o stripe_customer_id gerado pelo Stripe para o aluno
       const session    = event.data.object as Stripe.Checkout.Session
       const studentId  = session.metadata?.studentId
+      const planId     = session.metadata?.planId
       const customerId = typeof session.customer === 'string' ? session.customer : session.customer?.id
       if (studentId && customerId) {
         await supabase.from('students')
-          .update({ stripe_customer_id: customerId })
+          .update({ stripe_customer_id: customerId, ...(planId ? { plan: planId } : {}) })
           .eq('id', parseInt(studentId))
       }
 
@@ -41,18 +41,15 @@ Deno.serve(async (req) => {
       if (subId) {
         const sub       = await stripe.subscriptions.retrieve(subId)
         const studentId = sub.metadata?.studentId
+        const planId    = sub.metadata?.planId
         if (studentId) {
-          const { data: student } = await supabase.from('students')
-            .select('stripe_subscription_id')
-            .eq('id', parseInt(studentId))
-            .maybeSingle()
-          // Primeira cobrança: aplica cancel_at = 3 meses
-          if (!student?.stripe_subscription_id) {
-            const cancelAt = Math.floor(Date.now() / 1000) + 3 * 30 * 24 * 60 * 60
-            await stripe.subscriptions.update(subId, { cancel_at: cancelAt })
-          }
           await supabase.from('students')
-            .update({ pay_status: 'active', stripe_subscription_id: subId })
+            .update({
+              pay_status:                 'active',
+              stripe_subscription_id:     subId,
+              ...(planId ? { plan: planId } : {}),
+              stripe_current_period_end:  sub.current_period_end,
+            })
             .eq('id', parseInt(studentId))
         }
       }
@@ -70,17 +67,30 @@ Deno.serve(async (req) => {
         }
       }
 
+    } else if (event.type === 'customer.subscription.updated') {
+      const sub       = event.data.object as Stripe.Subscription
+      const studentId = sub.metadata?.studentId
+      const planId    = sub.metadata?.planId
+      if (studentId) {
+        await supabase.from('students')
+          .update({
+            stripe_current_period_end: sub.current_period_end,
+            ...(planId ? { plan: planId } : {}),
+          })
+          .eq('id', parseInt(studentId))
+      }
+
     } else if (event.type === 'customer.subscription.deleted') {
       const sub       = event.data.object as Stripe.Subscription
       const studentId = sub.metadata?.studentId
       if (studentId) {
         await supabase.from('students')
-          .update({ pay_status: 'pending', stripe_subscription_id: null })
+          .update({ pay_status: 'pending', stripe_subscription_id: null, stripe_current_period_end: null })
           .eq('id', parseInt(studentId))
       }
     }
   } catch {
-    // erro interno — retorna 200 para Stripe não retentar indefinidamente
+    // Retorna 200 para o Stripe não retentar indefinidamente
   }
 
   return new Response(JSON.stringify({ received: true }), {

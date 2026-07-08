@@ -10,12 +10,22 @@ const cors = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+const PRICE_IDS: Record<string, string> = {
+  mensal:     Deno.env.get('STRIPE_PRICE_MENSAL')!,
+  trimestral: Deno.env.get('STRIPE_PRICE_TRIMESTRAL')!,
+  semestral:  Deno.env.get('STRIPE_PRICE_SEMESTRAL')!,
+  anual:      Deno.env.get('STRIPE_PRICE_ANUAL')!,
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors })
 
   try {
-    const { studentId } = await req.json()
+    const { studentId, planId = 'mensal' } = await req.json()
     if (!studentId) throw new Error('studentId obrigatório')
+
+    const priceId = PRICE_IDS[planId]
+    if (!priceId) throw new Error(`Plano inválido: ${planId}`)
 
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL')!,
@@ -24,7 +34,7 @@ Deno.serve(async (req) => {
 
     const { data: student, error: dbErr } = await supabase
       .from('students')
-      .select('name, email, stripe_subscription_id')
+      .select('name, email, stripe_subscription_id, stripe_customer_id')
       .eq('id', studentId)
       .single()
 
@@ -39,7 +49,6 @@ Deno.serve(async (req) => {
         }
       } catch (err) {
         if (err instanceof Error && err.message === 'Aluno já possui assinatura ativa') throw err
-        // ID de outro ambiente ou expirado — limpa e segue
         await supabase.from('students')
           .update({ stripe_subscription_id: null, stripe_customer_id: null })
           .eq('id', studentId)
@@ -48,17 +57,17 @@ Deno.serve(async (req) => {
 
     const appUrl = Deno.env.get('APP_URL') ?? 'https://kinea-ten.vercel.app'
 
-    // Sem customer: aluno preenche seus próprios dados no checkout
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',
-      customer_email: student.email,
-      line_items: [{ price: Deno.env.get('STRIPE_PRICE_ID')!, quantity: 1 }],
+      customer: student.stripe_customer_id ?? undefined,
+      customer_email: student.stripe_customer_id ? undefined : student.email,
+      line_items: [{ price: priceId, quantity: 1 }],
       success_url: `${appUrl}/aluno/perfil/pagamentos?stripe=success`,
       cancel_url:  `${appUrl}/aluno/perfil/pagamentos`,
       subscription_data: {
-        metadata: { studentId: String(studentId) },
+        metadata: { studentId: String(studentId), planId },
       },
-      metadata: { studentId: String(studentId) },
+      metadata: { studentId: String(studentId), planId },
     })
 
     return new Response(
