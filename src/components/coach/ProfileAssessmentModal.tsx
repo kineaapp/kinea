@@ -55,6 +55,7 @@ interface Props {
 }
 
 export function ProfileAssessmentModal({ studentId, studentName, studentUuid, onClose, onSaved }: Props) {
+  const [date,      setDate]      = useState(() => new Date().toISOString().split('T')[0])
   const [weight,    setWeight]    = useState('')
   const [sex,       setSex]       = useState<'M' | 'F'>('F')
   const [age,       setAge]       = useState('')
@@ -105,11 +106,11 @@ export function ProfileAssessmentModal({ studentId, studentName, studentUuid, on
 
   async function handleSave() {
     if (!weight.trim()) { setErr('Informe o peso.'); return }
+    if (!date) { setErr('Informe a data da avaliação.'); return }
     setSaving(true)
-    const today = new Date().toISOString().split('T')[0]
     const insert: Record<string, unknown> = {
       student_id:    studentId,
-      assessed_at:   today,
+      assessed_at:   date,
       weight_kg:     weightN || null,
       body_fat_pct:  bfCalc !== null ? Math.round(bfCalc * 10) / 10 : null,
     }
@@ -151,6 +152,10 @@ export function ProfileAssessmentModal({ studentId, studentName, studentUuid, on
           <div>
             <div style={{ font: `700 10.5px ${FF}`, letterSpacing: '.6px', textTransform: 'uppercase', color: '#9a948a', marginBottom: 12 }}>Dados básicos</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div>
+                <label style={{ display: 'block', font: `600 11px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#6b6657', marginBottom: 7 }}>Data da avaliação</label>
+                <input type="date" value={date} max={new Date().toISOString().split('T')[0]} onChange={e => { setDate(e.target.value); setErr('') }} style={inputBase} onFocus={focusOn} onBlur={focusOff} />
+              </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 90px', gap: 12 }}>
                 <div>
                   <label style={{ display: 'block', font: `600 11px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#6b6657', marginBottom: 7 }}>Peso (kg)</label>
