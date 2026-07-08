@@ -3,7 +3,7 @@ import type { NewStudentData } from '../../store/students'
 
 const FF = '"Libre Franklin",sans-serif'
 const GOALS = ['Hipertrofia','Emagrecimento','Recomposição','Força','Condicionamento']
-const PLANS = ['Mensal','Trimestral','Semestral','Permuta']
+const PLANS = ['Mensal','Anual','Trimestral','Semestral','Permuta']
 
 function Field({ label, error, children }: { label: string; error?: string; children: React.ReactNode }) {
   return (

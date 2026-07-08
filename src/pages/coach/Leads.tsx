@@ -272,7 +272,7 @@ function LeadDrawer({ lead, onClose, onMoveStage, onConvert, onStub }: {
 const SOURCES = Object.keys(SOURCE_STYLE)
 const PLANS   = ['Mensal', 'Trimestral', 'Semestral', 'Anual', 'A definir']
 const PLAN_VALUE: Record<string, string> = {
-  Mensal: 'R$ 390', Trimestral: 'R$ 1.050', Semestral: 'R$ 1.890', Anual: 'R$ 3.480',
+  Mensal: 'R$ 399', Trimestral: 'R$ 741', Semestral: 'R$ 1.362', Anual: 'R$ 2.484',
 }
 const GOALS = ['Emagrecimento', 'Hipertrofia', 'Força', 'Recomposição', 'Condicionamento', 'Mobilidade']
 
