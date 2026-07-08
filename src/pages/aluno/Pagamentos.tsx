@@ -5,15 +5,17 @@ import { ChevronLeft, Check, CreditCard } from 'lucide-react'
 const FEATURES = ['Treinos personalizados', 'Avaliação mensal', 'Suporte via chat', 'Acesso ao app']
 
 const HISTORY = [
-  { date: '01/06/2025', desc: 'Plano Mensal', value: 'R$ 350,00', status: 'Pago' },
-  { date: '01/05/2025', desc: 'Plano Mensal', value: 'R$ 350,00', status: 'Pago' },
-  { date: '01/04/2025', desc: 'Plano Mensal', value: 'R$ 350,00', status: 'Pago' },
-  { date: '01/03/2025', desc: 'Plano Mensal', value: 'R$ 350,00', status: 'Pago' },
+  { date: '01/06/2025', desc: 'Plano Mensal', value: 'R$ 399,00', status: 'Pago' },
+  { date: '01/05/2025', desc: 'Plano Mensal', value: 'R$ 399,00', status: 'Pago' },
+  { date: '01/04/2025', desc: 'Plano Mensal', value: 'R$ 399,00', status: 'Pago' },
+  { date: '01/03/2025', desc: 'Plano Mensal', value: 'R$ 399,00', status: 'Pago' },
 ]
 
 const PLANS = [
-  { id: 'mensal', label: 'Mensal', price: 'R$ 350,00', period: '/mês', sub: 'Cobrado mensalmente', renew: 'Renova em 01/07/2025' },
-  { id: 'anual', label: 'Anual', price: 'R$ 262,50', period: '/mês', sub: 'R$ 3.150,00 cobrado anualmente', renew: 'Renova em 01/07/2026', badge: 'ECONOMIZE 25%' },
+  { id: 'mensal',    label: 'Mensal',    price: 'R$ 399,00',  period: '/mês', sub: 'Cobrado mensalmente',                    renew: 'Renova em 01/07/2025' },
+  { id: 'trimestral',label: 'Trimestral',price: 'R$ 741,00',  period: '',     sub: 'Em até 3x · R$ 247,00/mês',             renew: 'Renova em 01/10/2025' },
+  { id: 'semestral', label: 'Semestral', price: 'R$ 1.362,00',period: '',     sub: 'Em até 6x · R$ 227,00/mês',             renew: 'Renova em 01/01/2026' },
+  { id: 'anual',     label: 'Anual',     price: 'R$ 2.484,00',period: '',     sub: 'Em até 12x · R$ 207,00/mês',            renew: 'Renova em 01/07/2026', badge: 'ECONOMIZE 48%' },
 ]
 
 export default function Pagamentos() {
@@ -40,7 +42,7 @@ export default function Pagamentos() {
         <div style={{ position: 'relative' }}>
           <div style={{ font: `500 11px "Libre Franklin",sans-serif`, color: '#8B97AD', textTransform: 'uppercase', letterSpacing: '.3px', marginBottom: 6 }}>Plano Atual</div>
           <div style={{ font: `900 26px "Libre Franklin",sans-serif`, color: '#FAEEDA', letterSpacing: '-.5px', marginBottom: 4 }}>Mensal</div>
-          <div style={{ font: `400 13px "Libre Franklin",sans-serif`, color: '#8B97AD', marginBottom: 16 }}>R$ 350,00/mês · Renova em 01/07/2025</div>
+          <div style={{ font: `400 13px "Libre Franklin",sans-serif`, color: '#8B97AD', marginBottom: 16 }}>R$ 399,00/mês · Renova em 01/07/2025</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {FEATURES.map(f => (
               <div key={f} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>

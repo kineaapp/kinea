@@ -25,7 +25,8 @@ const STATUS_MAP: Record<Status, { label: string; color: string; bg: string }> =
   atrasado: { label: 'Em atraso',  color: '#c4421e', bg: '#fbe6e1' },
 }
 
-const PLANS: Record<string, number> = { Mensal: 390, Anual: 3150, Trimestral: 1050, Semestral: 1890 }
+const PLANS: Record<string, number> = { Mensal: 399, Anual: 2484, Trimestral: 741, Semestral: 1362 }
+const PLAN_PARCELAS: Record<string, number> = { Mensal: 1, Anual: 12, Trimestral: 3, Semestral: 6 }
 
 function brl(n: number) {
   return 'R$ ' + Number(n).toLocaleString('pt-BR')
@@ -196,6 +197,7 @@ function NewChargeModal({ onClose, onAdd }: {
               >
                 <div style={{ fontWeight: 700 }}>{label}</div>
                 <div style={{ font: `600 11px ${FF}`, opacity: .75, marginTop: 2 }}>{brl(price)}</div>
+                {PLAN_PARCELAS[label] > 1 && <div style={{ font: `500 10px ${FF}`, opacity: .6, marginTop: 1 }}>até {PLAN_PARCELAS[label]}x</div>}
               </button>
             )
           })}
