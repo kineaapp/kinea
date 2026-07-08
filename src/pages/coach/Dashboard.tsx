@@ -166,6 +166,7 @@ export default function Dashboard() {
   const [upcomingAssessments, setUpcomingAssessments] = useState<StudentAssessment[]>([])
   const [pendingAssessments,  setPendingAssessments]  = useState<StudentAssessment[]>([])
   const [checkIns,            setCheckIns]            = useState<CheckInFeed[]>([])
+  const [upcomingPayments,    setUpcomingPayments]    = useState<{ studentId: number; name: string; iso: string }[]>([])
 
   useEffect(() => { if (user?.id) fetchStudents(user.id) }, [user?.id])
 
@@ -207,6 +208,27 @@ export default function Dashboard() {
       .order('created_at', { ascending: false })
       .limit(30)
       .then(({ data }) => setCheckIns((data as CheckInFeed[] | null) ?? []))
+
+    // Próximos vencimentos reais da tabela payments (um por aluno, mais próximo)
+    supabase
+      .from('payments')
+      .select('student_id, due_date, students!inner(name, coach_id)')
+      .eq('students.coach_id', user.id)
+      .eq('status', 'pending')
+      .gte('due_date', today)
+      .order('due_date', { ascending: true })
+      .then(({ data }) => {
+        if (!data) return
+        const seen = new Set<number>()
+        const result: { studentId: number; name: string; iso: string }[] = []
+        for (const p of data as any[]) {
+          if (!seen.has(p.student_id)) {
+            seen.add(p.student_id)
+            result.push({ studentId: p.student_id, name: p.students.name, iso: p.due_date })
+          }
+        }
+        setUpcomingPayments(result.slice(0, 5))
+      })
   }, [user?.id])
 
   const shown = filter === 'all' ? students : students.filter(s => s.sem === filter)
@@ -411,12 +433,7 @@ export default function Dashboard() {
           {/* Payments card — overdue + upcoming */}
           {(() => {
             const overdue = students.filter(s => s.pay === 'overdue')
-            const upcoming = students
-              .filter(s => s.pay !== 'overdue' && s.plan !== 'Permuta' && s.sinceRaw)
-              .map(s => { const iso = nextPaymentIso(s.sinceRaw, s.plan); return iso ? { s, iso } : null })
-              .filter((x): x is { s: typeof students[0]; iso: string } => x !== null)
-              .sort((a, b) => a.iso.localeCompare(b.iso))
-              .slice(0, 3)
+            const upcoming = upcomingPayments
 
             return (
               <div style={{ background: '#fff', border: '1px solid #ece7d9', borderRadius: 14, padding: '18px 18px 8px' }}>
@@ -447,13 +464,13 @@ export default function Dashboard() {
                     <div style={{ font: `700 10px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#9a948a', padding: '12px 0 2px', borderTop: overdue.length > 0 ? '1px solid #f1ece0' : 'none', marginTop: overdue.length > 0 ? 4 : 0 }}>
                       Próximos vencimentos
                     </div>
-                    {upcoming.map(({ s, iso }) => {
+                    {upcoming.map(({ studentId, name, iso }) => {
                       const diff = diffDays(iso)
                       const label = diff === 0 ? 'hoje' : diff === 1 ? 'amanhã' : `em ${diff} dias`
                       return (
-                        <div key={s.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0', borderTop: '1px solid #f1ece0' }}>
+                        <div key={studentId} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0', borderTop: '1px solid #f1ece0' }}>
                           <div>
-                            <div style={{ font: `600 13.5px ${FF}`, color: '#1B2A4A' }}>{s.name}</div>
+                            <div style={{ font: `600 13.5px ${FF}`, color: '#1B2A4A' }}>{name}</div>
                             <div style={{ font: `400 11.5px ${FF}`, color: diff <= 5 ? '#b06a12' : '#9a948a' }}>{label}</div>
                           </div>
                           <span style={{ font: `600 12px ${FF}`, color: '#7c7869' }}>{fmtShort(iso)}</span>
