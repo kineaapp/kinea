@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
 
 const FF = '"Libre Franklin",sans-serif'
@@ -63,8 +63,11 @@ export function ProfileAssessmentModal({ studentId, studentName, studentUuid, on
   const [dobras,    setDobras]    = useState<Record<SFKey, string>>({ d1:'',d2:'',d3:'',d4:'',d5:'',d6:'',d7:'' })
   const [circ,      setCirc]      = useState<Record<string, string>>({ chest_cm:'',waist_cm:'',hip_cm:'',arm_cm:'',thigh_cm:'' })
   const [notes,     setNotes]     = useState('')
+  const [photo,     setPhoto]     = useState<File | null>(null)
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null)
   const [saving,    setSaving]    = useState(false)
   const [err,       setErr]       = useState('')
+  const photoRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     if (!studentUuid) return
@@ -121,9 +124,24 @@ export function ProfileAssessmentModal({ studentId, studentName, studentUuid, on
     if (notes.trim()) insert.notes = notes.trim()
 
     const { data, error } = await supabase.from('assessments').insert(insert).select().single()
+    if (error) { setSaving(false); setErr('Erro ao salvar. Tente novamente.'); return }
+
+    let saved = data as SavedAssessmentRow
+
+    if (photo && saved.id) {
+      const ext  = photo.name.split('.').pop()?.toLowerCase() ?? 'jpg'
+      const path = `${studentId}/${saved.id}.${ext}`
+      const { error: upErr } = await supabase.storage
+        .from('assessment-photos').upload(path, photo, { upsert: true })
+      if (!upErr) {
+        const { data: pd } = supabase.storage.from('assessment-photos').getPublicUrl(path)
+        await supabase.from('assessments').update({ photo_url: pd.publicUrl }).eq('id', saved.id)
+        saved = { ...saved, photo_url: pd.publicUrl }
+      }
+    }
+
     setSaving(false)
-    if (error) { setErr('Erro ao salvar. Tente novamente.'); return }
-    onSaved(data as SavedAssessmentRow)
+    onSaved(saved)
     onClose()
   }
 
@@ -252,6 +270,46 @@ export function ProfileAssessmentModal({ studentId, studentName, studentUuid, on
               <span style={{ font: `500 12px ${FF}`, color: '#7c7869' }}>Preencha as 7 dobras e a idade para calcular o % de gordura (opcional).</span>
             </div>
           )}
+
+          {/* Foto */}
+          <div>
+            <label style={{ display: 'block', font: `600 11px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#6b6657', marginBottom: 10 }}>Foto corporal <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0, color: '#9a948a' }}>— opcional</span></label>
+            <input ref={photoRef} type="file" accept="image/*" style={{ display: 'none' }}
+              onChange={e => {
+                const f = e.target.files?.[0] ?? null
+                setPhoto(f)
+                if (f) {
+                  const reader = new FileReader()
+                  reader.onload = ev => setPhotoPreview(ev.target?.result as string)
+                  reader.readAsDataURL(f)
+                } else {
+                  setPhotoPreview(null)
+                }
+              }}
+            />
+            {photoPreview ? (
+              <div style={{ position: 'relative', display: 'inline-block' }}>
+                <img src={photoPreview} alt="preview" style={{ width: 120, height: 160, objectFit: 'cover', borderRadius: 10, display: 'block', border: '1.5px solid #e0d9c8' }} />
+                <button type="button"
+                  onClick={() => { setPhoto(null); setPhotoPreview(null); if (photoRef.current) photoRef.current.value = '' }}
+                  style={{ position: 'absolute', top: 6, right: 6, width: 26, height: 26, borderRadius: '50%', border: 'none', background: 'rgba(0,0,0,.55)', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
+                </button>
+                <button type="button" onClick={() => photoRef.current?.click()}
+                  style={{ marginTop: 8, width: 120, height: 34, border: '1.5px solid #d9d3c4', background: '#fff', borderRadius: 8, font: `600 12px ${FF}`, color: '#7c7869', cursor: 'pointer' }}>
+                  Trocar foto
+                </button>
+              </div>
+            ) : (
+              <button type="button" onClick={() => photoRef.current?.click()}
+                style={{ width: 120, height: 160, border: '1.5px dashed #d9d3c4', borderRadius: 10, background: '#faf7ee', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#b0a99c" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/>
+                </svg>
+                <span style={{ font: `600 11.5px ${FF}`, color: '#b0a99c' }}>+ Adicionar foto</span>
+              </button>
+            )}
+          </div>
 
           {/* Observações */}
           <div>
