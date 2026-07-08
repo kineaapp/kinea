@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { Student, PayStatus, SemColor } from '../data/mock'
+import type { Student, PayStatus, SemColor, AssessmentFrequency } from '../data/mock'
 import { supabase } from '../lib/supabase'
 
 const MONTHS = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez']
@@ -10,13 +10,14 @@ interface StudentsStore {
   students: Student[]
   loading:  boolean
   fetchError: string | null
-  fetchStudents:      (coachId: string) => Promise<void>
-  addStudent:         (data: NewStudentData, coachId: string) => Promise<void>
-  deleteStudent:      (id: number) => Promise<void>
-  updatePlan:         (id: number, plan: string) => Promise<void>
-  updateStudentInfo:     (id: number, info: { name?: string; email?: string; goal?: string }) => Promise<void>
-  blockStudent:          (id: number, blocked: boolean) => Promise<void>
-  setStudentStripeSubId: (id: number, subId: string) => void
+  fetchStudents:             (coachId: string) => Promise<void>
+  addStudent:                (data: NewStudentData, coachId: string) => Promise<void>
+  deleteStudent:             (id: number) => Promise<void>
+  updatePlan:                (id: number, plan: string) => Promise<void>
+  updateStudentInfo:         (id: number, info: { name?: string; email?: string; goal?: string }) => Promise<void>
+  blockStudent:              (id: number, blocked: boolean) => Promise<void>
+  setStudentStripeSubId:     (id: number, subId: string) => void
+  updateAssessmentFrequency: (id: number, freq: AssessmentFrequency) => Promise<void>
 }
 
 type Row = {
@@ -33,6 +34,7 @@ type Row = {
   cpf:                   string | null
   stripe_subscription_id: string | null
   blocked:               boolean
+  assessment_frequency:  AssessmentFrequency
 }
 
 function formatSince(dateStr: string): string {
@@ -42,19 +44,20 @@ function formatSince(dateStr: string): string {
 
 function mapRow(r: Row): Student {
   return {
-    id:          r.id,
-    studentUuid: r.student_id ?? '',
-    name:        r.name,
-    email:       r.email,
-    goal:        r.goal,
-    plan:        r.plan,
-    pay:         r.pay_status,
-    sem:         r.engagement,
-    next:        r.next_assessment ?? '—',
-    since:       formatSince(r.since),
-    cpf:         r.cpf ?? null,
-    stripeSubId: r.stripe_subscription_id ?? null,
-    blocked:     r.blocked ?? false,
+    id:                  r.id,
+    studentUuid:         r.student_id ?? '',
+    name:                r.name,
+    email:               r.email,
+    goal:                r.goal,
+    plan:                r.plan,
+    pay:                 r.pay_status,
+    sem:                 r.engagement,
+    next:                r.next_assessment ?? '—',
+    since:               formatSince(r.since),
+    cpf:                 r.cpf ?? null,
+    stripeSubId:         r.stripe_subscription_id ?? null,
+    blocked:             r.blocked ?? false,
+    assessmentFrequency: r.assessment_frequency ?? null,
   }
 }
 
@@ -98,6 +101,11 @@ export const useStudentsStore = create<StudentsStore>((set) => ({
   blockStudent: async (id, blocked) => {
     const { error } = await supabase.from('students').update({ blocked }).eq('id', id)
     if (!error) set(s => ({ students: s.students.map(st => st.id === id ? { ...st, blocked } : st) }))
+  },
+
+  updateAssessmentFrequency: async (id, freq) => {
+    const { error } = await supabase.from('students').update({ assessment_frequency: freq }).eq('id', id)
+    if (!error) set(s => ({ students: s.students.map(st => st.id === id ? { ...st, assessmentFrequency: freq } : st) }))
   },
 
   addStudent: async (data, coachId) => {

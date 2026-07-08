@@ -1,20 +1,23 @@
 export type SemColor  = 'green' | 'yellow' | 'red'
 export type PayStatus = 'active' | 'pending' | 'overdue'
 
+export type AssessmentFrequency = 'weekly' | 'biweekly' | 'monthly' | null
+
 export interface Student {
-  id:          number
-  studentUuid: string
-  name:        string
-  goal:        string
-  plan:        string
-  pay:         PayStatus
-  sem:         SemColor
-  next:        string
-  email:       string
-  since:       string
-  cpf:         string | null
-  stripeSubId: string | null
-  blocked:     boolean
+  id:                  number
+  studentUuid:         string
+  name:                string
+  goal:                string
+  plan:                string
+  pay:                 PayStatus
+  sem:                 SemColor
+  next:                string
+  email:               string
+  since:               string
+  cpf:                 string | null
+  stripeSubId:         string | null
+  blocked:             boolean
+  assessmentFrequency: AssessmentFrequency
 }
 
 export const ROSTER: Student[] = []

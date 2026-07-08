@@ -105,7 +105,7 @@ export default function PerfilAluno() {
   const toastRef  = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
   // ── Auth / student ────────────────────────────────────────
-  const { students, fetchStudents, deleteStudent, updatePlan, updateStudentInfo, blockStudent, setStudentStripeSubId } = useStudentsStore()
+  const { students, fetchStudents, deleteStudent, updatePlan, updateStudentInfo, blockStudent, setStudentStripeSubId, updateAssessmentFrequency } = useStudentsStore()
   const { user }  = useAuthStore()
   const studentId = parseInt(id ?? '0', 10)
   const [confirmDelete, setConfirmDelete] = useState(false)
@@ -786,26 +786,56 @@ export default function PerfilAluno() {
                   onChange={e => { const f = e.target.files?.[0]; if (f) void handleAssessmentPhotoUpload(f) }} />
 
                 {/* Header */}
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
                   <div>
                     <h2 style={{ font: `800 20px ${FF}`, color: '#1B2A4A', margin: 0, letterSpacing: '-.4px' }}>Avaliações físicas</h2>
                     {assessments.length > 0 && <p style={{ font: `400 13px ${FF}`, color: '#7c7869', margin: '3px 0 0' }}>{assessments.length} avaliação{assessments.length !== 1 ? 'ões' : ''} · ordem cronológica</p>}
                   </div>
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    {assessments.length >= 2 && (
-                      <button type="button"
-                        onClick={() => { setCompareMode(v => !v); setCompareSelected([]); setShowComparison(false) }}
-                        style={{ height: 42, padding: '0 16px', border: `1.5px solid ${compareMode ? '#E8542A' : '#d6cfbe'}`, background: compareMode ? '#fff8f6' : '#fff', color: compareMode ? '#E8542A' : '#1B2A4A', borderRadius: 10, font: `600 13px ${FF}`, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
-                        {compareMode
-                          ? <><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg> Cancelar</>
-                          : <><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8h1a4 4 0 010 8h-1M2 8h16v9a4 4 0 01-4 4H6a4 4 0 01-4-4V8zM6 1v3M10 1v3M14 1v3"/></svg> Comparar</>
-                        }
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 10 }}>
+                    {/* Periodicidade */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                      <span style={{ font: `600 11px ${FF}`, letterSpacing: '.4px', textTransform: 'uppercase', color: '#9a948a', whiteSpace: 'nowrap' }}>Periodicidade</span>
+                      <div style={{ display: 'flex', background: '#f4efe3', borderRadius: 10, padding: 3, gap: 2 }}>
+                        {([
+                          { value: 'weekly',   label: 'Semanal'   },
+                          { value: 'biweekly', label: 'Quinzenal' },
+                          { value: 'monthly',  label: 'Mensal'    },
+                        ] as const).map(opt => {
+                          const active = student.assessmentFrequency === opt.value
+                          return (
+                            <button
+                              key={opt.value}
+                              type="button"
+                              onClick={async () => {
+                                const next = active ? null : opt.value
+                                await updateAssessmentFrequency(studentId, next)
+                                showToast(next ? `Periodicidade definida: ${opt.label}` : 'Periodicidade removida.')
+                              }}
+                              style={{ height: 34, padding: '0 13px', border: 'none', borderRadius: 8, font: `600 12.5px ${FF}`, cursor: 'pointer', background: active ? '#1B2A4A' : 'transparent', color: active ? '#fff' : '#7c7869', transition: 'all .12s', whiteSpace: 'nowrap' }}
+                            >
+                              {opt.label}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+                    {/* Ações */}
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      {assessments.length >= 2 && (
+                        <button type="button"
+                          onClick={() => { setCompareMode(v => !v); setCompareSelected([]); setShowComparison(false) }}
+                          style={{ height: 42, padding: '0 16px', border: `1.5px solid ${compareMode ? '#E8542A' : '#d6cfbe'}`, background: compareMode ? '#fff8f6' : '#fff', color: compareMode ? '#E8542A' : '#1B2A4A', borderRadius: 10, font: `600 13px ${FF}`, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
+                          {compareMode
+                            ? <><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg> Cancelar</>
+                            : <><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8h1a4 4 0 010 8h-1M2 8h16v9a4 4 0 01-4 4H6a4 4 0 01-4-4V8zM6 1v3M10 1v3M14 1v3"/></svg> Comparar</>
+                          }
+                        </button>
+                      )}
+                      <button type="button" onClick={() => showToast('Em breve!')}
+                        style={{ height: 42, padding: '0 18px', border: '1.5px solid #d6cfbe', background: '#fff', color: '#1B2A4A', borderRadius: 10, font: `600 13.5px ${FF}`, cursor: 'pointer' }}>
+                        + Nova avaliação
                       </button>
-                    )}
-                    <button type="button" onClick={() => showToast('Em breve!')}
-                      style={{ height: 42, padding: '0 18px', border: '1.5px solid #d6cfbe', background: '#fff', color: '#1B2A4A', borderRadius: 10, font: `600 13.5px ${FF}`, cursor: 'pointer' }}>
-                      + Nova avaliação
-                    </button>
+                    </div>
                   </div>
                 </div>
 
