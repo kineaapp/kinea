@@ -4,6 +4,8 @@ import { getInitials, payInfo, semInfo, avatarPalette } from '../../data/mock'
 import { useStudentsStore } from '../../store/students'
 import { useAuthStore } from '../../store/auth'
 import { supabase } from '../../lib/supabase'
+import { ProfileAssessmentModal } from '../../components/coach/ProfileAssessmentModal'
+import type { SavedAssessmentRow } from '../../components/coach/ProfileAssessmentModal'
 
 const FF = '"Libre Franklin",sans-serif'
 
@@ -115,6 +117,7 @@ export default function PerfilAluno() {
   const [uploadingAssId,  setUploadingAssId]  = useState<number | null>(null)
   const assessPhotoRef  = useRef<HTMLInputElement>(null)
   const pendingAssIdRef = useRef<number | null>(null)
+  const [showNewAssessment, setShowNewAssessment] = useState(false)
   const [showPlanPicker, setShowPlanPicker]   = useState(false)
   const [savingPlan,    setSavingPlan]        = useState(false)
   const [showEditModal, setShowEditModal]     = useState(false)
@@ -831,8 +834,8 @@ export default function PerfilAluno() {
                           }
                         </button>
                       )}
-                      <button type="button" onClick={() => showToast('Em breve!')}
-                        style={{ height: 42, padding: '0 18px', border: '1.5px solid #d6cfbe', background: '#fff', color: '#1B2A4A', borderRadius: 10, font: `600 13.5px ${FF}`, cursor: 'pointer' }}>
+                      <button type="button" onClick={() => setShowNewAssessment(true)}
+                        style={{ height: 42, padding: '0 18px', border: 'none', background: '#E8542A', color: '#fff', borderRadius: 10, font: `700 13.5px ${FF}`, cursor: 'pointer', boxShadow: '0 2px 0 #c4421e' }}>
                         + Nova avaliação
                       </button>
                     </div>
@@ -1204,6 +1207,21 @@ export default function PerfilAluno() {
 
         </div>
       </div>
+
+      {showNewAssessment && student && (
+        <ProfileAssessmentModal
+          studentId={studentId}
+          studentName={student.name}
+          studentUuid={student.studentUuid}
+          onClose={() => setShowNewAssessment(false)}
+          onSaved={(row: SavedAssessmentRow) => {
+            setAssessments(prev => [...prev, row].sort(
+              (a, b) => new Date(a.assessed_at).getTime() - new Date(b.assessed_at).getTime()
+            ))
+            showToast('Avaliação salva com sucesso.')
+          }}
+        />
+      )}
 
       <Toast msg={toast} />
     </div>
