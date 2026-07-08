@@ -19,6 +19,8 @@ interface AnamneseRow {
   objetivo: string; dias_semana: string; horario: string
   horas_sono: string; nivel_estresse: string; fuma: string; alcool: string
   created_at: string
+  student_id: string | null
+  students_row_id: number | null
 }
 
 interface ExerciseRow { name: string; sets: number; reps: string; sort_order: number }
@@ -99,12 +101,13 @@ const ANAMNESE_EMPTY: AnamneseFormData = {
   horasSono: '', nivelEstresse: '', fuma: '', alcool: '',
 }
 
-function CoachAnamneseDrawer({ studentName, studentUuid, existing, onClose, onSaved }: {
-  studentName: string
-  studentUuid: string
-  existing:    AnamneseRow | null
-  onClose:     () => void
-  onSaved:     (row: AnamneseRow) => void
+function CoachAnamneseDrawer({ studentName, studentUuid, studentRowId, existing, onClose, onSaved }: {
+  studentName:  string
+  studentUuid:  string
+  studentRowId: number
+  existing:     AnamneseRow | null
+  onClose:      () => void
+  onSaved:      (row: AnamneseRow) => void
 }) {
   const init: AnamneseFormData = existing ? {
     nome: existing.nome, dataNasc: existing.data_nasc, telefone: existing.telefone, profissao: existing.profissao,
@@ -133,11 +136,10 @@ function CoachAnamneseDrawer({ studentName, studentUuid, existing, onClose, onSa
   }
 
   async function save() {
-    if (!studentUuid) { setError('Este aluno ainda não criou conta no app. Convide-o para que ele se cadastre e então preencha a anamnese.'); return }
     if (!form.nome.trim()) { setError('Informe o nome do aluno.'); return }
     setSaving(true)
-    const payload = {
-      student_id:       studentUuid,
+    const payload: Record<string, unknown> = {
+      ...(studentUuid ? { student_id: studentUuid } : { students_row_id: studentRowId }),
       nome:             form.nome,
       data_nasc:        form.dataNasc,
       telefone:         form.telefone,
@@ -411,14 +413,19 @@ export default function PerfilAluno() {
   const loaded = useRef(new Set<string>())
 
   const fetchAnamnese = useCallback(async () => {
-    if (!student?.studentUuid || loaded.current.has('anamnese')) return
+    if (!student || loaded.current.has('anamnese')) return
     loaded.current.add('anamnese')
     setAnamneseLoading(true)
-    const { data } = await supabase.from('anamneses').select('*')
-      .eq('student_id', student.studentUuid).order('created_at', { ascending: false }).limit(1).single()
+    let q = supabase.from('anamneses').select('*').order('created_at', { ascending: false }).limit(1)
+    if (student.studentUuid) {
+      q = q.eq('student_id', student.studentUuid)
+    } else {
+      q = q.eq('students_row_id', studentId)
+    }
+    const { data } = await q.single()
     setAnamnese(data ?? null)
     setAnamneseLoading(false)
-  }, [student?.studentUuid])
+  }, [student?.studentUuid, studentId])
 
   const fetchAssignments = useCallback(async () => {
     if (!studentId || loaded.current.has('assignments')) return
@@ -1503,6 +1510,7 @@ export default function PerfilAluno() {
         <CoachAnamneseDrawer
           studentName={student.name}
           studentUuid={student.studentUuid}
+          studentRowId={studentId}
           existing={anamnese}
           onClose={() => setShowAnamneseForm(false)}
           onSaved={row => {
