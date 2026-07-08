@@ -51,8 +51,9 @@ function diffDays(iso: string) {
   return Math.round((other.getTime() - today.getTime()) / 86_400_000)
 }
 
-type RecentAssessment = { id: number; assessed_at: string; weight_kg: number | null; students: { name: string } | null }
+type RecentAssessment  = { id: number; assessed_at: string; weight_kg: number | null; students: { name: string } | null }
 type StudentAssessment = { id: number; name: string; next_assessment: string }
+type CheckInFeed       = { id: number; content: string; created_at: string; students: { name: string } | null }
 
 // ── Sub-components ──────────────────────────────────────────
 function KpiCard({ label, value, sub, subColor, iconBg, iconColor, icon }: {
@@ -153,6 +154,7 @@ export default function Dashboard() {
   const [recentAssessments,   setRecentAssessments]   = useState<RecentAssessment[]>([])
   const [upcomingAssessments, setUpcomingAssessments] = useState<StudentAssessment[]>([])
   const [pendingAssessments,  setPendingAssessments]  = useState<StudentAssessment[]>([])
+  const [checkIns,            setCheckIns]            = useState<CheckInFeed[]>([])
 
   useEffect(() => { if (user?.id) fetchStudents(user.id) }, [user?.id])
 
@@ -184,6 +186,16 @@ export default function Dashboard() {
       .not('next_assessment', 'is', null)
       .order('next_assessment', { ascending: true })
       .then(({ data }) => setPendingAssessments((data as StudentAssessment[] | null) ?? []))
+
+    const yesterday = new Date(Date.now() - 86_400_000).toISOString().split('T')[0]
+    supabase
+      .from('check_ins')
+      .select('id, content, created_at, students!inner(name, coach_id)')
+      .eq('students.coach_id', user.id)
+      .gte('created_at', `${yesterday}T00:00:00`)
+      .order('created_at', { ascending: false })
+      .limit(30)
+      .then(({ data }) => setCheckIns((data as CheckInFeed[] | null) ?? []))
   }, [user?.id])
 
   const shown = filter === 'all' ? students : students.filter(s => s.sem === filter)
@@ -319,6 +331,71 @@ export default function Dashboard() {
 
         {/* Aside */}
         <div className="k-aside" style={{ width: 336, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+          {/* Check-ins hoje / ontem */}
+          {(() => {
+            const todayStr = new Date().toISOString().split('T')[0]
+            const yesterdayStr = new Date(Date.now() - 86_400_000).toISOString().split('T')[0]
+            const todayItems = checkIns.filter(c => c.created_at.startsWith(todayStr))
+            const yesterdayItems = checkIns.filter(c => c.created_at.startsWith(yesterdayStr))
+
+            function fmtTime(iso: string) {
+              return new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+            }
+
+            function CheckInItem({ c, i }: { c: CheckInFeed; i: number }) {
+              const pal = AVATAR_PALETTE[i % AVATAR_PALETTE.length]
+              const name = c.students?.name ?? '—'
+              return (
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 0', borderTop: '1px solid #f1ece0' }}>
+                  <div style={{ width: 32, height: 32, borderRadius: '50%', background: pal[0], color: pal[1], display: 'flex', alignItems: 'center', justifyContent: 'center', font: `700 11px ${FF}`, flexShrink: 0 }}>
+                    {getInitials(name)}
+                  </div>
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
+                      <span style={{ font: `600 13px ${FF}`, color: '#1B2A4A', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{name}</span>
+                      <span style={{ font: `500 11px ${FF}`, color: '#b0a99c', flexShrink: 0 }}>{fmtTime(c.created_at)}</span>
+                    </div>
+                    {c.content && (
+                      <div style={{ font: `400 12px ${FF}`, color: '#7c7869', marginTop: 2, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                        {c.content}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )
+            }
+
+            return (
+              <div style={{ background: '#fff', border: '1px solid #ece7d9', borderRadius: 14, padding: '18px 18px 10px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
+                  <h2 style={{ font: `700 15px ${FF}`, color: '#1B2A4A', margin: 0 }}>Check-ins</h2>
+                  {checkIns.length > 0 && (
+                    <span style={{ font: `600 11px ${FF}`, color: '#1B7a4a', background: '#e7f3ea', borderRadius: 20, padding: '3px 9px' }}>{checkIns.length} hoje e ontem</span>
+                  )}
+                </div>
+
+                {checkIns.length === 0 ? (
+                  <div style={{ padding: '18px 0', borderTop: '1px solid #f1ece0', font: `400 13px ${FF}`, color: '#9a948a', textAlign: 'center' }}>Nenhum check-in recente</div>
+                ) : (
+                  <>
+                    {todayItems.length > 0 && (
+                      <div style={{ marginTop: 10 }}>
+                        <div style={{ font: `700 10px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#E8542A', marginBottom: 2 }}>Hoje</div>
+                        {todayItems.map((c, i) => <CheckInItem key={c.id} c={c} i={i} />)}
+                      </div>
+                    )}
+                    {yesterdayItems.length > 0 && (
+                      <div style={{ marginTop: todayItems.length > 0 ? 12 : 10 }}>
+                        <div style={{ font: `700 10px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#9a948a', marginBottom: 2 }}>Ontem</div>
+                        {yesterdayItems.map((c, i) => <CheckInItem key={c.id} c={c} i={i} />)}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            )
+          })()}
 
           {/* Overdue payments */}
           <div style={{ background: '#fff', border: '1px solid #ece7d9', borderRadius: 14, padding: '18px 18px 8px' }}>
