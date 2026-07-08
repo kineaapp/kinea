@@ -25,7 +25,7 @@ const STATUS_MAP: Record<Status, { label: string; color: string; bg: string }> =
   atrasado: { label: 'Em atraso',  color: '#c4421e', bg: '#fbe6e1' },
 }
 
-const PLANS: Record<string, number> = { Mensal: 390, Trimestral: 1050, Semestral: 1890 }
+const PLANS: Record<string, number> = { Mensal: 390, Anual: 3150, Trimestral: 1050, Semestral: 1890 }
 
 function brl(n: number) {
   return 'R$ ' + Number(n).toLocaleString('pt-BR')

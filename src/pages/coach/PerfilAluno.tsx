@@ -505,7 +505,7 @@ export default function PerfilAluno() {
   const pesoAtual    = lastAssess?.weight_kg    != null ? `${lastAssess.weight_kg.toFixed(1)} kg`    : null
   const gorduraAtual = lastAssess?.body_fat_pct != null ? `${lastAssess.body_fat_pct.toFixed(1)}%`  : null
 
-  const PLANS = ['Mensal', 'Trimestral', 'Semestral', 'Permuta']
+  const PLANS = ['Mensal', 'Anual', 'Trimestral', 'Semestral', 'Permuta']
 
   async function handleAssessmentPhotoUpload(file: File) {
     const assId = pendingAssIdRef.current
