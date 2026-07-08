@@ -80,6 +80,259 @@ const STATUS_PAY: Record<string, { label: string; color: string; bg: string }> =
   overdue: { label: 'Atrasado', color: '#c4421e', bg: '#fbe6e1' },
 }
 
+// ── Coach Anamnese Drawer ──────────────────────────────────────
+const DOENCAS_OPTS = ['Diabetes', 'Hipertensão', 'Doença cardíaca', 'Asma', 'Obesidade', 'Colesterol alto', 'Nenhuma']
+
+interface AnamneseFormData {
+  nome: string; dataNasc: string; telefone: string; profissao: string
+  doencas: string[]; outraDoenca: string; medicamentos: string; cirurgia: string; limitacoes: string
+  praticaAtual: string; atividadeAtual: string; treinouPersonal: string
+  objetivo: string; diasSemana: string; horario: string
+  horasSono: string; nivelEstresse: string; fuma: string; alcool: string
+}
+
+const ANAMNESE_EMPTY: AnamneseFormData = {
+  nome: '', dataNasc: '', telefone: '', profissao: '',
+  doencas: [], outraDoenca: '', medicamentos: '', cirurgia: '', limitacoes: '',
+  praticaAtual: '', atividadeAtual: '', treinouPersonal: '',
+  objetivo: '', diasSemana: '', horario: '',
+  horasSono: '', nivelEstresse: '', fuma: '', alcool: '',
+}
+
+function CoachAnamneseDrawer({ studentName, studentUuid, existing, onClose, onSaved }: {
+  studentName: string
+  studentUuid: string
+  existing:    AnamneseRow | null
+  onClose:     () => void
+  onSaved:     (row: AnamneseRow) => void
+}) {
+  const init: AnamneseFormData = existing ? {
+    nome: existing.nome, dataNasc: existing.data_nasc, telefone: existing.telefone, profissao: existing.profissao,
+    doencas: (() => { try { const p = JSON.parse(existing.doencas); return Array.isArray(p) ? p : [] } catch { return [] } })(),
+    outraDoenca: existing.outra_doenca, medicamentos: existing.medicamentos, cirurgia: existing.cirurgia, limitacoes: existing.limitacoes,
+    praticaAtual: existing.pratica_atual, atividadeAtual: existing.atividade_atual, treinouPersonal: existing.treinou_personal,
+    objetivo: existing.objetivo, diasSemana: existing.dias_semana, horario: existing.horario,
+    horasSono: existing.horas_sono, nivelEstresse: existing.nivel_estresse, fuma: existing.fuma, alcool: existing.alcool,
+  } : { ...ANAMNESE_EMPTY, nome: studentName }
+
+  const [form, setForm] = useState<AnamneseFormData>(init)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+
+  function set1<K extends keyof AnamneseFormData>(key: K, val: AnamneseFormData[K]) {
+    setForm(f => ({ ...f, [key]: val })); setError('')
+  }
+
+  function toggleDoenca(d: string) {
+    setForm(prev => {
+      const list = prev.doencas
+      if (d === 'Nenhuma') return { ...prev, doencas: list.includes('Nenhuma') ? [] : ['Nenhuma'] }
+      const filtered = list.filter(x => x !== 'Nenhuma')
+      return { ...prev, doencas: filtered.includes(d) ? filtered.filter(x => x !== d) : [...filtered, d] }
+    })
+  }
+
+  async function save() {
+    if (!form.nome.trim()) { setError('Informe o nome do aluno.'); return }
+    setSaving(true)
+    const payload = {
+      student_id:       studentUuid,
+      nome:             form.nome,
+      data_nasc:        form.dataNasc,
+      telefone:         form.telefone,
+      profissao:        form.profissao,
+      doencas:          JSON.stringify(form.doencas),
+      outra_doenca:     form.outraDoenca,
+      medicamentos:     form.medicamentos,
+      cirurgia:         form.cirurgia,
+      limitacoes:       form.limitacoes,
+      pratica_atual:    form.praticaAtual,
+      atividade_atual:  form.atividadeAtual,
+      treinou_personal: form.treinouPersonal,
+      objetivo:         form.objetivo,
+      dias_semana:      form.diasSemana,
+      horario:          form.horario,
+      horas_sono:       form.horasSono,
+      nivel_estresse:   form.nivelEstresse,
+      fuma:             form.fuma,
+      alcool:           form.alcool,
+    }
+    const { data, error: err } = await supabase.from('anamneses').insert(payload).select().single()
+    if (err) { setError('Erro ao salvar: ' + err.message); setSaving(false); return }
+    await supabase.from('profiles').update({ anamnese_completed: true }).eq('id', studentUuid)
+    onSaved(data as AnamneseRow)
+    setSaving(false)
+    onClose()
+  }
+
+  const inp: React.CSSProperties = { width: '100%', height: 44, border: '1.5px solid #d9d3c4', borderRadius: 10, background: '#fff', padding: '0 13px', font: `400 14px ${FF}`, color: '#1B2A4A', outline: 'none', boxSizing: 'border-box' }
+  const ta: React.CSSProperties  = { width: '100%', border: '1.5px solid #d9d3c4', borderRadius: 10, background: '#fff', padding: '10px 13px', font: `400 14px ${FF}`, color: '#1B2A4A', outline: 'none', resize: 'none', boxSizing: 'border-box', lineHeight: 1.5 }
+  const lbl: React.CSSProperties = { display: 'block', font: `600 11px ${FF}`, color: '#6b6657', textTransform: 'uppercase' as const, letterSpacing: '.4px', marginBottom: 7 }
+
+  function Chip({ val, active, onClick }: { val: string; active: boolean; onClick: () => void }) {
+    return (
+      <button type="button" onClick={onClick} style={{ padding: '8px 14px', borderRadius: 20, cursor: 'pointer', font: `600 12.5px ${FF}`, border: `1.5px solid ${active ? '#E8542A' : '#d9d3c4'}`, background: active ? '#E8542A' : '#fff', color: active ? '#fff' : '#1B2A4A' }}>
+        {val}
+      </button>
+    )
+  }
+
+  return (
+    <>
+      <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(20,25,40,.45)', zIndex: 70 }} />
+      <div style={{ position: 'fixed', top: 0, right: 0, bottom: 0, width: 520, maxWidth: '94vw', background: '#F4EFE3', zIndex: 71, boxShadow: '-12px 0 40px rgba(0,0,0,.22)', display: 'flex', flexDirection: 'column' }}>
+
+        {/* Header */}
+        <div style={{ background: '#1B2A4A', padding: '20px 22px', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div>
+            <div style={{ font: `800 17px ${FF}`, color: '#FAEEDA', letterSpacing: '-.3px' }}>
+              {existing ? 'Editar anamnese' : 'Preencher anamnese'}
+            </div>
+            <div style={{ font: `500 12px ${FF}`, color: '#8B97AD', marginTop: 3 }}>{studentName}</div>
+          </div>
+          <button type="button" onClick={onClose} style={{ border: 'none', background: 'rgba(255,255,255,.1)', cursor: 'pointer', color: '#fff', width: 32, height: 32, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
+          </button>
+        </div>
+
+        {/* Scrollable form */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: '20px 22px 24px', display: 'flex', flexDirection: 'column', gap: 22 }}>
+
+          {/* Dados pessoais */}
+          <section>
+            <div style={{ font: `700 11px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#E8542A', marginBottom: 12 }}>Dados pessoais</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div><label style={lbl}>Nome completo</label><input style={inp} value={form.nome} onChange={e => set1('nome', e.target.value)} /></div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <div><label style={lbl}>Data de nascimento</label><input type="date" style={inp} value={form.dataNasc} onChange={e => set1('dataNasc', e.target.value)} /></div>
+                <div><label style={lbl}>Telefone / WhatsApp</label><input style={inp} placeholder="(11) 99999-9999" value={form.telefone} onChange={e => set1('telefone', e.target.value)} /></div>
+              </div>
+              <div><label style={lbl}>Profissão</label><input style={inp} placeholder="Ex.: professora, analista..." value={form.profissao} onChange={e => set1('profissao', e.target.value)} /></div>
+            </div>
+          </section>
+
+          {/* Histórico de saúde */}
+          <section>
+            <div style={{ font: `700 11px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#E8542A', marginBottom: 12 }}>Histórico de saúde</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div>
+                <label style={lbl}>Doenças pré-existentes</label>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                  {DOENCAS_OPTS.map(d => <Chip key={d} val={d} active={form.doencas.includes(d)} onClick={() => toggleDoenca(d)} />)}
+                </div>
+                {!form.doencas.includes('Nenhuma') && (
+                  <input style={{ ...inp, marginTop: 8 }} placeholder="Outras — descreva aqui" value={form.outraDoenca} onChange={e => set1('outraDoenca', e.target.value)} />
+                )}
+              </div>
+              <div><label style={lbl}>Medicamentos em uso</label><textarea rows={2} style={ta} placeholder="Se nenhum, deixe em branco" value={form.medicamentos} onChange={e => set1('medicamentos', e.target.value)} /></div>
+              <div><label style={lbl}>Histórico de cirurgias</label><textarea rows={2} style={ta} placeholder="Se nenhuma, deixe em branco" value={form.cirurgia} onChange={e => set1('cirurgia', e.target.value)} /></div>
+              <div><label style={lbl}>Limitações ou dores físicas</label><textarea rows={2} style={ta} placeholder="Se nenhuma, deixe em branco" value={form.limitacoes} onChange={e => set1('limitacoes', e.target.value)} /></div>
+            </div>
+          </section>
+
+          {/* Atividade física */}
+          <section>
+            <div style={{ font: `700 11px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#E8542A', marginBottom: 12 }}>Atividade física</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div>
+                <label style={lbl}>Pratica exercício atualmente?</label>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  {['Sim', 'Não'].map(v => <Chip key={v} val={v} active={form.praticaAtual === v} onClick={() => set1('praticaAtual', v)} />)}
+                </div>
+              </div>
+              {form.praticaAtual === 'Sim' && (
+                <div><label style={lbl}>Qual atividade e frequência?</label><textarea rows={2} style={ta} value={form.atividadeAtual} onChange={e => set1('atividadeAtual', e.target.value)} /></div>
+              )}
+              <div>
+                <label style={lbl}>Já treinou com personal trainer?</label>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                  {['Sim', 'Não', 'Nunca treinei'].map(v => <Chip key={v} val={v} active={form.treinouPersonal === v} onClick={() => set1('treinouPersonal', v)} />)}
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {/* Objetivos */}
+          <section>
+            <div style={{ font: `700 11px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#E8542A', marginBottom: 12 }}>Objetivos</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div>
+                <label style={lbl}>Objetivo principal</label>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                  {['Emagrecimento', 'Hipertrofia', 'Condicionamento', 'Saúde geral', 'Ganho de força', 'Outro'].map(v =>
+                    <Chip key={v} val={v} active={form.objetivo === v} onClick={() => set1('objetivo', v)} />)}
+                </div>
+              </div>
+              <div>
+                <label style={lbl}>Dias disponíveis por semana</label>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  {['2', '3', '4', '5', '6'].map(v => <Chip key={v} val={`${v}×`} active={form.diasSemana === v} onClick={() => set1('diasSemana', v)} />)}
+                </div>
+              </div>
+              <div>
+                <label style={lbl}>Horário preferido</label>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                  {['Manhã', 'Tarde', 'Noite', 'Flexível'].map(v => <Chip key={v} val={v} active={form.horario === v} onClick={() => set1('horario', v)} />)}
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {/* Estilo de vida */}
+          <section>
+            <div style={{ font: `700 11px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#E8542A', marginBottom: 12 }}>Estilo de vida</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div>
+                <label style={lbl}>Horas de sono por noite</label>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                  {[['Menos de 5h', '< 5h'], ['5–6h', '5–6h'], ['7–8h', '7–8h'], ['Mais de 8h', '> 8h']].map(([val, label]) =>
+                    <Chip key={val} val={label} active={form.horasSono === val} onClick={() => set1('horasSono', val)} />)}
+                </div>
+              </div>
+              <div>
+                <label style={lbl}>Nível de estresse (1 = baixo, 5 = alto)</label>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  {[1, 2, 3, 4, 5].map(n => (
+                    <button key={n} type="button" onClick={() => set1('nivelEstresse', String(n))} style={{ flex: 1, height: 42, borderRadius: 10, cursor: 'pointer', border: `1.5px solid ${form.nivelEstresse === String(n) ? '#E8542A' : '#d9d3c4'}`, background: form.nivelEstresse === String(n) ? '#E8542A' : '#fff', color: form.nivelEstresse === String(n) ? '#fff' : '#1B2A4A', font: `700 15px ${FF}` }}>
+                      {n}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label style={lbl}>Tabagismo</label>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                  {['Não fumo', 'Sim', 'Ex-fumante'].map(v => <Chip key={v} val={v} active={form.fuma === v} onClick={() => set1('fuma', v)} />)}
+                </div>
+              </div>
+              <div>
+                <label style={lbl}>Consumo de álcool</label>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                  {['Não consumo', 'Socialmente', 'Frequentemente'].map(v => <Chip key={v} val={v} active={form.alcool === v} onClick={() => set1('alcool', v)} />)}
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {error && (
+            <div style={{ background: '#fdeee9', border: '1px solid #f6cdbf', borderRadius: 10, padding: '11px 14px', font: `500 13px ${FF}`, color: '#c4421e' }}>{error}</div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div style={{ padding: '14px 22px 20px', borderTop: '1px solid #e6e0d0', background: '#F4EFE3', flexShrink: 0, display: 'flex', gap: 10 }}>
+          <button type="button" onClick={onClose} style={{ flex: 1, height: 46, border: '1.5px solid #d9d3c4', background: '#fff', color: '#1B2A4A', borderRadius: 10, font: `600 13.5px ${FF}`, cursor: 'pointer' }}>
+            Cancelar
+          </button>
+          <button type="button" onClick={save} disabled={saving} style={{ flex: 2, height: 46, border: 'none', background: saving ? '#c4421e' : '#E8542A', color: '#fff', borderRadius: 10, font: `700 14px ${FF}`, cursor: saving ? 'default' : 'pointer', boxShadow: saving ? 'none' : '0 2px 0 #c4421e', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+            {saving ? 'Salvando...' : (existing ? 'Salvar alterações' : 'Salvar anamnese')}
+          </button>
+        </div>
+      </div>
+    </>
+  )
+}
+
 // ── Empty state ────────────────────────────────────────────────
 function Empty({ icon, title, sub }: { icon: string; title: string; sub?: string }) {
   return (
@@ -132,7 +385,8 @@ export default function PerfilAluno() {
   const [subLoading,    setSubLoading]        = useState(false)
   const [subError,      setSubError]          = useState<string | null>(null)
   const [checkoutUrl,   setCheckoutUrl]       = useState<string | null>(null)
-  const [urlCopied,     setUrlCopied]         = useState(false)
+  const [urlCopied,       setUrlCopied]       = useState(false)
+  const [showAnamneseForm, setShowAnamneseForm] = useState(false)
 
   useEffect(() => {
     if (students.length === 0 && user?.id) fetchStudents(user.id)
@@ -582,12 +836,30 @@ export default function PerfilAluno() {
               {anamneseLoading ? (
                 <div style={{ font: `500 14px ${FF}`, color: '#7c7869', padding: '40px 0', textAlign: 'center' }}>Carregando...</div>
               ) : !anamnese ? (
-                <Empty icon="📋" title="Anamnese não preenchida" sub="O aluno ainda não completou a anamnese." />
+                <div style={{ background: '#fff', border: '1px solid #ece7d9', borderRadius: 14, padding: '40px 24px', textAlign: 'center' }}>
+                  <div style={{ fontSize: 32, marginBottom: 10 }}>📋</div>
+                  <div style={{ font: `700 15px ${FF}`, color: '#1B2A4A', marginBottom: 4 }}>Anamnese não preenchida</div>
+                  <div style={{ font: `400 13px ${FF}`, color: '#9a948a', marginBottom: 20 }}>O aluno ainda não completou a anamnese.</div>
+                  <button
+                    type="button"
+                    onClick={() => setShowAnamneseForm(true)}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 8, height: 42, padding: '0 20px', border: 'none', background: '#E8542A', color: '#fff', borderRadius: 10, font: `700 13.5px ${FF}`, cursor: 'pointer', boxShadow: '0 2px 0 #c4421e' }}
+                  >
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+                    Preencher anamnese
+                  </button>
+                </div>
               ) : (
                 <>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
                     <h2 style={{ font: `800 20px ${FF}`, color: '#1B2A4A', margin: 0, letterSpacing: '-.4px' }}>Anamnese</h2>
-                    <span style={{ font: `400 12px ${FF}`, color: '#9a948a' }}>Preenchida em {new Date(anamnese.created_at).toLocaleDateString('pt-BR')}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                      <span style={{ font: `400 12px ${FF}`, color: '#9a948a' }}>Preenchida em {new Date(anamnese.created_at).toLocaleDateString('pt-BR')}</span>
+                      <button type="button" onClick={() => setShowAnamneseForm(true)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 34, padding: '0 14px', border: '1.5px solid #d6cfbe', background: '#fff', color: '#1B2A4A', borderRadius: 8, font: `600 12.5px ${FF}`, cursor: 'pointer' }}>
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                        Editar
+                      </button>
+                    </div>
                   </div>
                   {[
                     { title: 'Dados pessoais', rows: [
@@ -1222,6 +1494,19 @@ export default function PerfilAluno() {
               (a, b) => new Date(a.assessed_at).getTime() - new Date(b.assessed_at).getTime()
             ))
             showToast('Avaliação salva com sucesso.')
+          }}
+        />
+      )}
+
+      {showAnamneseForm && student?.studentUuid && (
+        <CoachAnamneseDrawer
+          studentName={student.name}
+          studentUuid={student.studentUuid}
+          existing={anamnese}
+          onClose={() => setShowAnamneseForm(false)}
+          onSaved={row => {
+            setAnamnese(row)
+            showToast('Anamnese salva com sucesso.')
           }}
         />
       )}

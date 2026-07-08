@@ -45,6 +45,17 @@ function fmtShort(iso: string) {
   return `${d}/${m}`
 }
 
+function nextPaymentIso(sinceRaw: string, plan: string): string | null {
+  const start = new Date(sinceRaw + 'T00:00:00')
+  if (isNaN(start.getTime())) return null
+  const today = new Date(); today.setHours(0, 0, 0, 0)
+  const intervalDays = plan.toLowerCase().startsWith('tri') ? 90
+    : plan.toLowerCase().startsWith('sem') ? 180 : 30
+  let next = new Date(start)
+  while (next <= today) next = new Date(next.getTime() + intervalDays * 86_400_000)
+  return `${next.getFullYear()}-${String(next.getMonth()+1).padStart(2,'0')}-${String(next.getDate()).padStart(2,'0')}`
+}
+
 function diffDays(iso: string) {
   const today = new Date(); today.setHours(0,0,0,0)
   const other = new Date(iso + 'T00:00:00')
@@ -306,7 +317,7 @@ export default function Dashboard() {
                 const pay = payInfo(s.pay)
                 const sem = semInfo(s.sem)
                 return (
-                  <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 13, padding: '12px 20px', borderTop: '1px solid #f1ece0', cursor: 'pointer' }}>
+                  <div key={s.id} onClick={() => navigate(`/coach/alunos/${s.id}`)} style={{ display: 'flex', alignItems: 'center', gap: 13, padding: '12px 20px', borderTop: '1px solid #f1ece0', cursor: 'pointer' }}>
                     <div style={{ width: 38, height: 38, borderRadius: '50%', background: pal[0], color: pal[1], display: 'flex', alignItems: 'center', justifyContent: 'center', font: `700 13px ${FF}`, flexShrink: 0 }}>
                       {getInitials(s.name)}
                     </div>
@@ -397,29 +408,67 @@ export default function Dashboard() {
             )
           })()}
 
-          {/* Overdue payments */}
-          <div style={{ background: '#fff', border: '1px solid #ece7d9', borderRadius: 14, padding: '18px 18px 8px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-              <h2 style={{ font: `700 15px ${FF}`, color: '#1B2A4A', margin: 0 }}>Pagamentos</h2>
-              {students.filter(s => s.pay === 'overdue').length > 0 && (
-                <span style={{ font: `600 11px ${FF}`, color: '#D2402A', background: '#fbe6e1', borderRadius: 20, padding: '3px 9px' }}>{students.filter(s => s.pay === 'overdue').length} vencidos</span>
-              )}
-            </div>
-            {students.filter(s => s.pay === 'overdue').length === 0
-              ? <div style={{ padding: '18px 0', borderTop: '1px solid #f1ece0', font: `400 13px ${FF}`, color: '#9a948a', textAlign: 'center' }}>Sem pagamentos vencidos</div>
-              : students.filter(s => s.pay === 'overdue').map(s => (
-              <div key={s.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '11px 0', borderTop: '1px solid #f1ece0' }}>
-                <div>
-                  <div style={{ font: `600 13.5px ${FF}`, color: '#1B2A4A' }}>{s.name}</div>
-                  <div style={{ font: `400 11.5px ${FF}`, color: '#D2402A' }}>pagamento vencido</div>
+          {/* Payments card — overdue + upcoming */}
+          {(() => {
+            const overdue = students.filter(s => s.pay === 'overdue')
+            const upcoming = students
+              .filter(s => s.pay !== 'overdue' && s.plan !== 'Permuta' && s.sinceRaw)
+              .map(s => { const iso = nextPaymentIso(s.sinceRaw, s.plan); return iso ? { s, iso } : null })
+              .filter((x): x is { s: typeof students[0]; iso: string } => x !== null)
+              .sort((a, b) => a.iso.localeCompare(b.iso))
+              .slice(0, 3)
+
+            return (
+              <div style={{ background: '#fff', border: '1px solid #ece7d9', borderRadius: 14, padding: '18px 18px 8px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                  <h2 style={{ font: `700 15px ${FF}`, color: '#1B2A4A', margin: 0 }}>Pagamentos</h2>
+                  {overdue.length > 0 && (
+                    <span style={{ font: `600 11px ${FF}`, color: '#D2402A', background: '#fbe6e1', borderRadius: 20, padding: '3px 9px' }}>{overdue.length} vencido{overdue.length > 1 ? 's' : ''}</span>
+                  )}
                 </div>
-                <span style={{ font: `600 11px ${FF}`, color: '#D2402A', background: '#fbe6e1', borderRadius: 20, padding: '3px 9px' }}>Vencido</span>
+
+                {/* Overdue */}
+                {overdue.length === 0
+                  ? <div style={{ padding: '14px 0', borderTop: '1px solid #f1ece0', font: `400 13px ${FF}`, color: '#9a948a', textAlign: 'center' }}>Sem pagamentos vencidos</div>
+                  : overdue.map(s => (
+                    <div key={s.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '11px 0', borderTop: '1px solid #f1ece0' }}>
+                      <div>
+                        <div style={{ font: `600 13.5px ${FF}`, color: '#1B2A4A' }}>{s.name}</div>
+                        <div style={{ font: `400 11.5px ${FF}`, color: '#D2402A' }}>pagamento vencido</div>
+                      </div>
+                      <span style={{ font: `600 11px ${FF}`, color: '#D2402A', background: '#fbe6e1', borderRadius: 20, padding: '3px 9px' }}>Vencido</span>
+                    </div>
+                  ))
+                }
+
+                {/* Upcoming */}
+                {upcoming.length > 0 && (
+                  <>
+                    <div style={{ font: `700 10px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#9a948a', padding: '12px 0 2px', borderTop: overdue.length > 0 ? '1px solid #f1ece0' : 'none', marginTop: overdue.length > 0 ? 4 : 0 }}>
+                      Próximos vencimentos
+                    </div>
+                    {upcoming.map(({ s, iso }) => {
+                      const diff = diffDays(iso)
+                      const label = diff === 0 ? 'hoje' : diff === 1 ? 'amanhã' : `em ${diff} dias`
+                      return (
+                        <div key={s.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0', borderTop: '1px solid #f1ece0' }}>
+                          <div>
+                            <div style={{ font: `600 13.5px ${FF}`, color: '#1B2A4A' }}>{s.name}</div>
+                            <div style={{ font: `400 11.5px ${FF}`, color: diff <= 5 ? '#b06a12' : '#9a948a' }}>{label}</div>
+                          </div>
+                          <span style={{ font: `600 12px ${FF}`, color: '#7c7869' }}>{fmtShort(iso)}</span>
+                        </div>
+                      )
+                    })}
+                  </>
+                )}
+
+                <button type="button" onClick={() => navigate('/coach/pagamentos')} style={{ width: '100%', border: 'none', background: 'none', color: '#E8542A', font: `600 13px ${FF}`, padding: '12px 0', cursor: 'pointer', borderTop: '1px solid #f1ece0', marginTop: 4 }}>
+                  Ver todos os pagamentos →
+                </button>
               </div>
-            ))}
-            <button type="button" onClick={() => navigate('/coach/pagamentos')} style={{ width: '100%', border: 'none', background: 'none', color: '#E8542A', font: `600 13px ${FF}`, padding: '12px 0', cursor: 'pointer', borderTop: '1px solid #f1ece0', marginTop: 4 }}>
-              Ver todos os pagamentos →
-            </button>
-          </div>
+            )
+          })()}
 
           {/* Leads pipeline */}
           <div style={{ background: '#fff', border: '1px solid #ece7d9', borderRadius: 14, padding: 18 }}>

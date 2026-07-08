@@ -54,6 +54,7 @@ function mapRow(r: Row): Student {
     sem:                 r.engagement,
     next:                r.next_assessment ?? '—',
     since:               formatSince(r.since),
+    sinceRaw:            r.since,
     cpf:                 r.cpf ?? null,
     stripeSubId:         r.stripe_subscription_id ?? null,
     blocked:             r.blocked ?? false,

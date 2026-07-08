@@ -14,6 +14,7 @@ export interface Student {
   next:                string
   email:               string
   since:               string
+  sinceRaw:            string
   cpf:                 string | null
   stripeSubId:         string | null
   blocked:             boolean
