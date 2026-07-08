@@ -76,7 +76,26 @@ export const useStudentsStore = create<StudentsStore>((set) => ({
       .order('created_at', { ascending: false })
     set({ loading: false })
     if (error) { set({ fetchError: error.message }); return }
-    if (data) set({ students: (data as Row[]).map(mapRow) })
+    if (!data) return
+
+    // Detecta alunos com parcelas vencidas na tabela payments
+    const today = new Date().toISOString().split('T')[0]
+    const { data: overdueRows } = await supabase
+      .from('payments')
+      .select('student_id')
+      .in('student_id', (data as Row[]).map(r => r.id))
+      .eq('status', 'pending')
+      .lt('due_date', today)
+
+    const overdueIds = new Set((overdueRows ?? []).map((p: any) => p.student_id))
+
+    set({
+      students: (data as Row[]).map(r => {
+        const s = mapRow(r)
+        if (overdueIds.has(r.id) && s.pay !== 'active') s.pay = 'overdue'
+        return s
+      }),
+    })
   },
 
   deleteStudent: async (id) => {
