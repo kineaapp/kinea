@@ -14,10 +14,10 @@ const HISTORY = [
 ]
 
 const PLANS = [
-  { id: 'mensal',     label: 'Mensal',     price: 'R$ 399,00',   period: '/mês', sub: 'Cobrado mensalmente',         renew: 'Renova em 08/07/2025' },
-  { id: 'trimestral', label: 'Trimestral', price: 'R$ 741,00',   period: '',     sub: 'Em até 3x · R$ 247,00/mês',  renew: 'Renova em 08/10/2025' },
-  { id: 'semestral',  label: 'Semestral',  price: 'R$ 1.362,00', period: '',     sub: 'Em até 6x · R$ 227,00/mês',  renew: 'Renova em 08/01/2026' },
-  { id: 'anual',      label: 'Anual',      price: 'R$ 2.484,00', period: '',     sub: 'Em até 12x · R$ 207,00/mês', renew: 'Renova em 08/07/2026', badge: 'ECONOMIZE 48%' },
+  { id: 'mensal',     label: 'Mensal',     price: 'R$ 399,00', period: '/mês', sub: 'Renovação mensal automática',           renew: 'Renova em 08/07/2025' },
+  { id: 'trimestral', label: 'Trimestral', price: 'R$ 247,00', period: '/mês', sub: 'Renovação mensal · compromisso trimestral', renew: 'Renova em 08/08/2025' },
+  { id: 'semestral',  label: 'Semestral',  price: 'R$ 227,00', period: '/mês', sub: 'Renovação mensal · compromisso semestral',  renew: 'Renova em 08/08/2025', badge: 'ECONOMIZE 43%' },
+  { id: 'anual',      label: 'Anual',      price: 'R$ 207,00', period: '/mês', sub: 'Renovação mensal · compromisso anual',     renew: 'Renova em 08/08/2025', badge: 'ECONOMIZE 48%' },
 ]
 
 // Mock: altere para testar os dois cenários (> 7 = meio do período, <= 7 = pré-renovação)
