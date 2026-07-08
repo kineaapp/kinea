@@ -18,6 +18,20 @@ interface Charge {
   paidOn: string | null
 }
 
+interface PlanRequest {
+  id:            number
+  studentName:   string
+  currentPlan:   string
+  requestedPlan: string
+  type:          'mudanca' | 'renovacao'
+  requestedAt:   string
+}
+
+const MOCK_REQUESTS: PlanRequest[] = [
+  { id: 1, studentName: 'Maria Silva',   currentPlan: 'Mensal', requestedPlan: 'Anual',      type: 'mudanca',   requestedAt: 'hoje, 09:14' },
+  { id: 2, studentName: 'Carlos Mendes', currentPlan: 'Mensal', requestedPlan: 'Semestral',  type: 'renovacao', requestedAt: 'ontem, 18:30' },
+]
+
 // ── Constants ───────────────────────────────────────────────
 const STATUS_MAP: Record<Status, { label: string; color: string; bg: string }> = {
   pago:     { label: 'Pago',       color: '#1B7a4a', bg: '#e7f3ea' },
@@ -217,6 +231,7 @@ function NewChargeModal({ onClose, onAdd }: {
 // ── Main ─────────────────────────────────────────────────────
 export default function Pagamentos() {
   const [charges,   setCharges]   = useState<Charge[]>([])
+  const [requests,  setRequests]  = useState<PlanRequest[]>(MOCK_REQUESTS)
   const [tab,       setTab]       = useState<Tab>('all')
   const [query,     setQuery]     = useState('')
   const [openId,    setOpenId]    = useState<number | null>(null)
@@ -242,6 +257,14 @@ export default function Pagamentos() {
   function handleRemind(id: number) {
     const c = charges.find(x => x.id === id)
     if (c) showToast('Lembrete enviado para ' + c.name.split(' ')[0] + '.')
+  }
+
+  function handleRequest(id: number, action: 'aprovar' | 'recusar') {
+    const req = requests.find(r => r.id === id)
+    setRequests(prev => prev.filter(r => r.id !== id))
+    if (req) showToast(action === 'aprovar'
+      ? `Plano ${req.requestedPlan} aprovado para ${req.studentName.split(' ')[0]}.`
+      : `Solicitação de ${req.studentName.split(' ')[0]} recusada.`)
   }
 
   function handleAddCharge(name: string, plan: string) {
@@ -295,6 +318,51 @@ export default function Pagamentos() {
           Nova cobrança
         </button>
       </div>
+
+      {/* Solicitações de mudança de plano */}
+      {requests.length > 0 && (
+        <div style={{ marginBottom: 22 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+            <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#E8542A' }} />
+            <span style={{ font: `700 13px ${FF}`, color: '#1B2A4A' }}>Solicitações de plano pendentes</span>
+            <span style={{ font: `600 11px ${FF}`, color: '#fff', background: '#E8542A', borderRadius: 20, padding: '2px 8px' }}>{requests.length}</span>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {requests.map(req => (
+              <div key={req.id} style={{ background: '#fff', border: '1.5px solid #f0e8d8', borderRadius: 14, padding: '16px 18px', display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+                <div style={{ flex: 1, minWidth: 200 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                    <span style={{ font: `700 14px ${FF}`, color: '#1B2A4A' }}>{req.studentName}</span>
+                    <span style={{ font: `600 10px ${FF}`, color: req.type === 'mudanca' ? '#b06a12' : '#1B7a4a', background: req.type === 'mudanca' ? '#f7ecd9' : '#e7f3ea', borderRadius: 20, padding: '2px 8px' }}>
+                      {req.type === 'mudanca' ? 'Mudança durante vigência' : 'Renovação antecipada'}
+                    </span>
+                  </div>
+                  <div style={{ font: `400 12px ${FF}`, color: '#9a948a' }}>
+                    <span style={{ color: '#6b6657', fontWeight: 600 }}>{req.currentPlan}</span>
+                    <span style={{ margin: '0 6px' }}>→</span>
+                    <span style={{ color: '#1B2A4A', fontWeight: 700 }}>{req.requestedPlan}</span>
+                    <span style={{ marginLeft: 10 }}>· {req.requestedAt}</span>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button
+                    type="button" onClick={() => handleRequest(req.id, 'recusar')}
+                    style={{ height: 36, padding: '0 16px', border: '1.5px solid #e0d9c8', background: '#fff', borderRadius: 8, font: `600 12.5px ${FF}`, color: '#7c7869', cursor: 'pointer' }}
+                  >
+                    Recusar
+                  </button>
+                  <button
+                    type="button" onClick={() => handleRequest(req.id, 'aprovar')}
+                    style={{ height: 36, padding: '0 16px', border: 'none', background: '#1B2A4A', borderRadius: 8, font: `700 12.5px ${FF}`, color: '#fff', cursor: 'pointer' }}
+                  >
+                    Aprovar
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Summary cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14, marginBottom: 18 }}>
