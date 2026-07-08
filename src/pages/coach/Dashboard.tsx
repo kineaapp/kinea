@@ -45,16 +45,6 @@ function fmtShort(iso: string) {
   return `${d}/${m}`
 }
 
-function nextPaymentIso(sinceRaw: string, plan: string): string | null {
-  const start = new Date(sinceRaw + 'T00:00:00')
-  if (isNaN(start.getTime())) return null
-  const today = new Date(); today.setHours(0, 0, 0, 0)
-  const intervalDays = plan.toLowerCase().startsWith('tri') ? 90
-    : plan.toLowerCase().startsWith('sem') ? 180 : 30
-  let next = new Date(start)
-  while (next <= today) next = new Date(next.getTime() + intervalDays * 86_400_000)
-  return `${next.getFullYear()}-${String(next.getMonth()+1).padStart(2,'0')}-${String(next.getDate()).padStart(2,'0')}`
-}
 
 function diffDays(iso: string) {
   const today = new Date(); today.setHours(0,0,0,0)
