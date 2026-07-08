@@ -1,8 +1,11 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ChevronLeft, Check, CreditCard, Bell } from 'lucide-react'
+import { supabase } from '../../lib/supabase'
+import { useAuthStore } from '../../store/auth'
 
 const FF = '"Libre Franklin",sans-serif'
+const FN_URL = import.meta.env.VITE_SUPABASE_URL + '/functions/v1'
 
 const FEATURES = ['Treinos personalizados', 'Avaliação mensal', 'Suporte via chat', 'Acesso ao app']
 
@@ -14,28 +17,99 @@ const HISTORY = [
 ]
 
 const PLANS = [
-  { id: 'mensal',     label: 'Mensal',     price: 'R$ 399,00', period: '/mês', sub: 'Renovação mensal automática',           renew: 'Renova em 08/07/2025' },
-  { id: 'trimestral', label: 'Trimestral', price: 'R$ 247,00', period: '/mês', sub: 'Renovação mensal · compromisso trimestral', renew: 'Renova em 08/08/2025' },
-  { id: 'semestral',  label: 'Semestral',  price: 'R$ 227,00', period: '/mês', sub: 'Renovação mensal · compromisso semestral',  renew: 'Renova em 08/08/2025', badge: 'ECONOMIZE 43%' },
-  { id: 'anual',      label: 'Anual',      price: 'R$ 207,00', period: '/mês', sub: 'Renovação mensal · compromisso anual',     renew: 'Renova em 08/08/2025', badge: 'ECONOMIZE 48%' },
+  { id: 'mensal',     label: 'Mensal',     price: 'R$ 399,00', period: '/mês', sub: 'Renovação mensal automática',                renew: '' },
+  { id: 'trimestral', label: 'Trimestral', price: 'R$ 247,00', period: '/mês', sub: 'Renovação mensal · compromisso trimestral',  renew: '' },
+  { id: 'semestral',  label: 'Semestral',  price: 'R$ 227,00', period: '/mês', sub: 'Renovação mensal · compromisso semestral',   renew: '', badge: 'ECONOMIZE 43%' },
+  { id: 'anual',      label: 'Anual',      price: 'R$ 207,00', period: '/mês', sub: 'Renovação mensal · compromisso anual',       renew: '', badge: 'ECONOMIZE 48%' },
 ]
 
-// Mock: altere para testar os dois cenários (> 7 = meio do período, <= 7 = pré-renovação)
-const DAYS_UNTIL_RENEWAL = 5
-const CURRENT_PLAN_ID    = 'mensal'
-const RENEWAL_DATE       = '08/07/2025'
+function daysUntil(unixTs: number): number {
+  return Math.ceil((unixTs * 1000 - Date.now()) / (1000 * 60 * 60 * 24))
+}
+
+function formatDate(unixTs: number): string {
+  return new Date(unixTs * 1000).toLocaleDateString('pt-BR')
+}
 
 export default function Pagamentos() {
-  const navigate = useNavigate()
-  const [selectedPlan, setSelectedPlan] = useState(CURRENT_PLAN_ID)
-  const [step, setStep] = useState<'idle' | 'confirming' | 'done'>('idle')
+  const navigate   = useNavigate()
+  const { user }   = useAuthStore()
 
-  const nearRenewal    = DAYS_UNTIL_RENEWAL <= 7
-  const currentPlan    = PLANS.find(p => p.id === CURRENT_PLAN_ID)!
+  const [studentId,    setStudentId]    = useState<number | null>(null)
+  const [currentPlanId,setCurrentPlanId]= useState('mensal')
+  const [periodEnd,    setPeriodEnd]    = useState<number | null>(null)
+  const [loading,      setLoading]      = useState(true)
+  const [selectedPlan, setSelectedPlan] = useState('mensal')
+  const [step,         setStep]         = useState<'idle' | 'confirming' | 'done' | 'error'>('idle')
+  const [submitting,   setSubmitting]   = useState(false)
+  const [errorMsg,     setErrorMsg]     = useState('')
+
+  useEffect(() => {
+    if (!user?.id) return
+    supabase
+      .from('students')
+      .select('id, plan, stripe_current_period_end')
+      .eq('student_id', user.id)
+      .single()
+      .then(({ data }) => {
+        if (data) {
+          const planId = data.plan ?? 'mensal'
+          setStudentId(data.id)
+          setCurrentPlanId(planId)
+          setSelectedPlan(planId)
+          if (data.stripe_current_period_end) setPeriodEnd(data.stripe_current_period_end)
+        }
+        setLoading(false)
+      })
+  }, [user?.id])
+
+  const days        = periodEnd ? daysUntil(periodEnd) : null
+  const renewalDate = periodEnd ? formatDate(periodEnd) : null
+  const nearRenewal = days !== null && days <= 7
+  const currentPlan = PLANS.find(p => p.id === currentPlanId) ?? PLANS[0]
   const selectedPlanObj = PLANS.find(p => p.id === selectedPlan)!
-  const changed        = selectedPlan !== CURRENT_PLAN_ID
+  const changed     = selectedPlan !== currentPlanId
 
-  function handleConfirm() { setStep('done') }
+  async function handleConfirm() {
+    if (!studentId || !changed) return
+    setSubmitting(true)
+    setErrorMsg('')
+    try {
+      if (nearRenewal) {
+        // Troca direta — sem aprovação do coach
+        const res = await fetch(`${FN_URL}/update-plan`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ studentId, requestedPlan: selectedPlan }),
+        })
+        const json = await res.json()
+        if (json.error) throw new Error(json.error)
+      } else {
+        // Solicita aprovação do coach
+        const res = await fetch(`${FN_URL}/request-plan-change`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ studentId, requestedPlan: selectedPlan, type: 'mudanca' }),
+        })
+        const json = await res.json()
+        if (json.error) throw new Error(json.error)
+      }
+      setStep('done')
+    } catch (e) {
+      setErrorMsg(e instanceof Error ? e.message : 'Erro ao processar solicitação.')
+      setStep('error')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  if (loading) {
+    return (
+      <div style={{ background: '#F4EFE3', minHeight: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ font: `400 14px ${FF}`, color: '#A39E90' }}>Carregando...</div>
+      </div>
+    )
+  }
 
   return (
     <div style={{ background: '#F4EFE3', minHeight: '100%', paddingBottom: 32 }}>
@@ -53,9 +127,9 @@ export default function Pagamentos() {
         <div style={{ margin: '0 18px 16px', background: 'linear-gradient(135deg,#E8542A,#c4421e)', borderRadius: 14, padding: '14px 16px', display: 'flex', alignItems: 'flex-start', gap: 12 }}>
           <Bell size={18} color="#fff" strokeWidth={2} style={{ flexShrink: 0, marginTop: 1 }} />
           <div>
-            <div style={{ font: `700 13px ${FF}`, color: '#fff', marginBottom: 2 }}>Próxima cobrança em {DAYS_UNTIL_RENEWAL} dias</div>
+            <div style={{ font: `700 13px ${FF}`, color: '#fff', marginBottom: 2 }}>Próxima cobrança em {days} dias</div>
             <div style={{ font: `400 12px ${FF}`, color: 'rgba(255,255,255,.85)' }}>
-              Sua assinatura renova em {RENEWAL_DATE}. Aproveite para mudar de plano se quiser.
+              Sua assinatura renova em {renewalDate}. Aproveite para mudar de plano se quiser.
             </div>
           </div>
         </div>
@@ -69,7 +143,8 @@ export default function Pagamentos() {
           <div style={{ font: `500 11px ${FF}`, color: '#8B97AD', textTransform: 'uppercase', letterSpacing: '.3px', marginBottom: 6 }}>Plano Atual</div>
           <div style={{ font: `900 26px ${FF}`, color: '#FAEEDA', letterSpacing: '-.5px', marginBottom: 4 }}>{currentPlan.label}</div>
           <div style={{ font: `400 13px ${FF}`, color: '#8B97AD', marginBottom: 16 }}>
-            {currentPlan.price}{currentPlan.period} · Renova em {RENEWAL_DATE}
+            {currentPlan.price}{currentPlan.period}
+            {renewalDate ? ` · Próxima cobrança em ${renewalDate}` : ''}
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {FEATURES.map(f => (
@@ -94,7 +169,7 @@ export default function Pagamentos() {
               return (
                 <button
                   key={plan.id}
-                  onClick={() => { setSelectedPlan(plan.id); setStep('idle') }}
+                  onClick={() => { setSelectedPlan(plan.id); setStep('idle'); setErrorMsg('') }}
                   style={{
                     background: active ? '#fff' : '#EDE8DC',
                     border: active ? '2px solid #1B2A4A' : '2px solid transparent',
@@ -136,18 +211,27 @@ export default function Pagamentos() {
             <div style={{ marginTop: 12, background: '#fff', borderRadius: 14, padding: '16px 18px', boxShadow: '0 2px 8px rgba(27,42,74,.07)' }}>
               <div style={{ font: `600 13px ${FF}`, color: '#1B2A4A', marginBottom: 4 }}>
                 {nearRenewal
-                  ? `Trocar para Plano ${selectedPlanObj.label} a partir de ${RENEWAL_DATE}?`
+                  ? `Trocar para Plano ${selectedPlanObj.label} a partir de ${renewalDate}?`
                   : `Solicitar mudança para Plano ${selectedPlanObj.label}?`}
               </div>
               <div style={{ font: `400 12px ${FF}`, color: '#A39E90', marginBottom: 14 }}>
                 {nearRenewal
-                  ? `${selectedPlanObj.sub} · ${selectedPlanObj.renew}`
+                  ? `${selectedPlanObj.price}/mês a partir da próxima cobrança.`
                   : 'Seu coach receberá um aviso e precisará confirmar a mudança.'}
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
-                <button onClick={() => setStep('idle')} style={{ flex: 1, background: '#F4EFE3', border: 'none', borderRadius: 10, padding: '11px 0', font: `600 13px ${FF}`, color: '#1B2A4A', cursor: 'pointer' }}>Cancelar</button>
-                <button onClick={handleConfirm} style={{ flex: 1, background: '#E8542A', border: 'none', borderRadius: 10, padding: '11px 0', font: `700 13px ${FF}`, color: '#fff', cursor: 'pointer' }}>Confirmar</button>
+                <button onClick={() => setStep('idle')} disabled={submitting} style={{ flex: 1, background: '#F4EFE3', border: 'none', borderRadius: 10, padding: '11px 0', font: `600 13px ${FF}`, color: '#1B2A4A', cursor: 'pointer', opacity: submitting ? .5 : 1 }}>Cancelar</button>
+                <button onClick={handleConfirm} disabled={submitting} style={{ flex: 1, background: '#E8542A', border: 'none', borderRadius: 10, padding: '11px 0', font: `700 13px ${FF}`, color: '#fff', cursor: 'pointer', opacity: submitting ? .7 : 1 }}>
+                  {submitting ? 'Aguarde...' : 'Confirmar'}
+                </button>
               </div>
+            </div>
+          )}
+
+          {/* Erro */}
+          {step === 'error' && (
+            <div style={{ marginTop: 12, background: '#fbe6e1', borderRadius: 14, padding: '14px 18px' }}>
+              <div style={{ font: `600 13px ${FF}`, color: '#c4421e' }}>{errorMsg || 'Erro ao processar. Tente novamente.'}</div>
             </div>
           )}
         </div>
@@ -163,7 +247,7 @@ export default function Pagamentos() {
             <>
               <div style={{ font: `700 15px ${FF}`, color: '#1B2A4A', marginBottom: 6 }}>Troca agendada!</div>
               <div style={{ font: `400 13px ${FF}`, color: '#A39E90' }}>
-                Você passará para o Plano <strong style={{ color: '#1B2A4A' }}>{selectedPlanObj.label}</strong> a partir de {RENEWAL_DATE}.
+                Você passará para o Plano <strong style={{ color: '#1B2A4A' }}>{selectedPlanObj.label}</strong> a partir de {renewalDate}.
               </div>
             </>
           ) : (

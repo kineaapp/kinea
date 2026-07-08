@@ -1,5 +1,9 @@
 import { useState, useRef, useEffect } from 'react'
 import { getInitials, avatarPalette } from '../../data/mock'
+import { supabase } from '../../lib/supabase'
+import { useAuthStore } from '../../store/auth'
+
+const FN_URL = import.meta.env.VITE_SUPABASE_URL + '/functions/v1'
 
 const FF = '"Libre Franklin",sans-serif'
 
@@ -27,10 +31,6 @@ interface PlanRequest {
   requestedAt:   string
 }
 
-const MOCK_REQUESTS: PlanRequest[] = [
-  { id: 1, studentName: 'Maria Silva',   currentPlan: 'Mensal', requestedPlan: 'Anual',      type: 'mudanca',   requestedAt: 'hoje, 09:14' },
-  { id: 2, studentName: 'Carlos Mendes', currentPlan: 'Mensal', requestedPlan: 'Semestral',  type: 'renovacao', requestedAt: 'ontem, 18:30' },
-]
 
 // ── Constants ───────────────────────────────────────────────
 const STATUS_MAP: Record<Status, { label: string; color: string; bg: string }> = {
@@ -228,8 +228,9 @@ function NewChargeModal({ onClose, onAdd }: {
 
 // ── Main ─────────────────────────────────────────────────────
 export default function Pagamentos() {
+  const { user }   = useAuthStore()
   const [charges,   setCharges]   = useState<Charge[]>([])
-  const [requests,  setRequests]  = useState<PlanRequest[]>(MOCK_REQUESTS)
+  const [requests,  setRequests]  = useState<PlanRequest[]>([])
   const [tab,       setTab]       = useState<Tab>('all')
   const [query,     setQuery]     = useState('')
   const [openId,    setOpenId]    = useState<number | null>(null)
@@ -239,6 +240,27 @@ export default function Pagamentos() {
   const nextId   = useRef(1)
 
   useEffect(() => () => clearTimeout(toastRef.current), [])
+
+  useEffect(() => {
+    if (!user?.id) return
+    supabase
+      .from('plan_requests')
+      .select('id, current_plan, requested_plan, type, created_at, students!inner(name, coach_id)')
+      .eq('students.coach_id', user.id)
+      .eq('status', 'pendente')
+      .order('created_at', { ascending: false })
+      .then(({ data }) => {
+        if (!data) return
+        setRequests(data.map((r: any) => ({
+          id:            r.id,
+          studentName:   r.students.name,
+          currentPlan:   r.current_plan,
+          requestedPlan: r.requested_plan,
+          type:          r.type,
+          requestedAt:   new Date(r.created_at).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }),
+        })))
+      })
+  }, [user?.id])
 
   function showToast(msg: string) {
     setToast(msg); clearTimeout(toastRef.current)
@@ -257,9 +279,16 @@ export default function Pagamentos() {
     if (c) showToast('Lembrete enviado para ' + c.name.split(' ')[0] + '.')
   }
 
-  function handleRequest(id: number, action: 'aprovar' | 'recusar') {
+  async function handleRequest(id: number, action: 'aprovar' | 'recusar') {
     const req = requests.find(r => r.id === id)
     setRequests(prev => prev.filter(r => r.id !== id))
+    try {
+      await fetch(`${FN_URL}/approve-plan-change`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ requestId: id, action }),
+      })
+    } catch { /* falha silenciosa — UI já atualizou */ }
     if (req) showToast(action === 'aprovar'
       ? `Plano ${req.requestedPlan} aprovado para ${req.studentName.split(' ')[0]}.`
       : `Solicitação de ${req.studentName.split(' ')[0]} recusada.`)
