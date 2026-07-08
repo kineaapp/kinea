@@ -53,9 +53,9 @@ export default function Pagamentos() {
         <div style={{ margin: '0 18px 16px', background: 'linear-gradient(135deg,#E8542A,#c4421e)', borderRadius: 14, padding: '14px 16px', display: 'flex', alignItems: 'flex-start', gap: 12 }}>
           <Bell size={18} color="#fff" strokeWidth={2} style={{ flexShrink: 0, marginTop: 1 }} />
           <div>
-            <div style={{ font: `700 13px ${FF}`, color: '#fff', marginBottom: 2 }}>Seu plano vence em {DAYS_UNTIL_RENEWAL} dias</div>
+            <div style={{ font: `700 13px ${FF}`, color: '#fff', marginBottom: 2 }}>Próxima cobrança em {DAYS_UNTIL_RENEWAL} dias</div>
             <div style={{ font: `400 12px ${FF}`, color: 'rgba(255,255,255,.85)' }}>
-              Escolha o plano para renovação em {RENEWAL_DATE}.
+              Sua assinatura renova em {RENEWAL_DATE}. Aproveite para mudar de plano se quiser.
             </div>
           </div>
         </div>
@@ -86,7 +86,7 @@ export default function Pagamentos() {
       {step !== 'done' && (
         <div style={{ margin: '0 18px 16px' }}>
           <div style={{ font: `600 11px ${FF}`, color: '#A39E90', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 10 }}>
-            {nearRenewal ? 'Plano para renovação' : 'Solicitar mudança de plano'}
+            {nearRenewal ? 'Trocar plano na próxima renovação' : 'Solicitar mudança de plano'}
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {PLANS.map(plan => {
@@ -127,7 +127,7 @@ export default function Pagamentos() {
               onClick={() => setStep('confirming')}
               style={{ width: '100%', marginTop: 12, background: '#1B2A4A', border: 'none', borderRadius: 14, padding: '14px 0', font: `700 14px ${FF}`, color: '#FAEEDA', cursor: 'pointer', letterSpacing: '-.2px' }}
             >
-              {nearRenewal ? `Renovar com Plano ${selectedPlanObj.label}` : `Solicitar mudança para ${selectedPlanObj.label}`}
+              {nearRenewal ? `Trocar para Plano ${selectedPlanObj.label} na renovação` : `Solicitar mudança para ${selectedPlanObj.label}`}
             </button>
           )}
 
@@ -136,7 +136,7 @@ export default function Pagamentos() {
             <div style={{ marginTop: 12, background: '#fff', borderRadius: 14, padding: '16px 18px', boxShadow: '0 2px 8px rgba(27,42,74,.07)' }}>
               <div style={{ font: `600 13px ${FF}`, color: '#1B2A4A', marginBottom: 4 }}>
                 {nearRenewal
-                  ? `Confirmar renovação com Plano ${selectedPlanObj.label}?`
+                  ? `Trocar para Plano ${selectedPlanObj.label} a partir de ${RENEWAL_DATE}?`
                   : `Solicitar mudança para Plano ${selectedPlanObj.label}?`}
               </div>
               <div style={{ font: `400 12px ${FF}`, color: '#A39E90', marginBottom: 14 }}>
@@ -161,9 +161,9 @@ export default function Pagamentos() {
           </div>
           {nearRenewal ? (
             <>
-              <div style={{ font: `700 15px ${FF}`, color: '#1B2A4A', marginBottom: 6 }}>Renovação confirmada!</div>
+              <div style={{ font: `700 15px ${FF}`, color: '#1B2A4A', marginBottom: 6 }}>Troca agendada!</div>
               <div style={{ font: `400 13px ${FF}`, color: '#A39E90' }}>
-                Seu plano <strong style={{ color: '#1B2A4A' }}>{selectedPlanObj.label}</strong> será renovado em {RENEWAL_DATE}.
+                Você passará para o Plano <strong style={{ color: '#1B2A4A' }}>{selectedPlanObj.label}</strong> a partir de {RENEWAL_DATE}.
               </div>
             </>
           ) : (
