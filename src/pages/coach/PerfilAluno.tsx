@@ -491,6 +491,177 @@ function AssignWorkoutModal({ studentId, coachId, onClose, onAssigned }: {
   )
 }
 
+// ── Assessment Detail Drawer ───────────────────────────────────
+function AssessmentDetailDrawer({
+  assessment,
+  prevAssessment,
+  uploadingId,
+  onClose,
+  onPhotoUpload,
+}: {
+  assessment:     AssessmentRow
+  prevAssessment: AssessmentRow | null
+  uploadingId:    number | null
+  onClose:        () => void
+  onPhotoUpload:  (assId: number, col: string, file: File) => void
+}) {
+  const photoRef   = useRef<HTMLInputElement>(null)
+  const pendingRef = useRef<string | null>(null)
+
+  const PHOTOS = [
+    { col: 'photo_frente_url',   label: 'Frente'    },
+    { col: 'photo_lado_esq_url', label: 'Lado Esq.' },
+    { col: 'photo_lado_dir_url', label: 'Lado Dir.' },
+    { col: 'photo_costas_url',   label: 'Costas'    },
+  ]
+
+  function metricDelta(curr: number | null, prev: number | null, betterLower: boolean | null, dec: number, unit: string) {
+    if (curr == null || prev == null) return null
+    const d = curr - prev
+    if (d === 0) return { txt: '=', color: '#9a948a' }
+    const good = betterLower === null ? null : (betterLower ? d < 0 : d > 0)
+    const color = good === null ? '#7c7869' : good ? '#1B7a4a' : '#c4421e'
+    return { txt: `${d > 0 ? '+' : '−'}${Math.abs(d).toFixed(dec)} ${unit}`, color }
+  }
+
+  const uploading = uploadingId === assessment.id
+
+  return (
+    <>
+      <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(20,25,40,.45)', zIndex: 77 }} />
+      <div style={{ position: 'fixed', top: 0, right: 0, bottom: 0, width: 480, maxWidth: '94vw', background: '#F4EFE3', zIndex: 78, boxShadow: '-12px 0 40px rgba(0,0,0,.22)', display: 'flex', flexDirection: 'column' }}>
+
+        {/* Header */}
+        <div style={{ background: '#1B2A4A', padding: '20px 22px', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div>
+            <div style={{ font: `800 17px ${FF}`, color: '#FAEEDA', letterSpacing: '-.3px' }}>Avaliação física</div>
+            <div style={{ font: `500 12px ${FF}`, color: '#8B97AD', marginTop: 3 }}>
+              {fmtDate(assessment.assessed_at)}{!prevAssessment ? ' · 1ª avaliação' : ''}
+            </div>
+          </div>
+          <button onClick={onClose} style={{ border: 'none', background: 'rgba(255,255,255,.1)', cursor: 'pointer', color: '#fff', width: 32, height: 32, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
+          </button>
+        </div>
+
+        {/* Body */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: '18px 22px 24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+          {/* Métricas */}
+          <div style={{ background: '#fff', border: '1px solid #ece7d9', borderRadius: 14, padding: '16px 18px' }}>
+            <div style={{ font: `600 11px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#9a948a', marginBottom: 12 }}>
+              Métricas {prevAssessment && <span style={{ color: '#c9c1b0', textTransform: 'none', letterSpacing: 0, fontWeight: 500 }}>(vs. avaliação anterior)</span>}
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              {[
+                { label: 'Peso',      curr: assessment.weight_kg,    prev: prevAssessment?.weight_kg    ?? null, betterLower: true as boolean | null, dec: 1, unit: 'kg' },
+                { label: '% Gordura', curr: assessment.body_fat_pct, prev: prevAssessment?.body_fat_pct ?? null, betterLower: true as boolean | null, dec: 1, unit: '%'  },
+              ].map(m => {
+                const d = metricDelta(m.curr, m.prev, m.betterLower, m.dec, m.unit)
+                return (
+                  <div key={m.label} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#faf7ee', borderRadius: 10, padding: '11px 13px' }}>
+                    <div>
+                      <div style={{ font: `600 11px ${FF}`, color: '#7c7869' }}>{m.label}</div>
+                      <div style={{ font: `800 18px ${FF}`, color: '#1B2A4A', marginTop: 2 }}>
+                        {m.curr != null ? `${m.curr.toFixed(m.dec)} ${m.unit}` : '—'}
+                      </div>
+                    </div>
+                    {d && <span style={{ font: `700 11.5px ${FF}`, color: d.color }}>{d.txt}</span>}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* Medidas */}
+          {[assessment.chest_cm, assessment.waist_cm, assessment.hip_cm, assessment.arm_cm, assessment.thigh_cm].some(v => v != null) && (
+            <div style={{ background: '#fff', border: '1px solid #ece7d9', borderRadius: 14, padding: '16px 18px' }}>
+              <div style={{ font: `600 11px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#9a948a', marginBottom: 12 }}>Medidas corporais</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                {([
+                  { label: 'Peito',   curr: assessment.chest_cm,  prev: prevAssessment?.chest_cm  ?? null },
+                  { label: 'Cintura', curr: assessment.waist_cm,  prev: prevAssessment?.waist_cm  ?? null },
+                  { label: 'Quadril', curr: assessment.hip_cm,    prev: prevAssessment?.hip_cm    ?? null },
+                  { label: 'Braço',   curr: assessment.arm_cm,    prev: prevAssessment?.arm_cm    ?? null },
+                  { label: 'Coxa',    curr: assessment.thigh_cm,  prev: prevAssessment?.thigh_cm  ?? null },
+                ] as { label: string; curr: number | null; prev: number | null }[]).filter(m => m.curr != null).map(m => {
+                  const d = metricDelta(m.curr, m.prev, null, 0, 'cm')
+                  return (
+                    <div key={m.label} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#faf7ee', borderRadius: 10, padding: '11px 13px' }}>
+                      <div>
+                        <div style={{ font: `600 11px ${FF}`, color: '#7c7869' }}>{m.label}</div>
+                        <div style={{ font: `800 15px ${FF}`, color: '#1B2A4A', marginTop: 2 }}>{(m.curr as number).toFixed(0)} cm</div>
+                      </div>
+                      {d && <span style={{ font: `700 11.5px ${FF}`, color: d.color }}>{d.txt}</span>}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Fotos */}
+          <div style={{ background: '#fff', border: '1px solid #ece7d9', borderRadius: 14, padding: '16px 18px' }}>
+            <div style={{ font: `600 11px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#9a948a', marginBottom: 12 }}>Fotos corporais</div>
+            <input ref={photoRef} type="file" accept="image/*" style={{ display: 'none' }}
+              onChange={e => {
+                const f = e.target.files?.[0]
+                const col = pendingRef.current
+                if (f && col) onPhotoUpload(assessment.id, col, f)
+                if (photoRef.current) photoRef.current.value = ''
+              }} />
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 9 }}>
+              {PHOTOS.map(p => {
+                const url = (assessment as Record<string, unknown>)[p.col] as string | null
+                return (
+                  <div key={p.col} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}>
+                    {url ? (
+                      <img
+                        src={url} alt={p.label}
+                        onClick={() => { pendingRef.current = p.col; photoRef.current?.click() }}
+                        style={{ width: '100%', aspectRatio: '3/4', objectFit: 'cover', borderRadius: 8, cursor: 'pointer', display: 'block' }}
+                        title="Clique para substituir"
+                      />
+                    ) : (
+                      <button type="button" disabled={uploading}
+                        onClick={() => { pendingRef.current = p.col; photoRef.current?.click() }}
+                        style={{ width: '100%', aspectRatio: '3/4', background: '#f4efe3', border: '1.5px dashed #d6cfbe', borderRadius: 8, cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3 }}>
+                        {uploading
+                          ? <span style={{ width: 14, height: 14, border: '2px solid #d6cfbe', borderTopColor: '#E8542A', borderRadius: '50%', display: 'block', animation: 'kspin .7s linear infinite' }} />
+                          : <>
+                              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#b0a99c" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                              <span style={{ font: `500 9px ${FF}`, color: '#b0a99c' }}>+ Foto</span>
+                            </>
+                        }
+                      </button>
+                    )}
+                    <span style={{ font: `600 9.5px ${FF}`, color: '#9a948a' }}>{p.label}</span>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* Observações */}
+          {assessment.notes && (
+            <div style={{ background: '#fff', border: '1px solid #ece7d9', borderRadius: 14, padding: '16px 18px' }}>
+              <div style={{ font: `600 11px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#9a948a', marginBottom: 8 }}>Observações</div>
+              <p style={{ font: `400 13.5px ${FF}`, color: '#4a4742', margin: 0, lineHeight: 1.5 }}>{assessment.notes}</p>
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div style={{ flexShrink: 0, padding: '15px 22px', background: '#fff', borderTop: '1px solid #ece7d9' }}>
+          <button onClick={onClose} style={{ width: '100%', height: 46, border: '1.5px solid #d9d3c4', background: '#fff', color: '#1B2A4A', borderRadius: 10, font: `700 13.5px ${FF}`, cursor: 'pointer' }}>
+            Fechar
+          </button>
+        </div>
+      </div>
+    </>
+  )
+}
+
 // ── Main ───────────────────────────────────────────────────────
 export default function PerfilAluno() {
   const { id }    = useParams<{ id: string }>()
@@ -525,6 +696,7 @@ export default function PerfilAluno() {
   const [urlCopied,       setUrlCopied]       = useState(false)
   const [showAnamneseForm,  setShowAnamneseForm]  = useState(false)
   const [showAssignModal,   setShowAssignModal]   = useState(false)
+  const [openAssessId,      setOpenAssessId]      = useState<number | null>(null)
 
   useEffect(() => {
     if (students.length === 0 && user?.id) fetchStudents(user.id)
@@ -639,6 +811,9 @@ export default function PerfilAluno() {
   const lastAssess   = assessments.length > 0 ? assessments[assessments.length - 1] : null
   const pesoAtual    = lastAssess?.weight_kg    != null ? `${lastAssess.weight_kg.toFixed(1)} kg`    : null
   const gorduraAtual = lastAssess?.body_fat_pct != null ? `${lastAssess.body_fat_pct.toFixed(1)}%`  : null
+  const openAssess     = assessments.find(a => a.id === openAssessId) ?? null
+  const openAssessIdx  = openAssess ? assessments.findIndex(a => a.id === openAssessId) : -1
+  const openAssessPrev = openAssessIdx > 0 ? assessments[openAssessIdx - 1] : null
 
   const PLANS = ['Mensal', 'Anual', 'Trimestral', 'Semestral', 'Permuta']
 
@@ -657,6 +832,21 @@ export default function PerfilAluno() {
     }
     setUploadingAssId(null)
     pendingAssIdRef.current = null
+  }
+
+  async function handleDrawerPhotoUpload(assId: number, col: string, file: File) {
+    setUploadingAssId(assId)
+    const slotName = col.replace('photo_', '').replace('_url', '')
+    const ext  = file.name.split('.').pop()?.toLowerCase() ?? 'jpg'
+    const path = `${studentId}/${assId}/${slotName}.${ext}`
+    const { error } = await supabase.storage
+      .from('assessment-photos').upload(path, file, { upsert: true })
+    if (!error) {
+      const { data: pd } = supabase.storage.from('assessment-photos').getPublicUrl(path)
+      await supabase.from('assessments').update({ [col]: pd.publicUrl }).eq('id', assId)
+      setAssessments(prev => prev.map(a => a.id === assId ? { ...a, [col]: pd.publicUrl } : a))
+    }
+    setUploadingAssId(null)
   }
 
   async function handleCreateCheckout() {
@@ -1375,10 +1565,13 @@ export default function PerfilAluno() {
                         const isSelected = compareSelected.includes(a.id)
                         return (
                           <div key={a.id}
-                            onClick={compareMode ? () => setCompareSelected(prev =>
-                              prev.includes(a.id) ? prev.filter(x => x !== a.id) : prev.length < 2 ? [...prev, a.id] : [prev[1], a.id]
-                            ) : undefined}
-                            style={{ borderTop: i === 0 ? 'none' : '1px solid #f1ece0', background: isSelected ? '#fff8f6' : '#fff', cursor: compareMode ? 'pointer' : 'default', transition: 'background .12s' }}>
+                            onClick={() => compareMode
+                              ? setCompareSelected(prev =>
+                                  prev.includes(a.id) ? prev.filter(x => x !== a.id) : prev.length < 2 ? [...prev, a.id] : [prev[1], a.id]
+                                )
+                              : setOpenAssessId(a.id)
+                            }
+                            style={{ borderTop: i === 0 ? 'none' : '1px solid #f1ece0', background: isSelected ? '#fff8f6' : '#fff', cursor: 'pointer', transition: 'background .12s' }}>
                             <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '14px 18px' }}>
 
                               {/* Checkbox comparação */}
@@ -1631,6 +1824,16 @@ export default function PerfilAluno() {
 
         </div>
       </div>
+
+      {openAssess && (
+        <AssessmentDetailDrawer
+          assessment={openAssess}
+          prevAssessment={openAssessPrev}
+          uploadingId={uploadingAssId}
+          onClose={() => setOpenAssessId(null)}
+          onPhotoUpload={handleDrawerPhotoUpload}
+        />
+      )}
 
       {showNewAssessment && student && (
         <ProfileAssessmentModal

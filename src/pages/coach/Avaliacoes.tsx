@@ -24,6 +24,7 @@ interface Assessment {
   weight: number
   bf: number
   m: Record<string, number>
+  photos: { frente: string | null; costas: string | null; ladoE: string | null; ladoD: string | null }
 }
 
 interface Student {
@@ -108,8 +109,8 @@ function StudentDrawer({ student, onClose, onRemind, onRegister }: {
     fill: i === ws.length - 1 ? '#E8542A' : '#cdd5e0',
   }))
 
-  const measures = Object.keys(last.m).map(k => {
-    const dd = prev ? signed(last.m[k] - prev.m[k], ' cm', student.loss) : { txt: '—', color: '#9a948a' }
+  const measures = Object.keys(last.m).filter(k => last.m[k] > 0).map(k => {
+    const dd = prev ? signed(last.m[k] - (prev.m[k] ?? 0), ' cm', student.loss) : { txt: '—', color: '#9a948a' }
     return { label: k, value: `${last.m[k]} cm`, delta: dd.txt, deltaColor: dd.color }
   })
 
@@ -174,13 +175,22 @@ function StudentDrawer({ student, onClose, onRemind, onRegister }: {
           <div style={{ background: '#fff', border: '1px solid #ece7d9', borderRadius: 14, padding: '16px 18px' }}>
             <div style={{ font: `600 11px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#9a948a', marginBottom: 13 }}>Fotos corporais</div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 9 }}>
-              {(['Frente', 'Costas', 'Lado E', 'Lado D'] as const).map(label => (
+              {([
+                { label: 'Frente', url: last.photos?.frente ?? null },
+                { label: 'Costas', url: last.photos?.costas ?? null },
+                { label: 'Lado E', url: last.photos?.ladoE  ?? null },
+                { label: 'Lado D', url: last.photos?.ladoD  ?? null },
+              ] as { label: string; url: string | null }[]).map(({ label, url }) => (
                 <div key={label} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
-                  <div style={{ width: '100%', aspectRatio: '3/4', borderRadius: 9, border: '1px solid #e0d9c8', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundImage: 'repeating-linear-gradient(45deg,#e7e0ce 0,#e7e0ce 9px,#ede7d7 9px,#ede7d7 18px)' }}>
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#b6ae9c" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                      <rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="9" cy="9" r="2" /><path d="M21 15l-5-5L5 21" />
-                    </svg>
-                  </div>
+                  {url ? (
+                    <img src={url} alt={label} style={{ width: '100%', aspectRatio: '3/4', objectFit: 'cover', borderRadius: 9, border: '1px solid #e0d9c8' }} />
+                  ) : (
+                    <div style={{ width: '100%', aspectRatio: '3/4', borderRadius: 9, border: '1px solid #e0d9c8', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundImage: 'repeating-linear-gradient(45deg,#e7e0ce 0,#e7e0ce 9px,#ede7d7 9px,#ede7d7 18px)' }}>
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#b6ae9c" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                        <rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="9" cy="9" r="2" /><path d="M21 15l-5-5L5 21" />
+                      </svg>
+                    </div>
+                  )}
                   <span style={{ font: `600 10px ${FF}`, color: '#9a948a' }}>{label}</span>
                 </div>
               ))}
@@ -488,6 +498,54 @@ export default function Avaliacoes() {
   const { students: roster, fetchStudents } = useStudentsStore()
   useEffect(() => { if (user?.id) fetchStudents(user.id) }, [user?.id])
 
+  useEffect(() => {
+    if (!user?.id || roster.length === 0 || assessLoadedRef.current) return
+    assessLoadedRef.current = true
+    const rosterIds = roster.map(r => r.id)
+    supabase
+      .from('assessments')
+      .select('student_id,assessed_at,weight_kg,body_fat_pct,chest_cm,waist_cm,hip_cm,arm_cm,thigh_cm,photo_frente_url,photo_costas_url,photo_lado_esq_url,photo_lado_dir_url')
+      .in('student_id', rosterIds)
+      .order('assessed_at', { ascending: true })
+      .then(({ data }) => {
+        if (!data || data.length === 0) return
+        const grouped: Record<number, typeof data> = {}
+        data.forEach(a => {
+          if (!grouped[a.student_id]) grouped[a.student_id] = []
+          grouped[a.student_id].push(a)
+        })
+        const built: Student[] = roster
+          .filter(r => (grouped[r.id]?.length ?? 0) > 0)
+          .map(r => {
+            const asses = grouped[r.id]
+            const hist: Assessment[] = asses.map(a => {
+              const d = new Date(a.assessed_at)
+              const label = `${d.getDate().toString().padStart(2,'0')}/${d.toLocaleString('pt-BR',{month:'short'})}`
+              return {
+                date: label,
+                weight: a.weight_kg ?? 0,
+                bf: a.body_fat_pct ?? 0,
+                m: { Peito: a.chest_cm ?? 0, Cintura: a.waist_cm ?? 0, Quadril: a.hip_cm ?? 0, 'Braço': a.arm_cm ?? 0, Coxa: a.thigh_cm ?? 0 },
+                photos: { frente: a.photo_frente_url ?? null, costas: a.photo_costas_url ?? null, ladoE: a.photo_lado_esq_url ?? null, ladoD: a.photo_lado_dir_url ?? null },
+              }
+            })
+            const lastA = asses[asses.length - 1]
+            const daysSince = (Date.now() - new Date(lastA.assessed_at).getTime()) / 86400000
+            const isLoss = r.goal.toLowerCase().includes('emagreciment') || r.goal.toLowerCase().includes('perda') || r.goal.toLowerCase().includes('gordura')
+            return {
+              id: r.id,
+              name: r.name,
+              goal: r.goal,
+              loss: isLoss,
+              days: Math.floor(daysSince),
+              status: (daysSince > 30 ? 'pendente' : 'em-dia') as 'em-dia' | 'pendente',
+              hist,
+            }
+          })
+        setStudents(built)
+      })
+  }, [user?.id, roster.length])
+
   const [students, setStudents] = useState<Student[]>([])
   const [nextId, setNextId] = useState(1)
   const [tab, setTab] = useState<Tab>('all')
@@ -496,6 +554,7 @@ export default function Avaliacoes() {
   const [newInitial, setNewInitial] = useState('')
   const [toast, setToast] = useState('')
   const toastRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const assessLoadedRef = useRef(false)
 
   function showToast(msg: string) {
     setToast(msg)
@@ -550,29 +609,41 @@ export default function Avaliacoes() {
     setNewOpen(true)
   }
 
-  function handleSave(nameRaw: string, weightStr: string, bf: number) {
+  async function handleSave(nameRaw: string, weightStr: string, bf: number) {
     const name = nameRaw.trim()
     if (!name) { showToast('Informe o aluno.'); return }
     const w = parseFloat(weightStr.replace(',', '.'))
     if (!w) { showToast('Informe o peso.'); return }
 
+    const rosterStudent = roster.find(s => s.name.toLowerCase() === name.toLowerCase())
+    const emptyPhotos = { frente: null, costas: null, ladoE: null, ladoD: null }
+
     const idx = students.findIndex(s => s.name.toLowerCase() === name.toLowerCase())
     if (idx >= 0) {
       const s = students[idx]
-      const entry: Assessment = { date: 'hoje', weight: w, bf, m: { ...s.hist[s.hist.length - 1].m } }
+      const entry: Assessment = { date: 'hoje', weight: w, bf, m: { ...s.hist[s.hist.length - 1].m }, photos: emptyPhotos }
       const updated = [...students]
       updated[idx] = { ...s, status: 'em-dia', days: 0, hist: [...s.hist, entry] }
       setStudents(updated)
     } else {
       const newS: Student = {
-        id: nextId, name, goal: 'A definir', loss: true, days: 0, status: 'em-dia',
-        hist: [{ date: 'hoje', weight: w, bf, m: { Peito: 0, Cintura: 0, Quadril: 0, 'Braço': 0, Coxa: 0, 'Abdômen': 0 } }],
+        id: rosterStudent?.id ?? nextId, name, goal: rosterStudent?.goal ?? 'A definir', loss: true, days: 0, status: 'em-dia',
+        hist: [{ date: 'hoje', weight: w, bf, m: { Peito: 0, Cintura: 0, Quadril: 0, 'Braço': 0, Coxa: 0 }, photos: emptyPhotos }],
       }
       setStudents([newS, ...students])
-      setNextId(x => x + 1)
+      if (!rosterStudent) setNextId(x => x + 1)
     }
     setNewOpen(false)
     showToast(`Avaliação registrada para ${name.split(' ')[0]}.`)
+
+    if (rosterStudent) {
+      await supabase.from('assessments').insert({
+        student_id:  rosterStudent.id,
+        assessed_at: new Date().toISOString().split('T')[0],
+        weight_kg:   w,
+        body_fat_pct: bf > 0 ? bf : null,
+      })
+    }
   }
 
   const TABS: { key: Tab; label: string }[] = [
