@@ -303,10 +303,6 @@ export default function Anamnese() {
     setLoading(true)
     const nomeAluno = user?.name ?? 'Aluno'
     setTimeout(async () => {
-      const dataUri = buildPDF(data, nomeAluno)
-      const agora   = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
-      const filename = `Anamnese_${nomeAluno.replace(/\s+/g, '_')}.pdf`
-
       if (user?.id) {
         await supabase.from('profiles').update({ anamnese_completed: true }).eq('id', user.id)
         await supabase.from('anamneses').insert({
