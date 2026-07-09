@@ -2,7 +2,6 @@ import { useState } from 'react'
 import type { CSSProperties } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ChevronLeft, Check } from 'lucide-react'
-import jsPDF from 'jspdf'
 import { useAuthStore } from '../../store/auth'
 import { supabase } from '../../lib/supabase'
 
@@ -117,113 +116,6 @@ function CheckItem({ label, checked, onToggle }: { label: string; checked: boole
   )
 }
 
-// ── PDF generation ───────────────────────────────────────────
-
-function buildPDF(data: AnamneseData, nomeAluno: string): string {
-  const doc = new jsPDF({ unit: 'mm', format: 'a4' })
-  const W = 210
-  const L = 18
-  let y = 0
-
-  // Header navy
-  doc.setFillColor(27, 42, 74)
-  doc.rect(0, 0, W, 38, 'F')
-
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(20)
-  doc.setTextColor(250, 238, 218)
-  doc.text('kinea', L, 18)
-
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(10)
-  doc.setTextColor(139, 151, 173)
-  doc.text('Anamnese Inicial', L, 28)
-
-  const dataHoje = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })
-  doc.text(`Data: ${dataHoje}`, W - L, 18, { align: 'right' })
-  doc.text(`Aluno(a): ${data.nome || nomeAluno}`, W - L, 26, { align: 'right' })
-
-  y = 50
-
-  function section(title: string) {
-    doc.setFillColor(244, 239, 227)
-    doc.roundedRect(L - 4, y - 5, W - 2 * L + 8, 9, 2, 2, 'F')
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(8.5)
-    doc.setTextColor(27, 42, 74)
-    doc.text(title.toUpperCase(), L, y)
-    y += 9
-  }
-
-  function qa(question: string, answer: string) {
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(8)
-    doc.setTextColor(124, 120, 105)
-    doc.text(question, L, y)
-    y += 5
-
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(9)
-    doc.setTextColor(27, 42, 74)
-    const lines = doc.splitTextToSize(answer || 'Não informado', W - 2 * L)
-    doc.text(lines, L, y)
-    y += lines.length * 5 + 5
-
-    if (y > 270) { doc.addPage(); y = 20 }
-  }
-
-  // ── Dados Pessoais
-  section('Dados Pessoais')
-  qa('Nome completo', data.nome)
-  qa('Data de nascimento', data.dataNasc)
-  qa('Telefone', data.telefone)
-  qa('Profissão', data.profissao)
-  y += 3
-
-  // ── Histórico de Saúde
-  section('Histórico de Saúde')
-  const doencasStr = data.doencas.filter(d => d !== 'Nenhuma').join(', ') + (data.outraDoenca ? `, ${data.outraDoenca}` : '')
-  qa('Doenças pré-existentes', doencasStr || 'Nenhuma')
-  qa('Medicamentos em uso', data.medicamentos)
-  qa('Histórico de cirurgias', data.cirurgia)
-  qa('Limitações ou dores físicas', data.limitacoes)
-  y += 3
-
-  // ── Atividade Física
-  section('Atividade Física')
-  qa('Pratica exercício atualmente', data.praticaAtual)
-  if (data.praticaAtual === 'Sim') qa('Atividade e frequência', data.atividadeAtual)
-  qa('Já treinou com personal trainer', data.treinouPersonal)
-  y += 3
-
-  // ── Objetivos
-  section('Objetivos')
-  qa('Objetivo principal', data.objetivo)
-  qa('Dias disponíveis por semana', data.diasSemana ? `${data.diasSemana} dias` : '')
-  qa('Horário preferido', data.horario)
-  y += 3
-
-  // ── Estilo de Vida
-  section('Estilo de Vida')
-  qa('Horas de sono por noite', data.horasSono)
-  qa('Nível de estresse (1–5)', data.nivelEstresse)
-  qa('Tabagismo', data.fuma)
-  qa('Consumo de álcool', data.alcool)
-  y += 8
-
-  // Footer
-  doc.setDrawColor(214, 207, 190)
-  doc.setLineWidth(0.3)
-  doc.line(L, y, W - L, y)
-  y += 6
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(7.5)
-  doc.setTextColor(163, 158, 144)
-  doc.text('Documento gerado automaticamente pelo app Kinea. Uso exclusivo do coach responsável.', L, y)
-
-  return doc.output('datauristring')
-}
-
 // ── Validation per step ──────────────────────────────────────
 
 function validate(step: number, data: AnamneseData): string | null {
@@ -301,7 +193,6 @@ export default function Anamnese() {
 
   function finish() {
     setLoading(true)
-    const nomeAluno = user?.name ?? 'Aluno'
     setTimeout(async () => {
       if (user?.id) {
         await supabase.from('profiles').update({ anamnese_completed: true }).eq('id', user.id)
