@@ -331,16 +331,16 @@ export default function Execucao() {
     ctx.font = `900 76px sans-serif`
     wrapText(ctx, workoutName, W / 2, 300, W - 100, 92)
 
-    const uniqueExs = [...new Set(allCompleted.map(s => s.exerciseName))].length
     const totalSets = allCompleted.length
+    const totalLoad = allCompleted.reduce((sum, s) => sum + s.reps * s.weight, 0)
     const statsY = 480
     ctx.fillStyle = 'rgba(255,255,255,0.08)'
     roundRect(ctx, 50, statsY, W - 100, 190, 30); ctx.fill()
 
     const cols = [
-      { label: 'Exercícios', value: `${uniqueExs}` },
-      { label: 'Séries',     value: `${totalSets}` },
-      { label: 'Duração',    value: fmtDuration(workoutDurationSec) },
+      { label: 'Duração',     value: fmtDuration(workoutDurationSec) },
+      { label: 'Séries',      value: `${totalSets}` },
+      { label: 'Carga total', value: totalLoad > 0 ? `${Math.round(totalLoad).toLocaleString('pt-BR')}kg` : '—' },
     ]
     const colW = (W - 100) / 3
     cols.forEach((c, i) => {
@@ -497,8 +497,8 @@ export default function Execucao() {
 
   // ── summary ───────────────────────────────────────────────────────────────────
   if (phase === 'summary') {
-    const uniqueExCount  = [...new Set(allCompleted.map(s => s.exerciseName))].length
     const totalSetsCount = allCompleted.length
+    const totalLoad      = allCompleted.reduce((sum, s) => sum + s.reps * s.weight, 0)
     const exSummary = exercises.map(e => ({
       name: e.name,
       sets: allCompleted.filter(s => s.exerciseName === e.name).length,
@@ -534,12 +534,12 @@ export default function Execucao() {
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 26 }}>
             {[
-              { label: 'Exercícios', value: `${uniqueExCount}` },
-              { label: 'Séries',     value: `${totalSetsCount}` },
-              { label: 'Duração',    value: fmtDuration(workoutDurationSec) },
+              { label: 'Duração',     value: fmtDuration(workoutDurationSec) },
+              { label: 'Séries',      value: `${totalSetsCount}` },
+              { label: 'Carga total', value: totalLoad > 0 ? `${Math.round(totalLoad).toLocaleString('pt-BR')} kg` : '—' },
             ].map(s => (
               <div key={s.label} style={{ background: 'rgba(255,255,255,.07)', borderRadius: 14, padding: '14px 10px', textAlign: 'center' }}>
-                <div style={{ font: `900 22px ${FF}`, color: '#FAEEDA' }}>{s.value}</div>
+                <div style={{ font: `900 ${s.label === 'Carga total' && totalLoad >= 10000 ? '16px' : '22px'} ${FF}`, color: '#FAEEDA' }}>{s.value}</div>
                 <div style={{ font: `400 10px ${FF}`, color: '#8B97AD', marginTop: 3 }}>{s.label}</div>
               </div>
             ))}
