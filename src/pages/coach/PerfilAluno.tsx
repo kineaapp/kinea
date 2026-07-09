@@ -357,6 +357,140 @@ function Toast({ msg }: { msg: string }) {
   )
 }
 
+// ── Assign Workout Modal ───────────────────────────────────────
+const WORKOUT_GOAL_COLORS: Record<string, { color: string; bg: string }> = {
+  Hipertrofia:     { color: '#c4421e', bg: '#fbe6e1' },
+  Emagrecimento:   { color: '#1B7a4a', bg: '#e7f3ea' },
+  Força:           { color: '#1B2A4A', bg: '#eef1f6' },
+  Condicionamento: { color: '#b06a12', bg: '#f7ecd9' },
+  Mobilidade:      { color: '#5a4ea0', bg: '#ece9f6' },
+}
+interface WorkoutOption { id: number; name: string; goal: string; muscle_group: string | null; duration_min: number }
+
+function AssignWorkoutModal({ studentId, coachId, onClose, onAssigned }: {
+  studentId: number; coachId: string; onClose: () => void; onAssigned: () => void
+}) {
+  const [workouts, setWorkouts] = useState<WorkoutOption[]>([])
+  const [listLoad, setListLoad] = useState(true)
+  const [query,    setQuery]    = useState('')
+  const [selId,    setSelId]    = useState<number | null>(null)
+  const [dow,      setDow]      = useState<number | null>(null)
+  const [saving,   setSaving]   = useState(false)
+  const [err,      setErr]      = useState('')
+
+  useEffect(() => {
+    supabase.from('workouts').select('id,name,goal,muscle_group,duration_min')
+      .eq('coach_id', coachId).order('created_at', { ascending: false })
+      .then(({ data }) => { setWorkouts((data as WorkoutOption[] | null) ?? []); setListLoad(false) })
+  }, [])
+
+  async function handleConfirm() {
+    if (!selId) { setErr('Selecione um treino.'); return }
+    setSaving(true)
+    const { error } = await supabase.from('workout_assignments').insert({ workout_id: selId, student_id: studentId, day_of_week: dow })
+    if (error) { setErr('Erro ao atribuir: ' + error.message); setSaving(false); return }
+    onAssigned(); onClose()
+  }
+
+  const q = query.trim().toLowerCase()
+  const filtered = q ? workouts.filter(w => w.name.toLowerCase().includes(q) || (w.goal ?? '').toLowerCase().includes(q)) : workouts
+
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(20,25,40,.5)', zIndex: 82, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+      <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 460, background: '#fff', borderRadius: 16, boxShadow: '0 24px 60px rgba(0,0,0,.3)', display: 'flex', flexDirection: 'column', maxHeight: '86vh' }}>
+
+        {/* Header */}
+        <div style={{ padding: '24px 24px 16px', flexShrink: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 4 }}>
+            <h2 style={{ font: `800 20px ${FF}`, color: '#1B2A4A', margin: 0, letterSpacing: '-.4px' }}>Atribuir treino</h2>
+            <button type="button" onClick={onClose} style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#9a948a', padding: 2 }}>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
+            </button>
+          </div>
+          <p style={{ font: `400 13px ${FF}`, color: '#9a948a', margin: '0 0 14px' }}>Selecione um treino da sua biblioteca</p>
+
+          {/* Search */}
+          <div style={{ position: 'relative', marginBottom: 14 }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9a948a" strokeWidth="2" strokeLinecap="round" style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)' }}><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.3-4.3"/></svg>
+            <input autoFocus type="text" value={query} onChange={e => setQuery(e.target.value)} placeholder="Buscar treino…"
+              style={{ width: '100%', height: 40, border: '1.5px solid #e0d9c8', borderRadius: 10, background: '#faf7ee', padding: '0 14px 0 36px', font: `400 13.5px ${FF}`, color: '#1B2A4A', outline: 'none', boxSizing: 'border-box' as const }}
+              onFocus={e => { e.currentTarget.style.borderColor = '#E8542A' }} onBlur={e => { e.currentTarget.style.borderColor = '#e0d9c8' }} />
+          </div>
+
+          {/* Day picker */}
+          <div style={{ font: `600 11px ${FF}`, color: '#6b6657', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 8 }}>
+            Dia da semana <span style={{ font: `400 11px ${FF}`, color: '#b0a99c', textTransform: 'none', letterSpacing: 0 }}>(opcional)</span>
+          </div>
+          <div style={{ display: 'flex', gap: 5 }}>
+            {DAY_NAMES.map((d, i) => {
+              const active = dow === i
+              return (
+                <button key={i} type="button" onClick={() => setDow(active ? null : i)}
+                  style={{ flex: 1, height: 36, border: `1.5px solid ${active ? '#E8542A' : '#e0d9c8'}`, background: active ? '#E8542A' : '#fff', color: active ? '#fff' : '#7c7869', font: `700 11px ${FF}`, borderRadius: 8, cursor: 'pointer' }}>
+                  {d}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
+        {/* Workout list */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: '6px 14px', minHeight: 0 }}>
+          {listLoad ? (
+            <div style={{ padding: '32px 0', textAlign: 'center', font: `400 13px ${FF}`, color: '#9a948a' }}>Carregando treinos…</div>
+          ) : filtered.length === 0 ? (
+            <div style={{ padding: '32px 0', textAlign: 'center', font: `400 13px ${FF}`, color: '#9a948a' }}>
+              {workouts.length === 0 ? 'Nenhum treino na biblioteca ainda. Crie um na aba Treinos.' : 'Nenhum treino encontrado.'}
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, paddingBottom: 8 }}>
+              {filtered.map(w => {
+                const gc = WORKOUT_GOAL_COLORS[w.goal] ?? { color: '#1B2A4A', bg: '#eef1f6' }
+                const sel = selId === w.id
+                return (
+                  <button key={w.id} type="button" onClick={() => { setSelId(w.id); setErr('') }}
+                    style={{ display: 'flex', alignItems: 'center', gap: 12, border: `1.5px solid ${sel ? '#E8542A' : '#ece7d9'}`, background: sel ? '#fff8f6' : '#fff', borderRadius: 12, padding: '11px 13px', cursor: 'pointer', textAlign: 'left', width: '100%' }}
+                    onMouseEnter={e => { if (!sel) { e.currentTarget.style.borderColor = '#E8542A'; e.currentTarget.style.background = '#fff8f6' } }}
+                    onMouseLeave={e => { if (!sel) { e.currentTarget.style.borderColor = '#ece7d9'; e.currentTarget.style.background = '#fff' } }}>
+                    <div style={{ width: 40, height: 40, borderRadius: 10, background: gc.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={gc.color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M6.5 6.5l11 11"/><path d="M21 21l-1-1"/><path d="M3 3l1 1"/><path d="M18 22l4-4"/><path d="M2 6l4-4"/>
+                      </svg>
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ font: `700 13.5px ${FF}`, color: '#1B2A4A', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{w.name}</div>
+                      <div style={{ font: `400 11.5px ${FF}`, color: '#9a948a', marginTop: 2 }}>{w.muscle_group ?? w.goal} · {w.duration_min} min</div>
+                    </div>
+                    <span style={{ flexShrink: 0, font: `600 10.5px ${FF}`, color: gc.color, background: gc.bg, borderRadius: 20, padding: '3px 9px', whiteSpace: 'nowrap' }}>{w.goal}</span>
+                    <div style={{ width: 20, height: 20, borderRadius: 6, border: `2px solid ${sel ? '#E8542A' : '#d2cbbb'}`, background: sel ? '#E8542A' : '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: sel ? 1 : 0 }}><path d="M20 6L9 17l-5-5"/></svg>
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div style={{ padding: '14px 24px 20px', flexShrink: 0, borderTop: '1px solid #f4efe3' }}>
+          {err && <div style={{ background: '#fdeee9', border: '1px solid #f6cdbf', borderRadius: 9, padding: '9px 13px', font: `500 13px ${FF}`, color: '#c4421e', marginBottom: 10 }}>{err}</div>}
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button type="button" onClick={onClose} style={{ flex: 1, height: 46, border: '1.5px solid #d9d3c4', background: '#fff', color: '#1B2A4A', borderRadius: 10, font: `600 13.5px ${FF}`, cursor: 'pointer' }}>Cancelar</button>
+            <button type="button" onClick={handleConfirm} disabled={saving || !selId}
+              style={{ flex: 2, height: 46, border: 'none', background: saving || !selId ? '#e0ccc6' : '#E8542A', color: '#fff', borderRadius: 10, font: `700 14px ${FF}`, cursor: saving || !selId ? 'default' : 'pointer', boxShadow: saving || !selId ? 'none' : '0 2px 0 #c4421e', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+              {saving
+                ? <><span style={{ width: 15, height: 15, border: '2px solid rgba(255,255,255,.4)', borderTopColor: '#fff', borderRadius: '50%', display: 'inline-block', animation: 'kspin .7s linear infinite' }} /> Atribuindo...</>
+                : `Atribuir treino${dow !== null ? ' · ' + DAY_NAMES[dow] : ''}`
+              }
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Main ───────────────────────────────────────────────────────
 export default function PerfilAluno() {
   const { id }    = useParams<{ id: string }>()
@@ -389,7 +523,8 @@ export default function PerfilAluno() {
   const [subError,      setSubError]          = useState<string | null>(null)
   const [checkoutUrl,   setCheckoutUrl]       = useState<string | null>(null)
   const [urlCopied,       setUrlCopied]       = useState(false)
-  const [showAnamneseForm, setShowAnamneseForm] = useState(false)
+  const [showAnamneseForm,  setShowAnamneseForm]  = useState(false)
+  const [showAssignModal,   setShowAssignModal]   = useState(false)
 
   useEffect(() => {
     if (students.length === 0 && user?.id) fetchStudents(user.id)
@@ -581,6 +716,12 @@ export default function PerfilAluno() {
     toastRef.current = setTimeout(() => setToast(''), 2000)
   }
   useEffect(() => () => clearTimeout(toastRef.current), [])
+
+  async function handleAfterAssign() {
+    loaded.current.delete('assignments')
+    await fetchAssignments()
+    showToast('Treino atribuído com sucesso.')
+  }
 
   const TABS: { key: Tab; label: string }[] = [
     { key: 'overview',   label: 'Visão geral' },
@@ -812,7 +953,7 @@ export default function PerfilAluno() {
                   <h2 style={{ font: `700 15px ${FF}`, color: '#1B2A4A', margin: '0 0 12px' }}>Ações rápidas</h2>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                     {['⚡ Editar treino', '📅 Agendar avaliação', '📎 Enviar anexo', '💬 Enviar mensagem'].map(label => (
-                      <button key={label} type="button" onClick={() => showToast('Em breve!')}
+                      <button key={label} type="button" onClick={() => label === '⚡ Editar treino' ? setTab('treino') : showToast('Em breve!')}
                         style={{ display: 'flex', alignItems: 'center', gap: 11, width: '100%', border: '1.5px solid #ece7d9', background: '#fff', padding: '11px 13px', borderRadius: 10, cursor: 'pointer', font: `600 13.5px ${FF}`, color: '#1B2A4A', textAlign: 'left' }}>
                         {label}
                       </button>
@@ -926,7 +1067,7 @@ export default function PerfilAluno() {
                   <h2 style={{ font: `800 20px ${FF}`, color: '#1B2A4A', margin: 0, letterSpacing: '-.4px' }}>Treinos atribuídos</h2>
                   {uniqueWorkouts.length > 0 && <p style={{ font: `400 13px ${FF}`, color: '#7c7869', margin: '3px 0 0' }}>{uniqueWorkouts.length} treino{uniqueWorkouts.length > 1 ? 's' : ''} · {assignments.length} sessão{assignments.length > 1 ? 'ões' : ''} por semana</p>}
                 </div>
-                <button type="button" onClick={() => showToast('Em breve!')}
+                <button type="button" onClick={() => setShowAssignModal(true)}
                   style={{ height: 42, padding: '0 18px', border: 'none', background: '#E8542A', color: '#fff', borderRadius: 10, font: `700 13.5px ${FF}`, cursor: 'pointer', boxShadow: '0 2px 0 #c4421e' }}>
                   + Atribuir treino
                 </button>
@@ -1517,6 +1658,15 @@ export default function PerfilAluno() {
             setAnamnese(row)
             showToast('Anamnese salva com sucesso.')
           }}
+        />
+      )}
+
+      {showAssignModal && student && user && (
+        <AssignWorkoutModal
+          studentId={studentId}
+          coachId={user.id}
+          onClose={() => setShowAssignModal(false)}
+          onAssigned={handleAfterAssign}
         />
       )}
 

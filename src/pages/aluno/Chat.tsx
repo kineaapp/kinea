@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect } from 'react'
 import { Send, FileText, Download } from 'lucide-react'
 import { useChatStore } from '../../store/chat'
+import { useAuthStore } from '../../store/auth'
+import { supabase } from '../../lib/supabase'
 import type { Msg } from '../../store/chat'
 
 function FileBubble({ msg }: { msg: Extract<Msg, { type: 'file' }> }) {
@@ -42,21 +44,35 @@ function FileBubble({ msg }: { msg: Extract<Msg, { type: 'file' }> }) {
 }
 
 export default function Chat() {
-  const { messages, addMessage } = useChatStore()
+  const { messages, loading, studentId, fetchMessages, sendMessage, addIncoming } = useChatStore()
+  const { user } = useAuthStore()
   const [input, setInput] = useState('')
   const bottomRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
+    if (user?.id) fetchMessages(user.id)
+  }, [user?.id])
+
+  useEffect(() => {
+    if (!studentId) return
+    const channel = supabase
+      .channel('student-chat')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages', filter: `student_id=eq.${studentId}` }, (payload) => {
+        const row = payload.new as { from_role: string; text: string; created_at: string }
+        if (row.from_role === 'coach') addIncoming(row)
+      })
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [studentId])
+
+  useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages])
+  }, [messages.length])
 
   function send() {
     const text = input.trim()
     if (!text) return
-    addMessage({
-      type: 'text', from: 'aluno', text,
-      time: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
-    })
+    sendMessage(text)
     setInput('')
   }
 
@@ -77,6 +93,11 @@ export default function Chat() {
 
       {/* Messages */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+        {loading && messages.length === 0 && (
+          <div style={{ alignSelf: 'center', marginTop: 40, font: `500 13px "Libre Franklin",sans-serif`, color: '#a89f8e' }}>
+            Carregando mensagens…
+          </div>
+        )}
         {messages.map((m, i) => {
           if (m.type === 'file') return <FileBubble key={i} msg={m} />
 

@@ -38,14 +38,59 @@ interface Assignment {
   workout: WorkoutRow
 }
 
+interface SessionRow {
+  id:           number
+  completed_at: string
+  intensity:    number | null
+  pain:         number | null
+  notes:        string | null
+  workouts:     { name: string } | null
+}
+
+const INTENSITY_LABEL: Record<number, { emoji: string; label: string; color: string; bg: string }> = {
+  1: { emoji: '😴', label: 'Muito fácil', color: '#1B7a4a', bg: '#e7f3ea' },
+  2: { emoji: '🙂', label: 'Fácil',       color: '#1B7a4a', bg: '#e7f3ea' },
+  3: { emoji: '💪', label: 'Moderado',    color: '#b06a12', bg: '#f7ecd9' },
+  4: { emoji: '🔥', label: 'Difícil',     color: '#c4421e', bg: '#fbe6e1' },
+  5: { emoji: '😤', label: 'Exaustivo',   color: '#c4421e', bg: '#fbe6e1' },
+}
+
+const PAIN_LABEL: Record<number, { label: string; color: string; bg: string }> = {
+  0: { label: 'Sem dor',      color: '#1B7a4a', bg: '#e7f3ea' },
+  1: { label: 'Dor leve',     color: '#b06a12', bg: '#f7ecd9' },
+  2: { label: 'Dor moderada', color: '#c4421e', bg: '#fbe6e1' },
+  3: { label: 'Dor intensa',  color: '#c4421e', bg: '#fbe6e1' },
+}
+
 export default function Treinos() {
   const navigate = useNavigate()
   const { user }  = useAuthStore()
+  const [tab,         setTab]         = useState<'treinos' | 'historico'>('treinos')
   const [assignments, setAssignments] = useState<Assignment[]>([])
   const [loading,     setLoading]     = useState(true)
   const [expandedId,  setExpandedId]  = useState<number | null>(null)
+  const [sessions,    setSessions]    = useState<SessionRow[]>([])
+  const [sessLoading, setSessLoading] = useState(false)
+  const [numericId,   setNumericId]   = useState<number | null>(null)
 
   useEffect(() => { if (user?.id) void load() }, [user?.id])
+
+  useEffect(() => {
+    if (tab === 'historico' && numericId && sessions.length === 0 && !sessLoading) void loadSessions()
+  }, [tab, numericId])
+
+  async function loadSessions() {
+    if (!numericId) return
+    setSessLoading(true)
+    const { data } = await supabase
+      .from('workout_sessions')
+      .select('id, completed_at, intensity, pain, notes, workouts(name)')
+      .eq('student_id', numericId)
+      .order('completed_at', { ascending: false })
+      .limit(50)
+    setSessions((data as SessionRow[] | null) ?? [])
+    setSessLoading(false)
+  }
 
   async function load() {
     setLoading(true)
@@ -56,6 +101,7 @@ export default function Treinos() {
       .single()
 
     if (!studentRow) { setLoading(false); return }
+    setNumericId((studentRow as any).id)
 
     const { data } = await supabase
       .from('workout_assignments')
@@ -97,17 +143,71 @@ export default function Treinos() {
 
   return (
     <div style={{ paddingBottom: 24 }}>
-      <div style={{ padding: '18px 20px 16px' }}>
-        <h1 style={{ font: `800 24px ${FF}`, color: '#1B2A4A', margin: '0 0 4px', letterSpacing: '-.5px' }}>Meus Treinos</h1>
-        <p style={{ font: `400 13px ${FF}`, color: '#7C7869', margin: 0 }}>
-          {assignments.length > 0
-            ? `${assignments.length} treino${assignments.length > 1 ? 's' : ''} atribuído${assignments.length > 1 ? 's' : ''}`
-            : 'Programação semanal'}
-        </p>
+      <div style={{ padding: '18px 20px 10px' }}>
+        <h1 style={{ font: `800 24px ${FF}`, color: '#1B2A4A', margin: '0 0 14px', letterSpacing: '-.5px' }}>Treinos</h1>
+        <div style={{ display: 'flex', gap: 6, background: '#f4efe3', borderRadius: 12, padding: 4 }}>
+          {(['treinos', 'historico'] as const).map(t => (
+            <button key={t} onClick={() => setTab(t)}
+              style={{ flex: 1, height: 34, border: 'none', borderRadius: 9, cursor: 'pointer', font: `700 13px ${FF}`, transition: 'all .15s',
+                background: tab === t ? '#fff' : 'transparent',
+                color: tab === t ? '#1B2A4A' : '#9a948a',
+                boxShadow: tab === t ? '0 1px 4px rgba(27,42,74,.1)' : 'none',
+              }}>
+              {t === 'treinos' ? 'Meus treinos' : 'Histórico'}
+            </button>
+          ))}
+        </div>
       </div>
 
       <div style={{ padding: '0 18px' }}>
-        {assignments.length === 0 ? (
+        {tab === 'historico' && (() => {
+          if (sessLoading) return (
+            <div style={{ padding: '40px 0', textAlign: 'center', font: `400 13px ${FF}`, color: '#9a948a' }}>Carregando histórico…</div>
+          )
+          if (sessions.length === 0) return (
+            <div style={{ background: '#fff', borderRadius: 16, border: '1.5px dashed #D6CFBE', padding: '40px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, textAlign: 'center', marginTop: 8 }}>
+              <div style={{ font: `700 15px ${FF}`, color: '#1B2A4A' }}>Nenhum treino concluído ainda</div>
+              <div style={{ font: `400 13px ${FF}`, color: '#9a948a', maxWidth: 240, lineHeight: 1.55 }}>Complete um treino para ver seu histórico aqui.</div>
+            </div>
+          )
+          return (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 8 }}>
+              {sessions.map(s => {
+                const intensity = s.intensity != null ? INTENSITY_LABEL[s.intensity] : null
+                const pain      = s.pain      != null ? PAIN_LABEL[s.pain]           : null
+                return (
+                  <div key={s.id} style={{ background: '#fff', borderRadius: 14, border: '1px solid #ece7d9', padding: '14px 16px' }}>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10, marginBottom: 8 }}>
+                      <div>
+                        <div style={{ font: `700 14px ${FF}`, color: '#1B2A4A' }}>{s.workouts?.name ?? 'Treino'}</div>
+                        <div style={{ font: `400 11.5px ${FF}`, color: '#9a948a', marginTop: 2 }}>
+                          {new Date(s.completed_at).toLocaleDateString('pt-BR', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                        </div>
+                      </div>
+                      {intensity && (
+                        <span style={{ flexShrink: 0, font: `600 11px ${FF}`, color: intensity.color, background: intensity.bg, borderRadius: 20, padding: '4px 10px' }}>
+                          {intensity.emoji} {intensity.label}
+                        </span>
+                      )}
+                    </div>
+                    {(pain || s.notes) && (
+                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                        {pain && pain.label !== 'Sem dor' && (
+                          <span style={{ font: `600 11px ${FF}`, color: pain.color, background: pain.bg, borderRadius: 20, padding: '3px 10px' }}>{pain.label}</span>
+                        )}
+                        {s.notes && (
+                          <span style={{ font: `400 12px ${FF}`, color: '#4a4742', background: '#f4efe3', borderRadius: 8, padding: '3px 10px', flex: 1 }}>{s.notes}</span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )
+        })()}
+
+        {tab === 'treinos' && (assignments.length === 0 ? (
           <div style={{ background: '#fff', borderRadius: 16, border: '1.5px dashed #D6CFBE', padding: '40px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, textAlign: 'center' }}>
             <div style={{ width: 52, height: 52, borderRadius: 14, background: '#eef1f6', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#1B2A4A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -199,8 +299,9 @@ export default function Treinos() {
               )
             })}
           </div>
-        )}
+        ))}
       </div>
     </div>
   )
 }
+

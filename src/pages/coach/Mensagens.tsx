@@ -2,7 +2,8 @@ import { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useStudentsStore } from '../../store/students'
 import { useAuthStore } from '../../store/auth'
-import { useCoachChatStore, SEED_MSGS } from '../../store/coachChat'
+import { useCoachChatStore } from '../../store/coachChat'
+import { supabase } from '../../lib/supabase'
 
 const FF = '"Libre Franklin",sans-serif'
 
@@ -78,8 +79,8 @@ export default function Mensagens() {
   const [recSecs,     setRecSecs]     = useState(0)
 
   const { user }                            = useAuthStore()
-  const { students, fetchStudents }         = useStudentsStore()
-  const { msgs: storeMsgs, unread: storeUnread, addMsg, markRead, seedStudent } = useCoachChatStore()
+  const { students, fetchStudents, loading: studentsLoading } = useStudentsStore()
+  const { msgs: storeMsgs, unread: storeUnread, loading: msgsLoading, addMsg, markRead, fetchMessages, sendMessage, addIncoming } = useCoachChatStore()
 
   const convs: Conv[] = students.map(s => {
     const studentMsgs = storeMsgs[s.id] ?? []
@@ -124,11 +125,26 @@ export default function Mensagens() {
   }, [user?.id])
 
   useEffect(() => {
-    if (students.length > 0) {
-      seedStudent(students[0].id, SEED_MSGS)
-      setActiveId(id => id ?? students[0].id)
-    }
+    if (students.length > 0) setActiveId(id => id ?? students[0].id)
   }, [students.length])
+
+  useEffect(() => {
+    if (activeId === null) return
+    fetchMessages(activeId)
+    markRead(activeId)
+  }, [activeId])
+
+  useEffect(() => {
+    if (activeId === null) return
+    const channel = supabase
+      .channel(`coach-chat-${activeId}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages', filter: `student_id=eq.${activeId}` }, (payload) => {
+        const row = payload.new as { from_role: string; text: string; created_at: string }
+        if (row.from_role === 'student') addIncoming(activeId, row)
+      })
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [activeId])
 
   useEffect(() => { if (active) scrollBottom() }, [active?.msgs.length])
 
@@ -142,8 +158,7 @@ export default function Mensagens() {
     if (activeId === null) return
     const t = (text ?? draft).trim()
     if (!t) return
-    const hh = now_hhmm()
-    addMsg(activeId, { type: 'msg', from: 'me', text: t, time: hh })
+    sendMessage(activeId, t)
     setDraft('')
   }
 
@@ -206,8 +221,13 @@ export default function Mensagens() {
             <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
           </svg>
         </div>
-        <p style={{ font: `500 14px ${FF}`, color: '#a89f8e', margin: 0 }}>Nenhuma conversa ainda.</p>
-        <p style={{ font: `400 12px ${FF}`, color: '#c5bfb0', margin: 0 }}>As mensagens dos alunos aparecerão aqui.</p>
+        {studentsLoading
+          ? <p style={{ font: `500 14px ${FF}`, color: '#a89f8e', margin: 0 }}>Carregando conversas…</p>
+          : <>
+              <p style={{ font: `500 14px ${FF}`, color: '#a89f8e', margin: 0 }}>Nenhuma conversa ainda.</p>
+              <p style={{ font: `400 12px ${FF}`, color: '#c5bfb0', margin: 0 }}>As mensagens dos alunos aparecerão aqui.</p>
+            </>
+        }
       </div>
     )
   }
@@ -358,6 +378,11 @@ export default function Mensagens() {
             ref={threadRef}
             style={{ flex: 1, overflowY: 'auto', padding: 22, display: 'flex', flexDirection: 'column', gap: 3, minHeight: 0, backgroundImage: 'radial-gradient(#e9e2d1 1px,transparent 1px)', backgroundSize: '22px 22px' }}
           >
+            {msgsLoading[activeId!] && active.msgs.length === 0 && (
+              <div style={{ alignSelf: 'center', marginTop: 40, font: `500 13px ${FF}`, color: '#a89f8e' }}>
+                Carregando mensagens…
+              </div>
+            )}
             {active.msgs.map((m, i) => {
               if (m.type === 'day') {
                 return (

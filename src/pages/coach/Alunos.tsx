@@ -217,7 +217,7 @@ function QuickView({ student: s, onClose, onOpenProfile, onStub, onDelete }: {
               { icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#E8542A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6.5 6.5l11 11"/><path d="M21 21l-1-1"/><path d="M3 3l1 1"/><path d="M18 22l4-4"/><path d="M2 6l4-4"/></svg>, label: 'Montar treino' },
               { icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#E8542A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7a8.5 8.5 0 0 1-.9-3.8A8.38 8.38 0 0 1 12.5 3a8.38 8.38 0 0 1 8.5 8.5z"/></svg>, label: 'Enviar mensagem' },
             ].map(({ icon, label }) => (
-              <button key={label} type="button" onClick={onStub} style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%', border: 'none', background: 'none', padding: '11px 12px', borderRadius: 9, cursor: 'pointer', font: `600 14px ${FF}`, color: '#1B2A4A', textAlign: 'left' }}>
+              <button key={label} type="button" onClick={() => label === 'Montar treino' ? onOpenProfile(s.id) : onStub()} style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%', border: 'none', background: 'none', padding: '11px 12px', borderRadius: 9, cursor: 'pointer', font: `600 14px ${FF}`, color: '#1B2A4A', textAlign: 'left' }}>
                 {icon}{label}
               </button>
             ))}
