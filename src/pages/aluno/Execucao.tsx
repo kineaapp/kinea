@@ -100,6 +100,7 @@ export default function Execucao() {
   const studentIdRef  = useRef<number | null>(null)
   const startedAtRef  = useRef<number>(0)
   const photoInputRef = useRef<HTMLInputElement>(null)
+  const sharingRef    = useRef(false)
 
   const [phase,               setPhase]               = useState<Phase>('loading')
   const [exercises,           setExercises]           = useState<ExerciseData[]>([])
@@ -303,6 +304,7 @@ export default function Execucao() {
           ctx.drawImage(img, (W - sw) / 2, (H - sh) / 2, sw, sh)
           resolve()
         }
+        img.onerror = () => resolve()
         img.src = URL.createObjectURL(photoFile)
       })
       ctx.fillStyle = 'rgba(27,42,74,0.78)'
@@ -372,6 +374,8 @@ export default function Execucao() {
   }
 
   async function doShare(photoFile?: File) {
+    if (sharingRef.current) return
+    sharingRef.current = true
     setSharing(true)
     setShareAskPhoto(false)
     try {
@@ -387,6 +391,7 @@ export default function Execucao() {
       }
     } catch { /* user cancelled */ }
     setSharing(false)
+    sharingRef.current = false
   }
 
   // ── already done ─────────────────────────────────────────────────────────────
@@ -577,7 +582,7 @@ export default function Execucao() {
                 Tire uma foto e ela será usada como fundo do card do treino.
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                <button onClick={() => photoInputRef.current?.click()}
+                <button onClick={() => { setShareAskPhoto(false); photoInputRef.current?.click() }}
                   style={{ height: 52, background: '#E8542A', border: 'none', borderRadius: 14, font: `700 14px ${FF}`, color: '#fff', cursor: 'pointer', boxShadow: '0 4px 0 #C4421E' }}>
                   Sim, tirar foto
                 </button>
