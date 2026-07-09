@@ -4,7 +4,6 @@ import { useNavigate } from 'react-router-dom'
 import { ChevronLeft, Check } from 'lucide-react'
 import jsPDF from 'jspdf'
 import { useAuthStore } from '../../store/auth'
-import { useChatStore } from '../../store/chat'
 import { supabase } from '../../lib/supabase'
 
 // ── Types ────────────────────────────────────────────────────
@@ -268,7 +267,6 @@ const STEPS = [
 export default function Anamnese() {
   const navigate = useNavigate()
   const { user, setUser } = useAuthStore()
-  const { addMessage } = useChatStore()
 
   const [step, setStep]     = useState(0)
   const [data, setData]     = useState<AnamneseData>({ ...EMPTY, nome: user?.name ?? '' })
@@ -308,13 +306,6 @@ export default function Anamnese() {
       const dataUri = buildPDF(data, nomeAluno)
       const agora   = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
       const filename = `Anamnese_${nomeAluno.replace(/\s+/g, '_')}.pdf`
-
-      addMessage({ type: 'file', from: 'aluno', filename, dataUri, size: '~42 KB', time: agora })
-      addMessage({
-        type: 'text', from: 'coach',
-        text: `Olá, ${nomeAluno}! 👋 Recebi sua anamnese. Vou analisar tudo e já começo a montar seu treino personalizado. Em breve entro em contato!`,
-        time: agora,
-      })
 
       if (user?.id) {
         await supabase.from('profiles').update({ anamnese_completed: true }).eq('id', user.id)

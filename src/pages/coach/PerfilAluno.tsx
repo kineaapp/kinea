@@ -1664,7 +1664,7 @@ export default function PerfilAluno() {
       {showAssignModal && student && user && (
         <AssignWorkoutModal
           studentId={studentId}
-          coachId={user.id}
+          coachId={user.id!}
           onClose={() => setShowAssignModal(false)}
           onAssigned={handleAfterAssign}
         />
