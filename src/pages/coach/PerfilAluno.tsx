@@ -713,6 +713,8 @@ export default function PerfilAluno() {
   const [assessLoading,   setAssessLoading]   = useState(false)
   const [payments,        setPayments]        = useState<PaymentRow[]>([])
   const [payLoading,      setPayLoading]      = useState(false)
+  const [editingDueId,    setEditingDueId]    = useState<number | null>(null)
+  const [editingDueVal,   setEditingDueVal]   = useState('')
   const [checkins,        setCheckins]        = useState<CheckInRow[]>([])
   const [checkLoading,    setCheckLoading]    = useState(false)
   const [sessions,        setSessions]        = useState<SessionRow[]>([])
@@ -755,6 +757,14 @@ export default function PerfilAluno() {
     setAssessments((data as AssessmentRow[] | null) ?? [])
     setAssessLoading(false)
   }, [studentId])
+
+  async function saveDueDate(id: number, val: string) {
+    if (!val) { setEditingDueId(null); return }
+    await supabase.from('payments').update({ due_date: val }).eq('id', id)
+    setPayments(prev => prev.map(p => p.id === id ? { ...p, due_date: val } : p))
+    setEditingDueId(null)
+    showToast('Data de vencimento atualizada.')
+  }
 
   const fetchPayments = useCallback(async () => {
     if (!studentId || loaded.current.has('payments')) return
@@ -1752,7 +1762,26 @@ export default function PerfilAluno() {
                       <div key={p.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '13px 18px', borderTop: i === 0 ? 'none' : '1px solid #f1ece0' }}>
                         <div>
                           <div style={{ font: `600 14px ${FF}`, color: '#1B2A4A' }}>{p.description ?? 'Fatura'}</div>
-                          <div style={{ font: `400 12px ${FF}`, color: '#9a948a' }}>venc. {fmtDate(p.due_date)}</div>
+                          {editingDueId === p.id ? (
+                            <input
+                              type="date"
+                              value={editingDueVal}
+                              autoFocus
+                              onChange={e => setEditingDueVal(e.target.value)}
+                              onBlur={() => saveDueDate(p.id, editingDueVal)}
+                              onKeyDown={e => { if (e.key === 'Enter') saveDueDate(p.id, editingDueVal); if (e.key === 'Escape') setEditingDueId(null) }}
+                              style={{ font: `400 12px ${FF}`, color: '#1B2A4A', border: '1.5px solid #E8542A', borderRadius: 6, padding: '2px 6px', outline: 'none', background: '#fff', marginTop: 2 }}
+                            />
+                          ) : (
+                            <div
+                              onClick={() => { setEditingDueId(p.id); setEditingDueVal(p.due_date) }}
+                              style={{ display: 'inline-flex', alignItems: 'center', gap: 5, font: `400 12px ${FF}`, color: '#9a948a', cursor: 'pointer' }}
+                              title="Clique para editar"
+                            >
+                              venc. {fmtDate(p.due_date)}
+                              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                            </div>
+                          )}
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
                           <span style={{ font: `700 13px ${FF}`, color: '#1B2A4A' }}>{fmtMoney(p.amount)}</span>
