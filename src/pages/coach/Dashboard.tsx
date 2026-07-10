@@ -2,6 +2,7 @@ import { useState, useEffect, type CSSProperties } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useStudentsStore } from '../../store/students'
 import { useAuthStore } from '../../store/auth'
+import { useLeadsStore } from '../../store/leads'
 import { NewStudentModal } from '../../components/coach/NewStudentModal'
 import { supabase } from '../../lib/supabase'
 
@@ -151,6 +152,7 @@ export default function Dashboard() {
   const [newOpen,    setNewOpen]    = useState(false)
   const { students, addStudent, fetchStudents } = useStudentsStore()
   const { user } = useAuthStore()
+  const { leads } = useLeadsStore()
 
   const [recentAssessments,   setRecentAssessments]   = useState<RecentAssessment[]>([])
   const [upcomingAssessments, setUpcomingAssessments] = useState<StudentAssessment[]>([])
@@ -485,7 +487,11 @@ export default function Dashboard() {
               <button type="button" onClick={() => navigate('/coach/leads')} style={{ border: 'none', background: 'none', color: '#E8542A', font: `600 12px ${FF}`, cursor: 'pointer', padding: 0 }}>Abrir CRM</button>
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
-              {[{ n: 0, label: 'Novo', accent: false }, { n: 0, label: 'Contactado', accent: false }, { n: 0, label: 'Interessado', accent: true }].map(({ n, label, accent }) => (
+              {[
+                { n: leads.filter(l => l.stage === 'novo').length,        label: 'Novo',        accent: false },
+                { n: leads.filter(l => l.stage === 'contactado').length,  label: 'Contactado',  accent: false },
+                { n: leads.filter(l => l.stage === 'interessado').length, label: 'Interessado', accent: true  },
+              ].map(({ n, label, accent }) => (
                 <div key={label} style={{ flex: 1, background: '#f7f3ea', borderRadius: 10, padding: '11px 10px', textAlign: 'center' }}>
                   <div style={{ font: `800 19px/1 ${FF}`, color: accent ? '#E8542A' : '#1B2A4A' }}>{n}</div>
                   <div style={{ font: `500 10.5px ${FF}`, color: '#7c7869', marginTop: 4 }}>{label}</div>

@@ -1,22 +1,8 @@
 import { useState, useRef, useEffect, type DragEvent } from 'react'
 import { getInitials } from '../../data/mock'
+import { useLeadsStore, type Lead, type LeadStage as Stage } from '../../store/leads'
 
 const FF = '"Libre Franklin",sans-serif'
-
-// ── Types ───────────────────────────────────────────────────
-type Stage = 'novo' | 'contactado' | 'interessado' | 'fechado' | 'perdido'
-
-interface Lead {
-  id:      number
-  name:    string
-  goal:    string
-  source:  string
-  plan:    string
-  value:   string
-  when:    string
-  contact: string
-  stage:   Stage
-}
 
 // ── Constants ───────────────────────────────────────────────
 const STAGES: { key: Stage; title: string; color: string }[] = [
@@ -161,12 +147,11 @@ function KanbanColumn({ stage, leads, dragOver, onDragOver, onDragLeave, onDrop,
 }
 
 // ── Lead detail drawer ──────────────────────────────────────
-function LeadDrawer({ lead, onClose, onMoveStage, onConvert, onStub }: {
+function LeadDrawer({ lead, onClose, onMoveStage, onConvert }: {
   lead:        Lead
   onClose:     () => void
   onMoveStage: (id: number, stage: Stage) => void
   onConvert:   (id: number) => void
-  onStub:      () => void
 }) {
   const [bg, color] = avPalette(lead.id)
   const src = SOURCE_STYLE[lead.source] ?? { color: '#1B2A4A', bg: '#eef1f6' }
@@ -239,11 +224,13 @@ function LeadDrawer({ lead, onClose, onMoveStage, onConvert, onStub }: {
             {[
               {
                 icon: <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#25D366" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7a8.5 8.5 0 0 1-.9-3.8A8.38 8.38 0 0 1 12.5 3a8.38 8.38 0 0 1 8.5 8.5z"/></svg>,
-                label: 'Enviar WhatsApp', color: '#1B2A4A', hoverBg: '#fbf8f1', action: onStub,
+                label: 'Enviar WhatsApp', color: '#1B2A4A', hoverBg: '#fbf8f1',
+                action: () => { const d = lead.contact.replace(/\D/g, ''); if (d) window.open(`https://wa.me/55${d}`, '_blank') },
               },
               {
                 icon: <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#E8542A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"/></svg>,
-                label: 'Ligar', color: '#1B2A4A', hoverBg: '#fbf8f1', action: onStub,
+                label: 'Ligar', color: '#1B2A4A', hoverBg: '#fbf8f1',
+                action: () => { const d = lead.contact.replace(/\D/g, ''); if (d) window.open(`tel:+55${d}`) },
               },
               {
                 icon: <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#1B7a4a" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6"/><path d="M22 11h-6"/></svg>,
@@ -462,14 +449,13 @@ function NewLeadModal({ initialStage, onClose, onAdd }: {
 
 // ── Main ────────────────────────────────────────────────────
 export default function Leads() {
-  const [leads,       setLeads]       = useState<Lead[]>([])
+  const { leads, addLead, setLeads: storeSetLeads } = useLeadsStore()
   const [openId,      setOpenId]      = useState<number | null>(null)
   const [newOpen,     setNewOpen]     = useState(false)
   const [newStage,    setNewStage]    = useState<Stage>('novo')
   const [dragOverCol, setDragOverCol] = useState<Stage | null>(null)
   const [toast,       setToast]       = useState('')
   const dragIdRef = useRef<number | null>(null)
-  const nextId    = useRef(1)
   const toastRef  = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
   useEffect(() => () => clearTimeout(toastRef.current), [])
@@ -510,24 +496,23 @@ export default function Leads() {
     let id = dragIdRef.current
     try { if (!id) id = parseInt(e.dataTransfer.getData('text/plain'), 10) } catch {}
     if (!id) return
-    setLeads(prev => prev.map(l => l.id === id && l.stage !== col ? { ...l, stage: col } : l))
+    storeSetLeads(prev => prev.map(l => l.id === id && l.stage !== col ? { ...l, stage: col } : l))
   }
 
   function handleMoveStage(id: number, stage: Stage) {
-    setLeads(prev => prev.map(l => l.id === id ? { ...l, stage } : l))
+    storeSetLeads(prev => prev.map(l => l.id === id ? { ...l, stage } : l))
   }
 
   function handleConvert(id: number) {
     const lead = leads.find(l => l.id === id)
     if (!lead) return
-    setLeads(prev => prev.map(l => l.id === id ? { ...l, stage: 'fechado' } : l))
+    storeSetLeads(prev => prev.map(l => l.id === id ? { ...l, stage: 'fechado' } : l))
     setOpenId(null)
     showToast(lead.name.split(' ')[0] + ' convertido em aluno!')
   }
 
   function handleAddLead(data: Omit<Lead, 'id'>) {
-    const id = nextId.current++
-    setLeads(prev => [{ id, ...data }, ...prev])
+    addLead(data)
     setNewOpen(false)
     showToast('Lead adicionado ao funil.')
   }
@@ -595,7 +580,6 @@ export default function Leads() {
           onClose={() => setOpenId(null)}
           onMoveStage={handleMoveStage}
           onConvert={handleConvert}
-          onStub={() => showToast('Em breve — integração externa.')}
         />
       )}
 

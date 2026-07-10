@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useStudentsStore } from '../../store/students'
 import { useAuthStore } from '../../store/auth'
 import { useCoachChatStore } from '../../store/coachChat'
@@ -70,6 +70,7 @@ function Toast({ msg }: { msg: string }) {
 // ── Page ───────────────────────────────────────────────────────────────────────
 export default function Mensagens() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const [activeId,    setActiveId]    = useState<number | null>(null)
   const [query,       setQuery]       = useState('')
   const [draft,       setDraft]       = useState('')
@@ -77,6 +78,8 @@ export default function Mensagens() {
   const [attachMenu,  setAttachMenu]  = useState(false)
   const [recording,   setRecording]   = useState(false)
   const [recSecs,     setRecSecs]     = useState(0)
+  const [pickerOpen,  setPickerOpen]  = useState(false)
+  const [pickerQuery, setPickerQuery] = useState('')
 
   const { user }                            = useAuthStore()
   const { students, fetchStudents, loading: studentsLoading } = useStudentsStore()
@@ -125,7 +128,12 @@ export default function Mensagens() {
   }, [user?.id])
 
   useEffect(() => {
-    if (students.length > 0) setActiveId(id => id ?? students[0].id)
+    const sid = searchParams.get('student')
+    if (sid && students.some(s => s.id === Number(sid))) {
+      setActiveId(Number(sid))
+    } else if (students.length > 0) {
+      setActiveId(id => id ?? students[0].id)
+    }
   }, [students.length])
 
   useEffect(() => {
@@ -265,15 +273,58 @@ export default function Mensagens() {
                   </span>
                 )}
               </h1>
-              <button
-                onClick={() => showToast('Em breve.')}
-                aria-label="Nova conversa"
-                style={{ width: 34, height: 34, borderRadius: 9, border: 'none', background: '#E8542A', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: '0 2px 0 #c4421e' }}
-              >
-                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" />
-                </svg>
-              </button>
+              <div style={{ position: 'relative' }}>
+                <button
+                  onClick={() => { setPickerOpen(v => !v); setPickerQuery('') }}
+                  aria-label="Nova conversa"
+                  style={{ width: 34, height: 34, borderRadius: 9, border: 'none', background: '#E8542A', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: '0 2px 0 #c4421e' }}
+                >
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" />
+                  </svg>
+                </button>
+                {pickerOpen && (
+                  <>
+                    <div onClick={() => setPickerOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 69 }} />
+                    <div style={{ position: 'absolute', top: 'calc(100% + 8px)', right: 0, width: 260, background: '#fff', border: '1px solid #ece7d9', borderRadius: 12, boxShadow: '0 8px 28px rgba(27,42,74,.18)', zIndex: 70, overflow: 'hidden' }}>
+                      <div style={{ padding: '10px 12px', borderBottom: '1px solid #f1ece0' }}>
+                        <input
+                          autoFocus
+                          value={pickerQuery}
+                          onChange={e => setPickerQuery(e.target.value)}
+                          placeholder="Buscar aluno…"
+                          style={{ width: '100%', height: 36, border: '1.5px solid #e0d9c8', borderRadius: 8, padding: '0 12px', font: `400 13px ${FF}`, color: '#1B2A4A', outline: 'none', background: '#faf7ee' }}
+                        />
+                      </div>
+                      <div style={{ maxHeight: 240, overflowY: 'auto' }}>
+                        {students
+                          .filter(s => !pickerQuery.trim() || s.name.toLowerCase().includes(pickerQuery.trim().toLowerCase()))
+                          .map(s => {
+                            const cp = AVATAR_PALETTE[s.id % AVATAR_PALETTE.length]
+                            return (
+                              <button
+                                key={s.id}
+                                type="button"
+                                onClick={() => { openConv(s.id); setPickerOpen(false); setPickerQuery('') }}
+                                style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', border: 'none', background: 'none', padding: '10px 14px', cursor: 'pointer', textAlign: 'left' }}
+                                onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = '#faf7ee'}
+                                onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'none'}
+                              >
+                                <div style={{ width: 32, height: 32, borderRadius: '50%', background: cp[0], color: cp[1], display: 'flex', alignItems: 'center', justifyContent: 'center', font: `700 11px ${FF}`, flexShrink: 0 }}>
+                                  {getInitials(s.name)}
+                                </div>
+                                <span style={{ font: `600 13px ${FF}`, color: '#1B2A4A', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.name}</span>
+                              </button>
+                            )
+                          })}
+                        {students.filter(s => !pickerQuery.trim() || s.name.toLowerCase().includes(pickerQuery.trim().toLowerCase())).length === 0 && (
+                          <div style={{ padding: '16px 14px', font: `400 13px ${FF}`, color: '#a89f8e', textAlign: 'center' }}>Nenhum aluno encontrado.</div>
+                        )}
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
             <div style={{ position: 'relative' }}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9a948a" strokeWidth="2" strokeLinecap="round" style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)' }}>

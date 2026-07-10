@@ -65,6 +65,44 @@ function mapStatus(dbStatus: string, dueDate: string): Status {
   return new Date(dueDate + 'T00:00:00') < today ? 'atrasado' : 'pendente'
 }
 
+// ── Receipt ──────────────────────────────────────────────────
+function openRecibo(charge: Charge) {
+  const html = `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Recibo — ${charge.name}</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Arial,sans-serif;padding:48px;color:#1B2A4A;max-width:560px;margin:auto}
+h1{font-size:22px;font-weight:800;margin-bottom:4px}
+.sub{font-size:13px;color:#7c7869;margin-bottom:32px}
+.row{display:flex;justify-content:space-between;padding:12px 0;border-bottom:1px solid #f0ece0;font-size:14px}
+.lbl{color:#7c7869}
+.val{font-weight:700}
+.total{font-size:22px;color:#1B7a4a}
+.badge{display:inline-block;background:#e7f3ea;color:#1B7a4a;padding:3px 12px;border-radius:20px;font-size:11px;font-weight:700}
+.btn{margin-top:32px;text-align:right}
+button{background:#1B2A4A;color:#fff;border:none;padding:10px 22px;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer}
+@media print{button{display:none}}
+</style>
+</head>
+<body>
+<h1>Recibo de Pagamento</h1>
+<p class="sub">Kinea — Personal Training</p>
+<div class="row"><span class="lbl">Aluno</span><span class="val">${charge.name}</span></div>
+<div class="row"><span class="lbl">Plano</span><span class="val">${charge.plan}</span></div>
+<div class="row"><span class="lbl">Forma de pagamento</span><span class="val">${charge.method}</span></div>
+<div class="row"><span class="lbl">Data de pagamento</span><span class="val">${charge.paidOn ?? '—'}</span></div>
+<div class="row"><span class="lbl">Status</span><span class="val"><span class="badge">Pago ✓</span></span></div>
+<div class="row" style="border-bottom:none;margin-top:8px"><span class="lbl">Valor total</span><span class="val total">R$ ${Number(charge.value).toLocaleString('pt-BR')}</span></div>
+<div class="btn"><button onclick="window.print()">Imprimir / Salvar PDF</button></div>
+</body>
+</html>`
+  const w = window.open('', '_blank')
+  if (w) { w.document.write(html); w.document.close() }
+}
+
 // ── Toast ───────────────────────────────────────────────────
 function Toast({ msg }: { msg: string }) {
   if (!msg) return null
@@ -76,12 +114,11 @@ function Toast({ msg }: { msg: string }) {
 }
 
 // ── Charge detail drawer ─────────────────────────────────────
-function ChargeDrawer({ charge, onClose, onMarkPaid, onRemind, onStub }: {
+function ChargeDrawer({ charge, onClose, onMarkPaid, onRemind }: {
   charge:     Charge
   onClose:    () => void
   onMarkPaid: (id: number) => void
   onRemind:   (id: number) => void
-  onStub:     () => void
 }) {
   const sm  = STATUS_MAP[charge.status]
   const pal = avatarPalette(charge.id)
@@ -176,7 +213,7 @@ function ChargeDrawer({ charge, onClose, onMarkPaid, onRemind, onStub }: {
                 <span style={{ font: `700 13.5px ${FF}`, color: '#1B7a4a' }}>Pagamento confirmado</span>
               </div>
               <button
-                type="button" onClick={onStub}
+                type="button" onClick={() => openRecibo(charge)}
                 style={{ width: '100%', height: 46, border: '1.5px solid #d9d3c4', background: '#fff', color: '#1B2A4A', borderRadius: 10, font: `700 13.5px ${FF}`, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
                 onMouseEnter={e => { e.currentTarget.style.background = '#f4efe3' }}
                 onMouseLeave={e => { e.currentTarget.style.background = '#fff' }}
@@ -615,7 +652,6 @@ export default function Pagamentos() {
           onClose={() => setOpenId(null)}
           onMarkPaid={handleMarkPaid}
           onRemind={handleRemind}
-          onStub={() => showToast('Em breve.')}
         />
       )}
 
