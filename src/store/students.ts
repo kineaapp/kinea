@@ -14,7 +14,7 @@ interface StudentsStore {
   addStudent:                (data: NewStudentData, coachId: string) => Promise<void>
   deleteStudent:             (id: number) => Promise<void>
   updatePlan:                (id: number, plan: string) => Promise<void>
-  updateStudentInfo:         (id: number, info: { name?: string; email?: string; goal?: string }) => Promise<void>
+  updateStudentInfo:         (id: number, info: { name?: string; email?: string; goal?: string; phone?: string | null }) => Promise<void>
   blockStudent:              (id: number, blocked: boolean) => Promise<void>
   setStudentStripeSubId:     (id: number, subId: string) => void
   updateAssessmentFrequency: (id: number, freq: AssessmentFrequency) => Promise<void>
@@ -32,6 +32,7 @@ type Row = {
   next_assessment:       string | null
   since:                 string
   cpf:                   string | null
+  phone:                 string | null
   stripe_subscription_id: string | null
   blocked:               boolean
   unblocked_at:          string | null
@@ -57,6 +58,7 @@ function mapRow(r: Row): Student {
     since:               formatSince(r.since),
     sinceRaw:            r.since,
     cpf:                 r.cpf ?? null,
+    phone:               r.phone ?? null,
     stripeSubId:         r.stripe_subscription_id ?? null,
     blocked:             r.blocked ?? false,
     assessmentFrequency: r.assessment_frequency ?? null,

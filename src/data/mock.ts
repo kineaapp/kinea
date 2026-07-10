@@ -16,6 +16,7 @@ export interface Student {
   since:               string
   sinceRaw:            string
   cpf:                 string | null
+  phone:               string | null
   stripeSubId:         string | null
   blocked:             boolean
   assessmentFrequency: AssessmentFrequency

@@ -694,6 +694,7 @@ export default function PerfilAluno() {
   const [editName,      setEditName]          = useState('')
   const [editEmail,     setEditEmail]         = useState('')
   const [editGoal,      setEditGoal]          = useState('')
+  const [editPhone,     setEditPhone]         = useState('')
   const [editSaving,    setEditSaving]        = useState(false)
   const [blockLoading,  setBlockLoading]      = useState(false)
   const [subLoading,    setSubLoading]        = useState(false)
@@ -963,6 +964,7 @@ export default function PerfilAluno() {
     setEditName(student?.name ?? '')
     setEditEmail(student?.email ?? '')
     setEditGoal(student?.goal ?? '')
+    setEditPhone(student?.phone ?? '')
     setShowEditModal(true)
   }
 
@@ -972,7 +974,7 @@ export default function PerfilAluno() {
     const goal  = editGoal.trim()
     if (!name || !email || !goal) return
     setEditSaving(true)
-    await updateStudentInfo(studentId, { name, email, goal })
+    await updateStudentInfo(studentId, { name, email, goal, phone: editPhone.trim() || null })
     setEditSaving(false)
     setShowEditModal(false)
     showToast('Dados atualizados.')
@@ -1061,9 +1063,10 @@ export default function PerfilAluno() {
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               {[
-                { label: 'Nome completo', value: editName, set: setEditName, type: 'text' },
+                { label: 'Nome completo', value: editName,  set: setEditName,  type: 'text'  },
                 { label: 'E-mail',        value: editEmail, set: setEditEmail, type: 'email' },
-                { label: 'Objetivo',      value: editGoal,  set: setEditGoal,  type: 'text' },
+                { label: 'Objetivo',      value: editGoal,  set: setEditGoal,  type: 'text'  },
+                { label: 'Telefone (WhatsApp)', value: editPhone, set: setEditPhone, type: 'tel' },
               ].map(({ label, value, set, type }) => (
                 <div key={label}>
                   <label style={{ display: 'block', font: `600 11px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#6b6657', marginBottom: 7 }}>{label}</label>

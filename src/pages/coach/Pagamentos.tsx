@@ -16,6 +16,7 @@ interface Charge {
   studentId: number
   name:      string
   plan:      string
+  phone:     string | null
   value:     number
   method:    string
   due:       string
@@ -326,7 +327,7 @@ export default function Pagamentos() {
     if (!user?.id) return
     supabase
       .from('payments')
-      .select('id, amount, status, due_date, paid_at, students!inner(id, name, plan, coach_id)')
+      .select('id, amount, status, due_date, paid_at, students!inner(id, name, plan, phone, coach_id)')
       .eq('students.coach_id', user.id)
       .order('due_date', { ascending: false })
       .then(({ data }) => {
@@ -336,6 +337,7 @@ export default function Pagamentos() {
           studentId: p.students.id,
           name:      p.students.name,
           plan:      p.students.plan,
+          phone:     p.students.phone ?? null,
           value:     p.amount,
           method:    'Pix',
           due:       formatDate(p.due_date),
@@ -384,7 +386,14 @@ export default function Pagamentos() {
 
   function handleRemind(id: number) {
     const c = charges.find(x => x.id === id)
-    if (c) showToast('Lembrete enviado para ' + c.name.split(' ')[0] + '.')
+    if (!c) return
+    const digits = c.phone?.replace(/\D/g, '')
+    if (digits) {
+      const msg = encodeURIComponent(`Olá ${c.name.split(' ')[0]}! Passando para lembrar que sua mensalidade vence em ${c.due}. 😊`)
+      window.open(`https://wa.me/55${digits}?text=${msg}`, '_blank')
+    } else {
+      showToast(`Cadastre o telefone de ${c.name.split(' ')[0]} para enviar o lembrete.`)
+    }
   }
 
   async function handleRequest(id: number, action: 'aprovar' | 'recusar') {
@@ -417,6 +426,7 @@ export default function Pagamentos() {
       studentId,
       name:      st.name,
       plan:      st.plan,
+      phone:     null,
       value:     amount,
       method:    'Pix',
       due:       formatDate(dueDate),
