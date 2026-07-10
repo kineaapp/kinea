@@ -79,7 +79,8 @@ export const useStudentsStore = create<StudentsStore>((set) => ({
     if (!data) return
 
     // Detecta alunos com parcelas vencidas na tabela payments
-    const today = new Date().toISOString().split('T')[0]
+    const _d = new Date()
+    const today = `${_d.getFullYear()}-${String(_d.getMonth() + 1).padStart(2, '0')}-${String(_d.getDate()).padStart(2, '0')}`
     const { data: overdueRows } = await supabase
       .from('payments')
       .select('student_id')
@@ -129,7 +130,8 @@ export const useStudentsStore = create<StudentsStore>((set) => ({
   },
 
   addStudent: async (data, coachId) => {
-    const today = new Date().toISOString().split('T')[0]
+    const _d2 = new Date()
+    const today = `${_d2.getFullYear()}-${String(_d2.getMonth() + 1).padStart(2, '0')}-${String(_d2.getDate()).padStart(2, '0')}`
     const plan = data.plan ?? 'Sem plano'
     const { data: row, error } = await supabase
       .from('students')
