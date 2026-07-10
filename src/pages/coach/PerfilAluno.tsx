@@ -768,9 +768,10 @@ export default function PerfilAluno() {
     if (!studentId || loaded.current.has('assessments')) return
     loaded.current.add('assessments')
     setAssessLoading(true)
-    const { data } = await supabase.from('assessments')
+    const { data, error } = await supabase.from('assessments')
       .select('id,assessed_at,weight_kg,body_fat_pct,chest_cm,waist_cm,hip_cm,arm_cm,thigh_cm,notes,photo_frente_url,photo_lado_esq_url,photo_lado_dir_url,photo_costas_url')
       .eq('student_id', studentId).order('assessed_at', { ascending: true })
+    if (error) console.error('[fetchAssessments]', error.message)
     setAssessments((data as AssessmentRow[] | null) ?? [])
     setAssessLoading(false)
   }, [studentId])
@@ -2046,17 +2047,21 @@ export default function PerfilAluno() {
           studentUuid={student.studentUuid}
           onClose={() => setShowNewAssessment(false)}
           onSaved={(row: SavedAssessmentRow) => {
-            setAssessments(prev => [...prev, row as AssessmentRow].sort(
+            const updated = [...assessments, row as AssessmentRow].sort(
               (a, b) => new Date(a.assessed_at).getTime() - new Date(b.assessed_at).getTime()
-            ))
+            )
+            setAssessments(updated)
             const freq = student?.assessmentFrequency
             const days = freq === 'monthly' ? 28 : freq === 'biweekly' ? 14 : freq === 'weekly' ? 7 : 0
-            if (days > 0) {
-              const base = new Date(row.assessed_at)
-              base.setDate(base.getDate() + days)
-              const next = `${base.getFullYear()}-${String(base.getMonth() + 1).padStart(2, '0')}-${String(base.getDate()).padStart(2, '0')}`
+            if (days > 0 && updated.length > 0) {
+              const firstMs = new Date(updated[0].assessed_at).getTime()
+              const rowMs   = new Date(row.assessed_at).getTime()
+              const n       = Math.floor((rowMs - firstMs) / (days * 86400000)) + 1
+              const nd      = new Date(firstMs + n * days * 86400000)
+              const next    = `${nd.getFullYear()}-${String(nd.getMonth() + 1).padStart(2, '0')}-${String(nd.getDate()).padStart(2, '0')}`
               updateNextAssessment(studentId, next)
-              const d = next.split('-'); showToast(`Avaliação salva. Próxima agendada para ${d[2]}/${d[1]}/${d[0]}.`)
+              const [y, m, d] = next.split('-')
+              showToast(`Avaliação salva. Próxima agendada para ${d}/${m}/${y}.`)
             } else {
               showToast('Avaliação salva com sucesso.')
             }
