@@ -612,7 +612,7 @@ function AssessmentDetailDrawer({
               }} />
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 9 }}>
               {PHOTOS.map(p => {
-                const url = (assessment as Record<string, unknown>)[p.col] as string | null
+                const url = (assessment as unknown as Record<string, unknown>)[p.col] as string | null
                 return (
                   <div key={p.col} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}>
                     {url ? (
