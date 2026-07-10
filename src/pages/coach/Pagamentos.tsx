@@ -304,6 +304,7 @@ export default function Pagamentos() {
   const [requests,  setRequests]  = useState<PlanRequest[]>([])
   const [tab,       setTab]       = useState<Tab>('all')
   const [query,     setQuery]     = useState('')
+  const [sortDate,  setSortDate]  = useState<'asc' | 'desc'>('desc')
   const [openId,    setOpenId]    = useState<number | null>(null)
   const [newOpen,   setNewOpen]   = useState(false)
   const [toast,     setToast]     = useState('')
@@ -445,12 +446,22 @@ export default function Pagamentos() {
   const payRate = total ? Math.round((paid / total) * 100) + '%' : '—'
 
   // Filtered rows
+  function parseDue(s: string) {
+    const [d, m, y] = s.split('/')
+    return `${y}-${m}-${d}`
+  }
+
   const q = query.trim().toLowerCase()
-  const visible = charges.filter(c => {
-    const okTab = tab === 'all' || c.status === tab
-    const okQ   = !q || c.name.toLowerCase().includes(q)
-    return okTab && okQ
-  })
+  const visible = charges
+    .filter(c => {
+      const okTab = tab === 'all' || c.status === tab
+      const okQ   = !q || c.name.toLowerCase().includes(q)
+      return okTab && okQ
+    })
+    .sort((a, b) => {
+      const da = parseDue(a.due), db = parseDue(b.due)
+      return sortDate === 'asc' ? da.localeCompare(db) : db.localeCompare(da)
+    })
 
   const openCharge = openId !== null ? charges.find(c => c.id === openId) ?? null : null
 
@@ -615,7 +626,16 @@ export default function Pagamentos() {
           <div style={colLabel}>Aluno</div>
           <div style={colLabel}>Plano</div>
           <div style={colLabel}>Valor</div>
-          <div style={colLabel}>Vencimento</div>
+          <button
+            type="button"
+            onClick={() => setSortDate(s => s === 'asc' ? 'desc' : 'asc')}
+            style={{ ...colLabel, display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left' }}
+          >
+            Vencimento
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: .7, transform: sortDate === 'asc' ? 'rotate(180deg)' : 'none', transition: 'transform .2s' }}>
+              <path d="M6 9l6 6 6-6"/>
+            </svg>
+          </button>
           <div style={{ ...colLabel, textAlign: 'right' }}>Status</div>
         </div>
 
