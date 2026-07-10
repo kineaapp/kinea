@@ -677,7 +677,7 @@ export default function PerfilAluno() {
   const toastRef  = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
   // ── Auth / student ────────────────────────────────────────
-  const { students, fetchStudents, deleteStudent, updatePlan, updateStudentInfo, blockStudent, setStudentStripeSubId, updateAssessmentFrequency } = useStudentsStore()
+  const { students, fetchStudents, deleteStudent, updatePlan, updateStudentInfo, blockStudent, setStudentStripeSubId, updateAssessmentFrequency, updateNextAssessment } = useStudentsStore()
   const { user }  = useAuthStore()
   const studentId = parseInt(id ?? '0', 10)
   const [confirmDelete, setConfirmDelete] = useState(false)
@@ -2049,7 +2049,17 @@ export default function PerfilAluno() {
             setAssessments(prev => [...prev, row as AssessmentRow].sort(
               (a, b) => new Date(a.assessed_at).getTime() - new Date(b.assessed_at).getTime()
             ))
-            showToast('Avaliação salva com sucesso.')
+            const freq = student?.assessmentFrequency
+            const days = freq === 'monthly' ? 28 : freq === 'biweekly' ? 14 : freq === 'weekly' ? 7 : 0
+            if (days > 0) {
+              const base = new Date(row.assessed_at)
+              base.setDate(base.getDate() + days)
+              const next = `${base.getFullYear()}-${String(base.getMonth() + 1).padStart(2, '0')}-${String(base.getDate()).padStart(2, '0')}`
+              updateNextAssessment(studentId, next)
+              const d = next.split('-'); showToast(`Avaliação salva. Próxima agendada para ${d[2]}/${d[1]}/${d[0]}.`)
+            } else {
+              showToast('Avaliação salva com sucesso.')
+            }
           }}
         />
       )}

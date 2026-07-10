@@ -18,6 +18,7 @@ interface StudentsStore {
   blockStudent:              (id: number, blocked: boolean) => Promise<void>
   setStudentStripeSubId:     (id: number, subId: string) => void
   updateAssessmentFrequency: (id: number, freq: AssessmentFrequency) => Promise<void>
+  updateNextAssessment:      (id: number, date: string) => Promise<void>
 }
 
 type Row = {
@@ -147,6 +148,13 @@ export const useStudentsStore = create<StudentsStore>((set) => ({
   updateAssessmentFrequency: async (id, freq) => {
     const { error } = await supabase.from('students').update({ assessment_frequency: freq }).eq('id', id)
     if (!error) set(s => ({ students: s.students.map(st => st.id === id ? { ...st, assessmentFrequency: freq } : st) }))
+  },
+
+  updateNextAssessment: async (id, date) => {
+    const { error } = await supabase.from('students').update({ next_assessment: date }).eq('id', id)
+    if (!error) set(s => ({
+      students: s.students.map(st => st.id === id ? { ...st, next: date } : st),
+    }))
   },
 
   addStudent: async (data, coachId) => {
