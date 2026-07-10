@@ -166,6 +166,8 @@ export default function Dashboard() {
     if (!user?.id) return
     const _d = new Date()
     const today = `${_d.getFullYear()}-${String(_d.getMonth() + 1).padStart(2, '0')}-${String(_d.getDate()).padStart(2, '0')}`
+    const in5d  = new Date(_d); in5d.setDate(in5d.getDate() + 5)
+    const in5dStr = `${in5d.getFullYear()}-${String(in5d.getMonth() + 1).padStart(2, '0')}-${String(in5d.getDate()).padStart(2, '0')}`
 
     supabase
       .from('assessments')
@@ -179,8 +181,8 @@ export default function Dashboard() {
       .select('id, name, next_assessment')
       .eq('coach_id', user.id)
       .gte('next_assessment', today)
+      .lte('next_assessment', in5dStr)
       .order('next_assessment', { ascending: true })
-      .limit(5)
       .then(({ data }) => setUpcomingAssessments((data as StudentAssessment[] | null) ?? []))
 
     supabase
@@ -479,6 +481,70 @@ export default function Dashboard() {
               </div>
             )
           })()}
+
+          {/* Assessments card */}
+          {(pendingAssessments.length > 0 || upcomingAssessments.length > 0) && (
+            <div style={{ background: '#fff', border: '1px solid #ece7d9', borderRadius: 14, padding: '18px 18px 8px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                <h2 style={{ font: `700 15px ${FF}`, color: '#1B2A4A', margin: 0 }}>Avaliações</h2>
+                {pendingAssessments.length > 0 && (
+                  <span style={{ font: `600 11px ${FF}`, color: '#D2402A', background: '#fbe6e1', borderRadius: 20, padding: '3px 9px' }}>
+                    {pendingAssessments.length} em atraso
+                  </span>
+                )}
+              </div>
+
+              {pendingAssessments.length > 0 && (
+                <>
+                  <div style={{ font: `700 10px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#D2402A', padding: '10px 0 2px', borderTop: '1px solid #f1ece0' }}>
+                    Em atraso
+                  </div>
+                  {pendingAssessments.slice(0, 4).map(a => {
+                    const late = Math.abs(diffDays(a.next_assessment))
+                    return (
+                      <div key={a.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0', borderTop: '1px solid #f1ece0' }}>
+                        <div>
+                          <div style={{ font: `600 13.5px ${FF}`, color: '#1B2A4A' }}>{a.name}</div>
+                          <div style={{ font: `400 11.5px ${FF}`, color: '#D2402A' }}>{late === 1 ? 'ontem' : `há ${late} dias`}</div>
+                        </div>
+                        <span style={{ font: `600 12px ${FF}`, color: '#D2402A' }}>{fmtShort(a.next_assessment)}</span>
+                      </div>
+                    )
+                  })}
+                  {pendingAssessments.length > 4 && (
+                    <div style={{ font: `500 11.5px ${FF}`, color: '#9a948a', padding: '6px 0 4px', borderTop: '1px solid #f1ece0', textAlign: 'center' }}>
+                      +{pendingAssessments.length - 4} mais em atraso
+                    </div>
+                  )}
+                </>
+              )}
+
+              {upcomingAssessments.length > 0 && (
+                <>
+                  <div style={{ font: `700 10px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#1B7a4a', padding: '10px 0 2px', borderTop: '1px solid #f1ece0', marginTop: pendingAssessments.length > 0 ? 4 : 0 }}>
+                    Próximas
+                  </div>
+                  {upcomingAssessments.map(a => {
+                    const diff  = diffDays(a.next_assessment)
+                    const label = diff === 0 ? 'hoje' : diff === 1 ? 'amanhã' : `em ${diff} dias`
+                    return (
+                      <div key={a.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0', borderTop: '1px solid #f1ece0' }}>
+                        <div>
+                          <div style={{ font: `600 13.5px ${FF}`, color: '#1B2A4A' }}>{a.name}</div>
+                          <div style={{ font: `400 11.5px ${FF}`, color: diff === 0 ? '#1B7a4a' : '#9a948a' }}>{label}</div>
+                        </div>
+                        <span style={{ font: `600 12px ${FF}`, color: '#7c7869' }}>{fmtShort(a.next_assessment)}</span>
+                      </div>
+                    )
+                  })}
+                </>
+              )}
+
+              <button type="button" onClick={() => navigate('/coach/alunos')} style={{ width: '100%', border: 'none', background: 'none', color: '#E8542A', font: `600 13px ${FF}`, padding: '12px 0', cursor: 'pointer', borderTop: '1px solid #f1ece0', marginTop: 4 }}>
+                Ver alunos →
+              </button>
+            </div>
+          )}
 
           {/* Leads pipeline */}
           <div style={{ background: '#fff', border: '1px solid #ece7d9', borderRadius: 14, padding: 18 }}>
