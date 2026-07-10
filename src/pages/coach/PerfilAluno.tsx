@@ -70,7 +70,8 @@ function calcSemanas(since: string): number {
   return Math.max(1, Math.floor((Date.now() - d.getTime()) / 604800000))
 }
 function fmtDate(iso: string) {
-  return new Date(iso).toLocaleDateString('pt-BR')
+  const [y, m, d] = iso.split('T')[0].split('-')
+  return `${d}/${m}/${y}`
 }
 function fmtMoney(v: number) {
   return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
