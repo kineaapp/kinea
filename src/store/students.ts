@@ -34,6 +34,7 @@ type Row = {
   cpf:                   string | null
   stripe_subscription_id: string | null
   blocked:               boolean
+  unblocked_at:          string | null
   assessment_frequency:  AssessmentFrequency
 }
 
@@ -95,17 +96,21 @@ export const useStudentsStore = create<StudentsStore>((set) => ({
     const overdueIds    = new Set((overdueRows ?? []).map((p: any) => p.student_id))
     const autoBlockIds  = new Set((overdueRows ?? []).filter((p: any) => p.due_date <= fiveDaysAgoStr).map((p: any) => p.student_id))
 
-    // Auto-bloqueia no DB alunos com 5+ dias de atraso que ainda não estão bloqueados
-    const toBlock = (data as Row[]).filter(r => autoBlockIds.has(r.id) && !r.blocked)
+    // Auto-bloqueia alunos com 5+ dias de atraso, exceto se o coach desbloqueou há menos de 5 dias
+    const toBlock = (data as Row[]).filter(r => {
+      if (!autoBlockIds.has(r.id) || r.blocked) return false
+      if (!r.unblocked_at) return true
+      return r.unblocked_at <= fiveDaysAgoStr + 'T23:59:59Z'
+    })
     if (toBlock.length > 0) {
-      await supabase.from('students').update({ blocked: true }).in('id', toBlock.map(r => r.id))
+      await supabase.from('students').update({ blocked: true, unblocked_at: null }).in('id', toBlock.map(r => r.id))
     }
 
     set({
       students: (data as Row[]).map(r => {
         const s = mapRow(r)
         if (overdueIds.has(r.id) && s.pay !== 'active') s.pay = 'overdue'
-        if (autoBlockIds.has(r.id) && s.pay !== 'active') s.blocked = true
+        if (toBlock.some(t => t.id === r.id)) s.blocked = true
         return s
       }),
     })
@@ -132,7 +137,8 @@ export const useStudentsStore = create<StudentsStore>((set) => ({
   })),
 
   blockStudent: async (id, blocked) => {
-    const { error } = await supabase.from('students').update({ blocked }).eq('id', id)
+    const unblocked_at = blocked ? null : new Date().toISOString()
+    const { error } = await supabase.from('students').update({ blocked, unblocked_at }).eq('id', id)
     if (!error) set(s => ({ students: s.students.map(st => st.id === id ? { ...st, blocked } : st) }))
   },
 
