@@ -49,6 +49,11 @@ interface PaymentRow {
   due_date: string; paid_at: string | null; description: string | null
 }
 
+interface AttachmentRow {
+  id: number; name: string; url: string
+  size: number | null; mime_type: string | null; uploaded_at: string
+}
+
 interface CheckInRow { id: number; content: string; created_at: string }
 
 interface SessionRow {
@@ -716,6 +721,16 @@ export default function PerfilAluno() {
   const [payLoading,      setPayLoading]      = useState(false)
   const [editingDueId,    setEditingDueId]    = useState<number | null>(null)
   const [editingDueVal,   setEditingDueVal]   = useState('')
+  const [newPayOpen,      setNewPayOpen]      = useState(false)
+  const [newPayDesc,      setNewPayDesc]      = useState('')
+  const [newPayAmount,    setNewPayAmount]    = useState('')
+  const [newPayDue,       setNewPayDue]       = useState('')
+  const [newPaySaving,    setNewPaySaving]    = useState(false)
+  const [markingPaidId,   setMarkingPaidId]   = useState<number | null>(null)
+  const [attachments,     setAttachments]     = useState<AttachmentRow[]>([])
+  const [attachLoading,   setAttachLoading]   = useState(false)
+  const [attachUploading, setAttachUploading] = useState(false)
+  const attachInputRef = useRef<HTMLInputElement>(null)
   const [checkins,        setCheckins]        = useState<CheckInRow[]>([])
   const [checkLoading,    setCheckLoading]    = useState(false)
   const [sessions,        setSessions]        = useState<SessionRow[]>([])
@@ -767,6 +782,65 @@ export default function PerfilAluno() {
     showToast('Data de vencimento atualizada.')
   }
 
+  async function saveNewPayment() {
+    if (!newPayAmount || !newPayDue || !studentId) return
+    setNewPaySaving(true)
+    const amount = parseFloat(newPayAmount.replace(',', '.'))
+    const { data } = await supabase.from('payments')
+      .insert({ student_id: studentId, description: newPayDesc || 'Mensalidade', amount, due_date: newPayDue, status: 'pending' })
+      .select('id,amount,status,due_date,paid_at,description').single()
+    if (data) setPayments(prev => [data as PaymentRow, ...prev])
+    setNewPayOpen(false); setNewPayDesc(''); setNewPayAmount(''); setNewPayDue('')
+    setNewPaySaving(false)
+    showToast('Fatura registrada.')
+  }
+
+  async function markAsPaid(id: number) {
+    setMarkingPaidId(id)
+    const paid_at = new Date().toISOString()
+    await supabase.from('payments').update({ status: 'active', paid_at }).eq('id', id)
+    setPayments(prev => prev.map(p => p.id === id ? { ...p, status: 'active', paid_at } : p))
+    setMarkingPaidId(null)
+    showToast('Pagamento confirmado.')
+  }
+
+  const fetchAttachments = useCallback(async () => {
+    if (!studentId || loaded.current.has('attachments')) return
+    loaded.current.add('attachments')
+    setAttachLoading(true)
+    const { data } = await supabase.from('student_attachments')
+      .select('id,name,url,size,mime_type,uploaded_at')
+      .eq('student_id', studentId).order('uploaded_at', { ascending: false })
+    setAttachments((data as AttachmentRow[] | null) ?? [])
+    setAttachLoading(false)
+  }, [studentId])
+
+  async function uploadAttachment(file: File) {
+    if (!studentId) return
+    setAttachUploading(true)
+    const ext = file.name.split('.').pop()
+    const path = `${studentId}/${Date.now()}.${ext}`
+    const { error } = await supabase.storage.from('student-attachments').upload(path, file)
+    if (error) { showToast('Erro ao enviar arquivo.'); setAttachUploading(false); return }
+    const { data: pd } = supabase.storage.from('student-attachments').getPublicUrl(path)
+    const { data: row } = await supabase.from('student_attachments')
+      .insert({ student_id: studentId, name: file.name, url: pd.publicUrl, size: file.size, mime_type: file.type })
+      .select('id,name,url,size,mime_type,uploaded_at').single()
+    if (row) setAttachments(prev => [row as AttachmentRow, ...prev])
+    setAttachUploading(false)
+    showToast('Arquivo enviado.')
+  }
+
+  async function deleteAttachment(id: number, url: string) {
+    const path = url.split('/student-attachments/')[1]
+    await Promise.all([
+      supabase.storage.from('student-attachments').remove([path]),
+      supabase.from('student_attachments').delete().eq('id', id),
+    ])
+    setAttachments(prev => prev.filter(a => a.id !== id))
+    showToast('Arquivo removido.')
+  }
+
   const fetchPayments = useCallback(async () => {
     if (!studentId || loaded.current.has('payments')) return
     loaded.current.add('payments')
@@ -811,6 +885,7 @@ export default function PerfilAluno() {
     if (tab === 'feedback')   fetchSessions()
     if (tab === 'avaliacoes') fetchAssessments()
     if (tab === 'pagamentos') fetchPayments()
+    if (tab === 'anexos')     fetchAttachments()
     if (tab === 'historico')  { fetchCheckins(); fetchAssessments(); fetchPayments() }
   }, [tab, student?.id])
 
@@ -1746,19 +1821,61 @@ export default function PerfilAluno() {
                 </div>
               ))}
 
+              {/* Botão nova fatura quando lista vazia */}
+              {payments.length === 0 && !newPayOpen && !payLoading && (
+                <div style={{ textAlign: 'right' }}>
+                  <button type="button" onClick={() => setNewPayOpen(true)}
+                    style={{ height: 38, padding: '0 16px', border: 'none', background: '#E8542A', color: '#fff', borderRadius: 9, font: `700 13px ${FF}`, cursor: 'pointer', boxShadow: '0 2px 0 #c4421e' }}>
+                    + Nova fatura
+                  </button>
+                </div>
+              )}
+
+              {/* Nova fatura inline */}
+              {newPayOpen && (
+                <div style={{ background: '#fff', border: '1.5px solid #E8542A', borderRadius: 14, padding: '18px 20px' }}>
+                  <div style={{ font: `700 14px ${FF}`, color: '#1B2A4A', marginBottom: 14 }}>Nova fatura</div>
+                  <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                    <div style={{ flex: 2, minWidth: 140 }}>
+                      <div style={{ font: `600 11px ${FF}`, color: '#6b6657', textTransform: 'uppercase', letterSpacing: '.4px', marginBottom: 5 }}>Descrição</div>
+                      <input value={newPayDesc} onChange={e => setNewPayDesc(e.target.value)} placeholder="Mensalidade" style={{ width: '100%', height: 40, border: '1.5px solid #d9d3c4', borderRadius: 9, padding: '0 12px', font: `400 13.5px ${FF}`, color: '#1B2A4A', outline: 'none', background: '#fff' }} />
+                    </div>
+                    <div style={{ flex: 1, minWidth: 100 }}>
+                      <div style={{ font: `600 11px ${FF}`, color: '#6b6657', textTransform: 'uppercase', letterSpacing: '.4px', marginBottom: 5 }}>Valor (R$)</div>
+                      <input value={newPayAmount} onChange={e => setNewPayAmount(e.target.value)} placeholder="0,00" inputMode="decimal" style={{ width: '100%', height: 40, border: '1.5px solid #d9d3c4', borderRadius: 9, padding: '0 12px', font: `400 13.5px ${FF}`, color: '#1B2A4A', outline: 'none', background: '#fff' }} />
+                    </div>
+                    <div style={{ flex: 1, minWidth: 120 }}>
+                      <div style={{ font: `600 11px ${FF}`, color: '#6b6657', textTransform: 'uppercase', letterSpacing: '.4px', marginBottom: 5 }}>Vencimento</div>
+                      <input type="date" value={newPayDue} onChange={e => setNewPayDue(e.target.value)} style={{ width: '100%', height: 40, border: '1.5px solid #d9d3c4', borderRadius: 9, padding: '0 12px', font: `400 13.5px ${FF}`, color: '#1B2A4A', outline: 'none', background: '#fff' }} />
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+                    <button type="button" onClick={saveNewPayment} disabled={newPaySaving || !newPayAmount || !newPayDue}
+                      style={{ height: 38, padding: '0 18px', border: 'none', background: '#E8542A', color: '#fff', borderRadius: 9, font: `700 13px ${FF}`, cursor: 'pointer', opacity: (!newPayAmount || !newPayDue) ? .5 : 1 }}>
+                      {newPaySaving ? 'Salvando...' : 'Registrar'}
+                    </button>
+                    <button type="button" onClick={() => { setNewPayOpen(false); setNewPayDesc(''); setNewPayAmount(''); setNewPayDue('') }}
+                      style={{ height: 38, padding: '0 14px', border: '1.5px solid #d9d3c4', background: '#fff', color: '#7c7869', borderRadius: 9, font: `600 13px ${FF}`, cursor: 'pointer' }}>
+                      Cancelar
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {payLoading ? (
                 <div style={{ font: `400 13px ${FF}`, color: '#9a948a', padding: '20px 0' }}>Carregando...</div>
-              ) : payments.length === 0 ? (
-                <Empty icon="💳" title="Nenhuma fatura registrada" sub="As faturas serão listadas aqui assim que forem geradas." />
-              ) : (
+              ) : payments.length === 0 && !newPayOpen ? (
+                <Empty icon="💳" title="Nenhuma fatura registrada" sub="Clique em + Nova fatura para registrar." />
+              ) : payments.length > 0 ? (
                 <div style={{ background: '#fff', border: '1px solid #ece7d9', borderRadius: 14, overflow: 'hidden' }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 18px', background: '#fbf8f1', borderBottom: '1px solid #ece7d9' }}>
                     <span style={{ font: `700 11px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#9a948a' }}>Faturas</span>
-                    <button type="button" onClick={() => showToast('Em breve!')}
-                      style={{ border: 'none', background: 'none', color: '#E8542A', font: `600 12px ${FF}`, cursor: 'pointer' }}>Registrar pagamento</button>
+                    <button type="button" onClick={() => setNewPayOpen(true)}
+                      style={{ border: 'none', background: 'none', color: '#E8542A', font: `600 12px ${FF}`, cursor: 'pointer' }}>+ Nova fatura</button>
                   </div>
                   {payments.map((p, i) => {
                     const s = STATUS_PAY[p.status] ?? STATUS_PAY.pending
+                    const isPending = p.status === 'pending' || p.status === 'overdue'
                     return (
                       <div key={p.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '13px 18px', borderTop: i === 0 ? 'none' : '1px solid #f1ece0' }}>
                         <div>
@@ -1784,15 +1901,21 @@ export default function PerfilAluno() {
                             </div>
                           )}
                         </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                           <span style={{ font: `700 13px ${FF}`, color: '#1B2A4A' }}>{fmtMoney(p.amount)}</span>
+                          {isPending && (
+                            <button type="button" onClick={() => markAsPaid(p.id)} disabled={markingPaidId === p.id}
+                              style={{ height: 28, padding: '0 10px', border: 'none', borderRadius: 7, background: '#e7f3ea', color: '#1B7a4a', font: `700 11px ${FF}`, cursor: 'pointer', opacity: markingPaidId === p.id ? .6 : 1, whiteSpace: 'nowrap' }}>
+                              {markingPaidId === p.id ? '...' : 'Marcar pago'}
+                            </button>
+                          )}
                           <span style={{ display: 'inline-flex', alignItems: 'center', font: `600 11px ${FF}`, color: s.color, background: s.bg, borderRadius: 20, padding: '3px 10px', whiteSpace: 'nowrap' }}>{s.label}</span>
                         </div>
                       </div>
                     )
                   })}
                 </div>
-              )}
+              ) : null}
             </div>
           )}
 
@@ -1804,10 +1927,53 @@ export default function PerfilAluno() {
                   <h2 style={{ font: `800 20px ${FF}`, color: '#1B2A4A', margin: 0, letterSpacing: '-.4px' }}>Anexos</h2>
                   <p style={{ font: `400 13px ${FF}`, color: '#7c7869', margin: '3px 0 0' }}>Exames, fotos de progresso, laudos e documentos</p>
                 </div>
-                <button type="button" onClick={() => showToast('Em breve!')}
-                  style={{ height: 42, padding: '0 18px', border: 'none', background: '#E8542A', color: '#fff', borderRadius: 10, font: `700 13.5px ${FF}`, cursor: 'pointer', boxShadow: '0 2px 0 #c4421e' }}>+ Adicionar anexo</button>
+                <button type="button" onClick={() => attachInputRef.current?.click()} disabled={attachUploading}
+                  style={{ height: 42, padding: '0 18px', border: 'none', background: '#E8542A', color: '#fff', borderRadius: 10, font: `700 13.5px ${FF}`, cursor: attachUploading ? 'default' : 'pointer', boxShadow: '0 2px 0 #c4421e', opacity: attachUploading ? .7 : 1 }}>
+                  {attachUploading ? 'Enviando...' : '+ Adicionar anexo'}
+                </button>
+                <input ref={attachInputRef} type="file" style={{ display: 'none' }}
+                  onChange={e => { const f = e.target.files?.[0]; if (f) uploadAttachment(f); if (attachInputRef.current) attachInputRef.current.value = '' }} />
               </div>
-              <Empty icon="📎" title="Nenhum anexo enviado" sub="Envio de arquivos em breve." />
+
+              {attachLoading ? (
+                <div style={{ font: `400 13px ${FF}`, color: '#9a948a' }}>Carregando...</div>
+              ) : attachments.length === 0 ? (
+                <Empty icon="📎" title="Nenhum anexo enviado" sub="Clique em + Adicionar anexo para enviar exames, laudos ou documentos." />
+              ) : (
+                <div style={{ background: '#fff', border: '1px solid #ece7d9', borderRadius: 14, overflow: 'hidden' }}>
+                  {attachments.map((a, i) => {
+                    const isImg = a.mime_type?.startsWith('image/')
+                    const isPdf = a.mime_type === 'application/pdf'
+                    const sizeFmt = a.size ? a.size < 1024 * 1024 ? `${(a.size / 1024).toFixed(0)} KB` : `${(a.size / 1024 / 1024).toFixed(1)} MB` : ''
+                    return (
+                      <div key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 13, padding: '12px 18px', borderTop: i === 0 ? 'none' : '1px solid #f1ece0' }}>
+                        <div style={{ width: 38, height: 38, borderRadius: 9, background: isImg ? '#eef1f6' : isPdf ? '#fbe6e1' : '#f1ece0', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                          {isImg
+                            ? <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1B2A4A" strokeWidth="2" strokeLinecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+                            : isPdf
+                              ? <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#c4421e" strokeWidth="2" strokeLinecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14,2 14,8 20,8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="15" y2="17"/></svg>
+                              : <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#7c7869" strokeWidth="2" strokeLinecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14,2 14,8 20,8"/></svg>
+                          }
+                        </div>
+                        <div style={{ minWidth: 0, flex: 1 }}>
+                          <div style={{ font: `600 13.5px ${FF}`, color: '#1B2A4A', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.name}</div>
+                          <div style={{ font: `400 11.5px ${FF}`, color: '#9a948a' }}>{sizeFmt}{sizeFmt && ' · '}{fmtDate(a.uploaded_at)}</div>
+                        </div>
+                        <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+                          <a href={a.url} target="_blank" rel="noreferrer"
+                            style={{ height: 32, padding: '0 12px', border: '1.5px solid #d9d3c4', borderRadius: 8, background: '#fff', color: '#1B2A4A', font: `600 12px ${FF}`, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', textDecoration: 'none' }}>
+                            Abrir
+                          </a>
+                          <button type="button" onClick={() => deleteAttachment(a.id, a.url)}
+                            style={{ height: 32, padding: '0 12px', border: 'none', borderRadius: 8, background: '#fbe6e1', color: '#c4421e', font: `600 12px ${FF}`, cursor: 'pointer' }}>
+                            Remover
+                          </button>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
             </div>
           )}
 
