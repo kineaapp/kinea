@@ -1658,6 +1658,11 @@ export default function PerfilAluno() {
                   <div style={{ display: 'inline-flex', alignItems: 'center', font: `700 14px ${FF}`, color: pay.color, background: pay.bg, borderRadius: 20, padding: '4px 12px', marginTop: 7 }}>{pay.label}</div>
                   {(student.pay === 'overdue' || student.blocked) && (
                     <div style={{ marginTop: 12 }}>
+                      {student.blocked && (
+                        <div style={{ font: `400 11px ${FF}`, color: '#9a7060', marginBottom: 8 }}>
+                          Bloqueado automaticamente por atraso
+                        </div>
+                      )}
                       <button
                         type="button"
                         disabled={blockLoading}
@@ -1669,7 +1674,7 @@ export default function PerfilAluno() {
                         }}
                         style={{ height: 32, padding: '0 14px', border: 'none', borderRadius: 8, font: `700 12px ${FF}`, cursor: blockLoading ? 'default' : 'pointer', opacity: blockLoading ? .6 : 1, background: student.blocked ? '#e7f3ea' : '#fbe6e1', color: student.blocked ? '#1B7a4a' : '#c4421e' }}
                       >
-                        {blockLoading ? '...' : student.blocked ? 'Desbloquear' : 'Bloquear'}
+                        {blockLoading ? '...' : student.blocked ? 'Liberar acesso' : 'Bloquear'}
                       </button>
                     </div>
                   )}

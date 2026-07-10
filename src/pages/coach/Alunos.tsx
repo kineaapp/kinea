@@ -504,7 +504,12 @@ export default function Alunos() {
                       {getInitials(s.name)}
                     </div>
                     <div style={{ minWidth: 0, flex: 1 }}>
-                      <div style={{ font: `600 14px ${FF}`, color: '#1B2A4A', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.name}</div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                        <div style={{ font: `600 14px ${FF}`, color: '#1B2A4A', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.name}</div>
+                        {s.blocked && (
+                          <span style={{ flexShrink: 0, font: `700 10px ${FF}`, color: '#c4421e', background: '#fbe6e1', borderRadius: 4, padding: '2px 6px', letterSpacing: '.2px' }}>Bloqueado</span>
+                        )}
+                      </div>
                       <div className="k-col-goal" style={{ font: `400 12px ${FF}`, color: '#9a948a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.goal}</div>
                     </div>
                   </div>

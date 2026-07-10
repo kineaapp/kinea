@@ -81,19 +81,31 @@ export const useStudentsStore = create<StudentsStore>((set) => ({
     // Detecta alunos com parcelas vencidas na tabela payments
     const _d = new Date()
     const today = `${_d.getFullYear()}-${String(_d.getMonth() + 1).padStart(2, '0')}-${String(_d.getDate()).padStart(2, '0')}`
+    const fiveDaysAgo = new Date(_d); fiveDaysAgo.setDate(fiveDaysAgo.getDate() - 5)
+    const fiveDaysAgoStr = `${fiveDaysAgo.getFullYear()}-${String(fiveDaysAgo.getMonth() + 1).padStart(2, '0')}-${String(fiveDaysAgo.getDate()).padStart(2, '0')}`
+
+    const studentIds = (data as Row[]).map(r => r.id)
     const { data: overdueRows } = await supabase
       .from('payments')
-      .select('student_id')
-      .in('student_id', (data as Row[]).map(r => r.id))
+      .select('student_id, due_date')
+      .in('student_id', studentIds)
       .eq('status', 'pending')
       .lt('due_date', today)
 
-    const overdueIds = new Set((overdueRows ?? []).map((p: any) => p.student_id))
+    const overdueIds    = new Set((overdueRows ?? []).map((p: any) => p.student_id))
+    const autoBlockIds  = new Set((overdueRows ?? []).filter((p: any) => p.due_date <= fiveDaysAgoStr).map((p: any) => p.student_id))
+
+    // Auto-bloqueia no DB alunos com 5+ dias de atraso que ainda não estão bloqueados
+    const toBlock = (data as Row[]).filter(r => autoBlockIds.has(r.id) && !r.blocked)
+    if (toBlock.length > 0) {
+      await supabase.from('students').update({ blocked: true }).in('id', toBlock.map(r => r.id))
+    }
 
     set({
       students: (data as Row[]).map(r => {
         const s = mapRow(r)
         if (overdueIds.has(r.id) && s.pay !== 'active') s.pay = 'overdue'
+        if (autoBlockIds.has(r.id) && s.pay !== 'active') s.blocked = true
         return s
       }),
     })
