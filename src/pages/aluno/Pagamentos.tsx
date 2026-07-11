@@ -158,8 +158,47 @@ export default function Pagamentos() {
   const [error,        setError]           = useState('')
   const [copied,       setCopied]          = useState(false)
   const copyTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const pollRef        = useRef<ReturnType<typeof setInterval> | undefined>(undefined)
 
   useEffect(() => { if (user?.id) void loadInitialData() }, [user?.id])
+
+  // Polling automático quando QR Code está sendo exibido
+  useEffect(() => {
+    if (step === 'done-pix') {
+      pollRef.current = setInterval(() => { void checkPixConfirmed() }, 5000)
+    } else {
+      clearInterval(pollRef.current)
+    }
+    return () => clearInterval(pollRef.current)
+  }, [step])
+
+  async function checkPixConfirmed() {
+    if (!user?.id) return
+    const { data: clientRow } = await supabase.from('clients').select('id').eq('auth_user_id', user.id).maybeSingle()
+    if (!clientRow) return
+    const { data: subRow } = await supabase
+      .from('subscriptions')
+      .select('id, status, current_cycle, max_cycles, next_due_date, plans(code, label, payment_method), subscription_payments(id, cycle_number, value, status, paid_at, due_date, pix_qr_code, pix_copy_paste)')
+      .eq('client_id', clientRow.id)
+      .not('status', 'in', '("canceled","finished")')
+      .order('created_at', { ascending: false })
+      .limit(1).maybeSingle()
+    if (!subRow) return
+    const plans = subRow.plans as unknown as { code: string; label: string; payment_method: string }
+    const rawPayments = (subRow.subscription_payments as Record<string, unknown>[] ?? [])
+    const payments: SubPayment[] = rawPayments.map(p => ({
+      id: p.id as string, cycleNumber: p.cycle_number as number, value: p.value as number,
+      status: p.status as string, paidAt: p.paid_at as string | null, dueDate: p.due_date as string | null,
+      pixQrCode: p.pix_qr_code as string | null, pixCopyPaste: p.pix_copy_paste as string | null,
+    })).sort((a, b) => a.cycleNumber - b.cycleNumber)
+    const confirmed = payments.some(p => p.status === 'confirmed')
+    if (confirmed || subRow.status === 'active') {
+      clearInterval(pollRef.current)
+      setSubscription({ id: subRow.id, status: subRow.status, planCode: plans.code, planLabel: plans.label, paymentMethod: plans.payment_method, currentCycle: subRow.current_cycle, maxCycles: subRow.max_cycles, nextDueDate: subRow.next_due_date, payments })
+      setMode('dashboard')
+      setStep('plan')
+    }
+  }
 
   async function loadInitialData() {
     if (!user?.id) return
@@ -394,12 +433,18 @@ export default function Pagamentos() {
             {firstPixPayment.pixCopyPaste && (
               <button
                 onClick={() => copyPix(firstPixPayment.pixCopyPaste!)}
-                style={{ width: '100%', height: 44, border: '1.5px solid #ece7d9', background: '#fff', borderRadius: 10, font: `600 13px ${FF}`, color: '#1B2A4A', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+                style={{ width: '100%', height: 44, border: '1.5px solid #ece7d9', background: '#fff', borderRadius: 10, font: `600 13px ${FF}`, color: '#1B2A4A', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 8 }}
               >
                 {copied ? <CheckCheck size={16} color="#1B7a4a" /> : <Copy size={16} />}
                 {copied ? 'Copiado!' : 'Copiar código Pix'}
               </button>
             )}
+            <button
+              onClick={() => void checkPixConfirmed()}
+              style={{ width: '100%', height: 40, border: '1.5px solid #d9d3c4', background: '#f7f3ea', borderRadius: 10, font: `600 13px ${FF}`, color: '#1B2A4A', cursor: 'pointer' }}
+            >
+              Verificar pagamento
+            </button>
           </div>
         )}
 

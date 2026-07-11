@@ -1053,6 +1053,12 @@ export default function PerfilAluno() {
     })
   }, [studentId])
 
+  async function refreshAsaasSub() {
+    loaded.current.delete('asaas')
+    setAsaasSub(null)
+    await fetchAsaasSub()
+  }
+
   const fetchCheckins = useCallback(async () => {
     if (!studentId || loaded.current.has('checkins')) return
     loaded.current.add('checkins')
@@ -2015,7 +2021,10 @@ export default function PerfilAluno() {
                       <span style={{ font: `700 11px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#9a948a' }}>
                         Assinatura · {asaasSub.planLabel}
                       </span>
-                      <span style={{ font: `600 11px ${FF}`, color: st.color, background: st.bg, borderRadius: 20, padding: '3px 10px' }}>{st.label}</span>
+                      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                        <button type="button" onClick={() => void refreshAsaasSub()} style={{ border: 'none', background: 'none', cursor: 'pointer', font: `500 11px ${FF}`, color: '#9a948a', padding: '2px 6px' }}>↻ Atualizar</button>
+                        <span style={{ font: `600 11px ${FF}`, color: st.color, background: st.bg, borderRadius: 20, padding: '3px 10px' }}>{st.label}</span>
+                      </div>
                     </div>
                     {asaasSub.payments.length === 0 ? (
                       <div style={{ padding: '20px 18px', font: `400 13px ${FF}`, color: '#9a948a' }}>Aguardando primeiro pagamento...</div>
