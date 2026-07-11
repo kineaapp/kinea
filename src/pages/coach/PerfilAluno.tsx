@@ -820,8 +820,8 @@ export default function PerfilAluno() {
   // ── Remote data ───────────────────────────────────────────
   const [anamnese,        setAnamnese]        = useState<AnamneseRow | null>(null)
   const [anamneseLoading, setAnamneseLoading] = useState(false)
-  const [assignments,     setAssignments]     = useState<AssignmentRow[]>([])
-  const [assignLoading,   setAssignLoading]   = useState(false)
+  const [, setAssignments]     = useState<AssignmentRow[]>([])
+  const [, setAssignLoading]   = useState(false)
   const [activeProgram,   setActiveProgram]   = useState<ActiveProgram | null>(null)
   const [programLoading,  setProgramLoading]  = useState(false)
   const [showAssignProgram, setShowAssignProgram] = useState(false)
@@ -887,7 +887,7 @@ export default function PerfilAluno() {
       .limit(1)
       .maybeSingle()
     if (data?.programs) {
-      const prog = data.programs as { id: number; name: string; days_per_week: number; program_slots: ProgramSlotDetail[] }
+      const prog = data.programs as unknown as { id: number; name: string; days_per_week: number; program_slots: ProgramSlotDetail[] }
       setActiveProgram({
         assignment_id: data.id,
         program_id: prog.id,
@@ -1144,12 +1144,6 @@ export default function PerfilAluno() {
       Carregando...
     </div>
   )
-
-  // ── Unique workouts for overview / treino ─────────────────
-  const uniqueWorkouts = assignments.reduce<WorkoutRow[]>((acc, a) => {
-    if (!acc.find(w => w.id === a.workouts.id)) acc.push(a.workouts)
-    return acc
-  }, [])
 
   return (
     <div>

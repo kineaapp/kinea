@@ -117,7 +117,7 @@ export default function Treinos() {
       .maybeSingle()
 
     if (paData?.programs) {
-      const prog = paData.programs as {
+      const prog = paData.programs as unknown as {
         name: string; days_per_week: number
         program_slots: (Omit<ProgramSlot, 'workouts'> & { workouts: (WorkoutDetail & { exercises: ExRow[] }) | null })[]
       }

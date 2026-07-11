@@ -157,7 +157,7 @@ export default function Pagamentos() {
   const [pixResult,    setPixResult]       = useState<{ qrCode: string | null; copyPaste: string | null; dueDate: string | null } | null>(null)
   const [error,        setError]           = useState('')
   const [copied,       setCopied]          = useState(false)
-  const copyTimeoutRef = useRef<ReturnType<typeof setTimeout>>()
+  const copyTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
   useEffect(() => { if (user?.id) void loadInitialData() }, [user?.id])
 
@@ -198,7 +198,7 @@ export default function Pagamentos() {
         .maybeSingle()
 
       if (subRow) {
-        const plans = subRow.plans as { code: string; label: string; payment_method: string }
+        const plans = subRow.plans as unknown as { code: string; label: string; payment_method: string }
         const rawPayments = (subRow.subscription_payments as Record<string, unknown>[] ?? [])
         const payments: SubPayment[] = rawPayments
           .map(p => ({
@@ -437,7 +437,6 @@ export default function Pagamentos() {
   }
 
   // ── Render: checkout ──────────────────────────────────────
-  const stepNum: 1 | 2 | 3 = step === 'plan' ? 1 : step === 'customer' ? 2 : 3
 
   return (
     <div style={{ background: '#F4EFE3', minHeight: '100%', paddingBottom: 40 }}>
