@@ -157,6 +157,7 @@ export default function Pagamentos() {
   const [pixResult,    setPixResult]       = useState<{ qrCode: string | null; copyPaste: string | null; dueDate: string | null } | null>(null)
   const [error,        setError]           = useState('')
   const [copied,       setCopied]          = useState(false)
+  const [checking,     setChecking]        = useState(false)
   const copyTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const pollRef        = useRef<ReturnType<typeof setInterval> | undefined>(undefined)
 
@@ -174,8 +175,9 @@ export default function Pagamentos() {
 
   async function checkPixConfirmed() {
     if (!user?.id) return
+    setChecking(true)
     const { data: clientRow } = await supabase.from('clients').select('id').eq('auth_user_id', user.id).maybeSingle()
-    if (!clientRow) return
+    if (!clientRow) { setChecking(false); return }
     const { data: subRow } = await supabase
       .from('subscriptions')
       .select('id, status, current_cycle, max_cycles, next_due_date, plans(code, label, payment_method), subscription_payments(id, cycle_number, value, status, paid_at, due_date, pix_qr_code, pix_copy_paste)')
@@ -183,7 +185,7 @@ export default function Pagamentos() {
       .not('status', 'in', '("canceled","finished")')
       .order('created_at', { ascending: false })
       .limit(1).maybeSingle()
-    if (!subRow) return
+    if (!subRow) { setChecking(false); return }
     const plans = subRow.plans as unknown as { code: string; label: string; payment_method: string }
     const rawPayments = (subRow.subscription_payments as Record<string, unknown>[] ?? [])
     const payments: SubPayment[] = rawPayments.map(p => ({
@@ -198,6 +200,7 @@ export default function Pagamentos() {
       setMode('dashboard')
       setStep('plan')
     }
+    setChecking(false)
   }
 
   async function loadInitialData() {
@@ -441,9 +444,10 @@ export default function Pagamentos() {
             )}
             <button
               onClick={() => void checkPixConfirmed()}
-              style={{ width: '100%', height: 40, border: '1.5px solid #d9d3c4', background: '#f7f3ea', borderRadius: 10, font: `600 13px ${FF}`, color: '#1B2A4A', cursor: 'pointer' }}
+              disabled={checking}
+              style={{ width: '100%', height: 40, border: '1.5px solid #d9d3c4', background: '#f7f3ea', borderRadius: 10, font: `600 13px ${FF}`, color: '#1B2A4A', cursor: checking ? 'default' : 'pointer', opacity: checking ? .7 : 1 }}
             >
-              Verificar pagamento
+              {checking ? 'Verificando...' : 'Verificar pagamento'}
             </button>
           </div>
         )}
