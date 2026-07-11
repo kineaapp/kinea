@@ -507,7 +507,12 @@ export default function Avaliacoes() {
       .select('student_id,assessed_at,weight_kg,body_fat_pct,chest_cm,waist_cm,hip_cm,arm_cm,thigh_cm,photo_frente_url,photo_costas_url,photo_lado_esq_url,photo_lado_dir_url')
       .in('student_id', rosterIds)
       .order('assessed_at', { ascending: true })
-      .then(({ data }) => {
+      .then(({ data, error }) => {
+        if (error) {
+          console.error('[Avaliacoes]', error.message)
+          setLoadError(error.message)
+          return
+        }
         if (!data || data.length === 0) return
         const grouped: Record<number, typeof data> = {}
         data.forEach(a => {
@@ -547,6 +552,7 @@ export default function Avaliacoes() {
   }, [user?.id, roster.length])
 
   const [students, setStudents] = useState<Student[]>([])
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [nextId, setNextId] = useState(1)
   const [tab, setTab] = useState<Tab>('all')
   const [openId, setOpenId] = useState<number | null>(null)
@@ -768,7 +774,15 @@ export default function Avaliacoes() {
             </div>
           ))}
 
-          {visible.length === 0 && (
+          {loadError && (
+            <div style={{ gridColumn: '1/-1', background: '#fbe6e1', border: '1px solid #f4c4b8', borderRadius: 12, padding: '14px 16px' }}>
+              <div style={{ font: `700 13px ${FF}`, color: '#c4421e', marginBottom: 4 }}>Erro ao carregar avaliações</div>
+              <div style={{ font: `400 12px ${FF}`, color: '#7c3a2a', fontFamily: 'monospace', wordBreak: 'break-all' }}>{loadError}</div>
+              <div style={{ font: `400 12px ${FF}`, color: '#7c3a2a', marginTop: 6 }}>Verifique se a migração <strong>024_assessments_photo_columns.sql</strong> foi aplicada no banco.</div>
+            </div>
+          )}
+
+          {!loadError && visible.length === 0 && (
             <div style={{ gridColumn: '1/-1', padding: '50px 20px', textAlign: 'center', font: `500 14px ${FF}`, color: '#a89f8e', border: '1.5px dashed #d8d1c0', borderRadius: 14 }}>
               Nenhum aluno neste filtro.
             </div>

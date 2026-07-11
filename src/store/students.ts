@@ -13,10 +13,9 @@ interface StudentsStore {
   fetchStudents:             (coachId: string) => Promise<void>
   addStudent:                (data: NewStudentData, coachId: string) => Promise<void>
   deleteStudent:             (id: number) => Promise<void>
-  updatePlan:                (id: number, plan: string) => Promise<void>
+  updatePlan:                (id: number, plan: string) => Promise<boolean>
   updateStudentInfo:         (id: number, info: { name?: string; email?: string; goal?: string; phone?: string | null }) => Promise<void>
   blockStudent:              (id: number, blocked: boolean) => Promise<void>
-  setStudentStripeSubId:     (id: number, subId: string) => void
   updateAssessmentFrequency: (id: number, freq: AssessmentFrequency) => Promise<void>
   updateNextAssessment:      (id: number, date: string) => Promise<void>
 }
@@ -34,7 +33,6 @@ type Row = {
   since:                 string
   cpf:                   string | null
   phone:                 string | null
-  stripe_subscription_id: string | null
   blocked:               boolean
   unblocked_at:          string | null
   assessment_frequency:  AssessmentFrequency
@@ -60,7 +58,6 @@ function mapRow(r: Row): Student {
     sinceRaw:            r.since,
     cpf:                 r.cpf ?? null,
     phone:               r.phone ?? null,
-    stripeSubId:         r.stripe_subscription_id ?? null,
     blocked:             r.blocked ?? false,
     assessmentFrequency: r.assessment_frequency ?? null,
   }
@@ -93,7 +90,7 @@ export const useStudentsStore = create<StudentsStore>((set) => ({
       .from('payments')
       .select('student_id, due_date')
       .in('student_id', studentIds)
-      .eq('status', 'pending')
+      .in('status', ['pending', 'overdue'])
       .lt('due_date', today)
 
     const overdueIds    = new Set((overdueRows ?? []).map((p: any) => p.student_id))
@@ -112,7 +109,11 @@ export const useStudentsStore = create<StudentsStore>((set) => ({
     set({
       students: (data as Row[]).map(r => {
         const s = mapRow(r)
-        if (overdueIds.has(r.id) && s.pay !== 'active') s.pay = 'overdue'
+        if (autoBlockIds.has(r.id) && s.pay !== 'active') {
+          s.pay = 'overdue'
+        } else if (overdueIds.has(r.id) && s.pay !== 'active') {
+          s.pay = 'pending'
+        }
         if (toBlock.some(t => t.id === r.id)) s.blocked = true
         return s
       }),
@@ -127,17 +128,15 @@ export const useStudentsStore = create<StudentsStore>((set) => ({
   updatePlan: async (id, plan) => {
     const pay_status = plan === 'Permuta' ? 'active' : 'pending'
     const { error } = await supabase.from('students').update({ plan, pay_status }).eq('id', id)
-    if (!error) set(s => ({ students: s.students.map(st => st.id === id ? { ...st, plan, pay: pay_status as PayStatus } : st) }))
+    if (error) return false
+    set(s => ({ students: s.students.map(st => st.id === id ? { ...st, plan, pay: pay_status as PayStatus } : st) }))
+    return true
   },
 
   updateStudentInfo: async (id, info) => {
     const { error } = await supabase.from('students').update(info).eq('id', id)
     if (!error) set(s => ({ students: s.students.map(st => st.id === id ? { ...st, ...info } : st) }))
   },
-
-  setStudentStripeSubId: (id, subId) => set(s => ({
-    students: s.students.map(st => st.id === id ? { ...st, stripeSubId: subId } : st),
-  })),
 
   blockStudent: async (id, blocked) => {
     const unblocked_at = blocked ? null : new Date().toISOString()

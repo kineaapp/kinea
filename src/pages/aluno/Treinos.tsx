@@ -13,38 +13,31 @@ const GOAL_STYLE: Record<string, { color: string; bg: string }> = {
   Mobilidade:      { color: '#5a4ea0', bg: '#ece9f6' },
 }
 
+const DAY_NAMES = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
+
 interface ExRow {
-  id: number
-  name: string
-  muscle_group: string
-  sets: number
-  reps: string
-  rest_sec: number
-  sort_order: number
+  id: number; name: string; muscle_group: string
+  sets: number; reps: string; rest_sec: number; sort_order: number
 }
 
-interface WorkoutRow {
-  id: number
-  name: string
-  goal: string
-  muscle_group: string
-  duration_min: number
-  exercises: ExRow[]
+interface WorkoutDetail {
+  id: number; name: string; goal: string; muscle_group: string
+  duration_min: number; exercises: ExRow[]
 }
 
-interface Assignment {
-  id: number
-  day_of_week: number | null
-  workout: WorkoutRow
+interface ProgramSlot {
+  id: number; position: number; day_of_week: number | null
+  workouts: WorkoutDetail | null
 }
+
+interface ActiveProgram { name: string; days_per_week: number; slots: ProgramSlot[] }
+
+// fallback: old workout_assignments
+interface Assignment { id: number; day_of_week: number | null; workout: WorkoutDetail }
 
 interface SessionRow {
-  id:           number
-  completed_at: string
-  intensity:    number | null
-  pain:         number | null
-  notes:        string | null
-  workouts:     { name: string } | null
+  id: number; completed_at: string; intensity: number | null; pain: number | null
+  notes: string | null; workouts: { name: string } | null
 }
 
 const INTENSITY_LABEL: Record<number, { emoji: string; label: string; color: string; bg: string }> = {
@@ -62,16 +55,19 @@ const PAIN_LABEL: Record<number, { label: string; color: string; bg: string }> =
   3: { label: 'Dor intensa',  color: '#c4421e', bg: '#fbe6e1' },
 }
 
+function slotLabel(pos: number) { return String.fromCharCode(64 + pos) }
+
 export default function Treinos() {
   const navigate = useNavigate()
   const { user }  = useAuthStore()
-  const [tab,         setTab]         = useState<'treinos' | 'historico'>('treinos')
-  const [assignments, setAssignments] = useState<Assignment[]>([])
-  const [loading,     setLoading]     = useState(true)
-  const [expandedId,  setExpandedId]  = useState<number | null>(null)
-  const [sessions,    setSessions]    = useState<SessionRow[]>([])
-  const [sessLoading, setSessLoading] = useState(false)
-  const [numericId,   setNumericId]   = useState<number | null>(null)
+  const [tab,          setTab]          = useState<'treinos' | 'historico'>('treinos')
+  const [activeProgram, setActiveProgram] = useState<ActiveProgram | null>(null)
+  const [assignments,   setAssignments]   = useState<Assignment[]>([])
+  const [loading,       setLoading]       = useState(true)
+  const [expandedKey,   setExpandedKey]   = useState<string | null>(null)
+  const [sessions,      setSessions]      = useState<SessionRow[]>([])
+  const [sessLoading,   setSessLoading]   = useState(false)
+  const [numericId,     setNumericId]     = useState<number | null>(null)
 
   useEffect(() => { if (user?.id) void load() }, [user?.id])
 
@@ -95,38 +91,58 @@ export default function Treinos() {
   async function load() {
     setLoading(true)
     const { data: studentRow } = await supabase
-      .from('students')
-      .select('id')
-      .eq('student_id', user!.id)
-      .single()
-
+      .from('students').select('id').eq('student_id', user!.id).single()
     if (!studentRow) { setLoading(false); return }
-    setNumericId((studentRow as any).id)
+    const sid = (studentRow as { id: number }).id
+    setNumericId(sid)
 
-    const { data } = await supabase
-      .from('workout_assignments')
+    // Try active program first
+    const { data: paData } = await supabase
+      .from('program_assignments')
       .select(`
-        id,
-        day_of_week,
-        workouts (
-          id, name, goal, muscle_group, duration_min,
-          exercises ( id, name, muscle_group, sets, reps, rest_sec, sort_order )
+        programs(
+          name, days_per_week,
+          program_slots(
+            id, position, day_of_week,
+            workouts( id, name, goal, muscle_group, duration_min,
+              exercises( id, name, muscle_group, sets, reps, rest_sec, sort_order )
+            )
+          )
         )
       `)
-      .eq('student_id', (studentRow as any).id)
+      .eq('student_id', sid)
+      .eq('active', true)
       .order('assigned_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
 
+    if (paData?.programs) {
+      const prog = paData.programs as {
+        name: string; days_per_week: number
+        program_slots: (Omit<ProgramSlot, 'workouts'> & { workouts: (WorkoutDetail & { exercises: ExRow[] }) | null })[]
+      }
+      const slots: ProgramSlot[] = [...(prog.program_slots ?? [])].map(sl => ({
+        ...sl,
+        workouts: sl.workouts
+          ? { ...sl.workouts, exercises: [...(sl.workouts.exercises ?? [])].sort((a, b) => a.sort_order - b.sort_order) }
+          : null,
+      })).sort((a, b) => a.position - b.position)
+      setActiveProgram({ name: prog.name, days_per_week: prog.days_per_week, slots })
+      setLoading(false)
+      return
+    }
+
+    // Fallback to old workout_assignments
+    const { data } = await supabase
+      .from('workout_assignments')
+      .select(`id, day_of_week, workouts(id, name, goal, muscle_group, duration_min, exercises(id, name, muscle_group, sets, reps, rest_sec, sort_order))`)
+      .eq('student_id', sid)
+      .order('assigned_at', { ascending: false })
     if (data) {
       setAssignments(
         (data as any[]).map(a => ({
-          id:          a.id,
-          day_of_week: a.day_of_week,
-          workout: {
-            ...a.workouts,
-            exercises: [...(a.workouts?.exercises ?? [])].sort(
-              (x: ExRow, y: ExRow) => x.sort_order - y.sort_order
-            ),
-          },
+          id: a.id, day_of_week: a.day_of_week,
+          workout: { ...a.workouts, exercises: [...(a.workouts?.exercises ?? [])].sort((x: ExRow, y: ExRow) => x.sort_order - y.sort_order) },
         }))
       )
     }
@@ -140,6 +156,8 @@ export default function Treinos() {
       </div>
     )
   }
+
+  const hasContent = activeProgram || assignments.length > 0
 
   return (
     <div style={{ paddingBottom: 24 }}>
@@ -207,7 +225,7 @@ export default function Treinos() {
           )
         })()}
 
-        {tab === 'treinos' && (assignments.length === 0 ? (
+        {tab === 'treinos' && (!hasContent ? (
           <div style={{ background: '#fff', borderRadius: 16, border: '1.5px dashed #D6CFBE', padding: '40px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, textAlign: 'center' }}>
             <div style={{ width: 52, height: 52, borderRadius: 14, background: '#eef1f6', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#1B2A4A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -226,21 +244,118 @@ export default function Treinos() {
               Falar com o coach
             </button>
           </div>
+        ) : activeProgram ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {/* Program banner */}
+            <div style={{ background: '#1B2A4A', borderRadius: 14, padding: '16px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+              <div>
+                <div style={{ font: `700 15px ${FF}`, color: '#FAEEDA', letterSpacing: '-.3px' }}>{activeProgram.name}</div>
+                <div style={{ font: `400 11.5px ${FF}`, color: '#8B97AD', marginTop: 3 }}>
+                  {activeProgram.days_per_week} treinos por semana · {activeProgram.slots.length} blocos
+                </div>
+              </div>
+              <span style={{ font: `700 10px ${FF}`, color: '#1B7a4a', background: 'rgba(27,122,74,.18)', border: '1px solid rgba(27,122,74,.3)', borderRadius: 20, padding: '4px 10px', flexShrink: 0 }}>Ativo</span>
+            </div>
+
+            {/* Slot cards */}
+            {activeProgram.slots.map(sl => {
+              const key = `slot-${sl.id}`
+              const open = expandedKey === key
+              const w = sl.workouts
+              const g = w ? (GOAL_STYLE[w.goal] ?? { color: '#1B2A4A', bg: '#eef1f6' }) : { color: '#9a948a', bg: '#f4efe3' }
+
+              return (
+                <div key={sl.id} style={{ background: '#fff', borderRadius: 16, border: '1px solid #ece7d9', overflow: 'hidden' }}>
+                  <div style={{ padding: '16px 16px 14px' }}>
+                    {/* Slot label + day */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                      <span style={{ font: `800 13px ${FF}`, color: '#fff', background: '#E8542A', borderRadius: 7, width: 30, height: 30, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        {slotLabel(sl.position)}
+                      </span>
+                      <span style={{ font: `700 14px ${FF}`, color: '#1B2A4A' }}>Treino {slotLabel(sl.position)}</span>
+                      {sl.day_of_week != null && (
+                        <span style={{ marginLeft: 'auto', font: `600 11px ${FF}`, color: '#6b5c3e', background: '#f1ece0', borderRadius: 7, padding: '3px 9px' }}>
+                          {DAY_NAMES[sl.day_of_week]}
+                        </span>
+                      )}
+                    </div>
+
+                    {w ? (
+                      <>
+                        <div style={{ font: `800 17px ${FF}`, color: '#1B2A4A', letterSpacing: '-.3px', marginBottom: 3 }}>{w.name}</div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span style={{ font: `600 11px ${FF}`, color: g.color, background: g.bg, borderRadius: 20, padding: '3px 9px' }}>{w.goal}</span>
+                          <span style={{ font: `400 11px ${FF}`, color: '#9a948a' }}>{w.muscle_group} · {w.duration_min} min · {w.exercises.length} exercício{w.exercises.length !== 1 ? 's' : ''}</span>
+                        </div>
+                      </>
+                    ) : (
+                      <div style={{ font: `400 13px ${FF}`, color: '#9a948a', fontStyle: 'italic' }}>Treino não definido pelo coach ainda</div>
+                    )}
+                  </div>
+
+                  {w && (
+                    <>
+                      <button
+                        onClick={() => setExpandedKey(open ? null : key)}
+                        style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px', border: 'none', borderTop: '1px solid #f4efe3', background: '#faf7f3', cursor: 'pointer', font: `600 12px ${FF}`, color: '#7c7869' }}
+                      >
+                        <span>{open ? 'Ocultar exercícios' : 'Ver exercícios'}</span>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"
+                          style={{ transform: open ? 'rotate(180deg)' : 'none', transition: 'transform .2s' }}>
+                          <path d="M6 9l6 6 6-6"/>
+                        </svg>
+                      </button>
+
+                      {open && (
+                        <div style={{ padding: '10px 16px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                          {w.exercises.map((ex, i) => (
+                            <div key={ex.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: '#f9f6ef', borderRadius: 10, border: '1px solid #ece7d9' }}>
+                              <div style={{ width: 26, height: 26, borderRadius: 7, background: g.bg, color: g.color, display: 'flex', alignItems: 'center', justifyContent: 'center', font: `800 10px ${FF}`, flexShrink: 0 }}>
+                                {i + 1}
+                              </div>
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ font: `700 13px ${FF}`, color: '#1B2A4A', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{ex.name}</div>
+                                <div style={{ font: `400 11px ${FF}`, color: '#9a948a' }}>{ex.muscle_group || '—'}</div>
+                              </div>
+                              <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                                <div style={{ font: `800 13px ${FF}`, color: '#1B2A4A' }}>{ex.sets} × {ex.reps}</div>
+                                <div style={{ font: `400 10px ${FF}`, color: '#b0a99c' }}>desc. {ex.rest_sec}s</div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      <div style={{ padding: `${open ? '12px' : '0'} 16px 16px`, borderTop: open ? '1px solid #f4efe3' : 'none' }}>
+                        <button
+                          onClick={() => navigate('/aluno/treinos/exec', { state: { workoutId: w.id, workoutName: w.name } })}
+                          style={{ width: '100%', height: 44, border: 'none', background: '#1B2A4A', color: '#FAEEDA', borderRadius: 10, font: `700 13.5px ${FF}`, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+                        >
+                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                            <polygon points="5 3 19 12 5 21 5 3"/>
+                          </svg>
+                          Iniciar treino
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )
+            })}
+          </div>
         ) : (
+          // Fallback: old workout_assignments
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             {assignments.map(a => {
               const w = a.workout
+              const key = `assign-${a.id}`
+              const open = expandedKey === key
               const g = GOAL_STYLE[w.goal] ?? { color: '#1B2A4A', bg: '#eef1f6' }
-              const open = expandedId === a.id
               return (
                 <div key={a.id} style={{ background: '#fff', borderRadius: 16, border: '1px solid #ece7d9', overflow: 'hidden' }}>
-
-                  {/* Card header */}
                   <div style={{ padding: '16px 16px 14px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-                      <span style={{ font: `600 11px ${FF}`, color: g.color, background: g.bg, borderRadius: 20, padding: '4px 10px' }}>
-                        {w.goal}
-                      </span>
+                      <span style={{ font: `600 11px ${FF}`, color: g.color, background: g.bg, borderRadius: 20, padding: '4px 10px' }}>{w.goal}</span>
                       <span style={{ font: `500 11px ${FF}`, color: '#9a948a' }}>{w.duration_min} min</span>
                     </div>
                     <div style={{ font: `800 17px ${FF}`, color: '#1B2A4A', letterSpacing: '-.3px', marginBottom: 3 }}>{w.name}</div>
@@ -248,10 +363,8 @@ export default function Treinos() {
                       {w.muscle_group} · {w.exercises.length} exercício{w.exercises.length !== 1 ? 's' : ''}
                     </div>
                   </div>
-
-                  {/* Toggle exercise list */}
                   <button
-                    onClick={() => setExpandedId(open ? null : a.id)}
+                    onClick={() => setExpandedKey(open ? null : key)}
                     style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px', border: 'none', borderTop: '1px solid #f4efe3', background: '#faf7f3', cursor: 'pointer', font: `600 12px ${FF}`, color: '#7c7869' }}
                   >
                     <span>{open ? 'Ocultar exercícios' : 'Ver exercícios'}</span>
@@ -260,8 +373,6 @@ export default function Treinos() {
                       <path d="M6 9l6 6 6-6"/>
                     </svg>
                   </button>
-
-                  {/* Exercise list */}
                   {open && (
                     <div style={{ padding: '10px 16px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
                       {w.exercises.map((ex, i) => (
@@ -281,8 +392,6 @@ export default function Treinos() {
                       ))}
                     </div>
                   )}
-
-                  {/* Action */}
                   <div style={{ padding: `${open ? '12px' : '0'} 16px 16px`, borderTop: open ? '1px solid #f4efe3' : 'none' }}>
                     <button
                       onClick={() => navigate('/aluno/treinos/exec', { state: { workoutId: w.id, workoutName: w.name } })}
@@ -294,7 +403,6 @@ export default function Treinos() {
                       Iniciar treino
                     </button>
                   </div>
-
                 </div>
               )
             })}
@@ -304,4 +412,3 @@ export default function Treinos() {
     </div>
   )
 }
-

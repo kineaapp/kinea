@@ -25,7 +25,7 @@ function getInitials(name: string) {
 function payInfo(p: PayStatus) {
   if (p === 'active')  return { label: 'Em dia',   color: '#1B7a4a', bg: '#e7f3ea' }
   if (p === 'pending') return { label: 'Pendente', color: '#b06a12', bg: '#f7ecd9' }
-  return                      { label: 'Vencido',  color: '#D2402A', bg: '#fbe6e1' }
+  return                      { label: 'Vencida',  color: '#D2402A', bg: '#fbe6e1' }
 }
 
 function semInfo(s: SemColor) {

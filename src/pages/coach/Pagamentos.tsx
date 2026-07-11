@@ -42,9 +42,9 @@ interface PlanRequest {
 
 // ── Constants ───────────────────────────────────────────────
 const STATUS_MAP: Record<Status, { label: string; color: string; bg: string }> = {
-  pago:     { label: 'Pago',       color: '#1B7a4a', bg: '#e7f3ea' },
-  pendente: { label: 'Pendente',   color: '#b06a12', bg: '#f7ecd9' },
-  atrasado: { label: 'Em atraso',  color: '#c4421e', bg: '#fbe6e1' },
+  pago:     { label: 'Pago',      color: '#1B7a4a', bg: '#e7f3ea' },
+  pendente: { label: 'Pendente',  color: '#b06a12', bg: '#f7ecd9' },
+  atrasado: { label: 'Vencida',   color: '#c4421e', bg: '#fbe6e1' },
 }
 
 const PLANS: Record<string, number> = { Mensal: 399, Trimestral: 247, Semestral: 227, Anual: 207 }
@@ -61,9 +61,11 @@ function formatDate(dateStr: string): string {
 
 function mapStatus(dbStatus: string, dueDate: string): Status {
   if (dbStatus === 'active') return 'pago'
-  if (dbStatus === 'overdue') return 'atrasado'
   const today = new Date(); today.setHours(0, 0, 0, 0)
-  return new Date(dueDate + 'T00:00:00') < today ? 'atrasado' : 'pendente'
+  const due = new Date(dueDate + 'T00:00:00')
+  const daysLate = Math.floor((today.getTime() - due.getTime()) / 86_400_000)
+  if (daysLate >= 5) return 'atrasado'
+  return 'pendente'
 }
 
 // ── Receipt ──────────────────────────────────────────────────
@@ -469,7 +471,7 @@ export default function Pagamentos() {
     { key: 'all',      label: 'Todos' },
     { key: 'pago',     label: 'Pagos' },
     { key: 'pendente', label: 'Pendentes' },
-    { key: 'atrasado', label: 'Em atraso' },
+    { key: 'atrasado', label: 'Vencidas' },
   ]
 
   const colLabel: React.CSSProperties = { font: `700 10.5px ${FF}`, letterSpacing: '.6px', textTransform: 'uppercase', color: '#9a948a' }
@@ -569,7 +571,7 @@ export default function Pagamentos() {
             <div style={{ width: 30, height: 30, borderRadius: 9, background: '#fbe6e1', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#c4421e" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
             </div>
-            <span style={{ font: `600 11.5px ${FF}`, color: '#7c7869' }}>Em atraso</span>
+            <span style={{ font: `600 11.5px ${FF}`, color: '#7c7869' }}>Vencidas</span>
           </div>
           <div style={{ font: `800 26px ${FF}`, color: '#c4421e', letterSpacing: '-.5px' }}>{brl(sum('atrasado'))}</div>
           <div style={{ font: `500 11.5px ${FF}`, color: '#9a948a', marginTop: 5 }}>{cnt('atrasado')} alunos inadimplentes</div>

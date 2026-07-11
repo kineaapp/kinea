@@ -13,7 +13,7 @@ type Tab = 'overview' | 'anamnese' | 'treino' | 'feedback' | 'avaliacoes' | 'pag
 
 // ── Interfaces ─────────────────────────────────────────────────
 interface AnamneseRow {
-  nome: string; data_nasc: string; telefone: string; profissao: string
+  nome: string; data_nasc: string; telefone: string; profissao: string; altura: string
   doencas: string; outra_doenca: string; medicamentos: string; cirurgia: string; limitacoes: string
   pratica_atual: string; atividade_atual: string; treinou_personal: string
   objetivo: string; dias_semana: string; horario: string
@@ -32,6 +32,19 @@ interface WorkoutRow {
 }
 
 interface AssignmentRow { id: number; day_of_week: number | null; workouts: WorkoutRow }
+
+interface ProgramSlotDetail {
+  id: number; position: number; day_of_week: number | null
+  workouts: { id: number; name: string; muscle_group: string | null; duration_min: number } | null
+}
+interface ActiveProgram {
+  assignment_id: number; program_id: number; name: string; days_per_week: number
+  slots: ProgramSlotDetail[]
+}
+interface ProgramOption {
+  id: number; name: string; days_per_week: number; is_template: boolean
+  slots: { position: number; workouts: { name: string } | null }[]
+}
 
 interface AssessmentRow {
   id: number; assessed_at: string
@@ -92,7 +105,7 @@ const STATUS_PAY: Record<string, { label: string; color: string; bg: string }> =
 const DOENCAS_OPTS = ['Diabetes', 'Hipertensão', 'Doença cardíaca', 'Asma', 'Obesidade', 'Colesterol alto', 'Nenhuma']
 
 interface AnamneseFormData {
-  nome: string; dataNasc: string; telefone: string; profissao: string
+  nome: string; dataNasc: string; telefone: string; profissao: string; altura: string
   doencas: string[]; outraDoenca: string; medicamentos: string; cirurgia: string; limitacoes: string
   praticaAtual: string; atividadeAtual: string; treinouPersonal: string
   objetivo: string; diasSemana: string; horario: string
@@ -100,7 +113,7 @@ interface AnamneseFormData {
 }
 
 const ANAMNESE_EMPTY: AnamneseFormData = {
-  nome: '', dataNasc: '', telefone: '', profissao: '',
+  nome: '', dataNasc: '', telefone: '', profissao: '', altura: '',
   doencas: [], outraDoenca: '', medicamentos: '', cirurgia: '', limitacoes: '',
   praticaAtual: '', atividadeAtual: '', treinouPersonal: '',
   objetivo: '', diasSemana: '', horario: '',
@@ -116,7 +129,7 @@ function CoachAnamneseDrawer({ studentName, studentUuid, studentRowId, existing,
   onSaved:      (row: AnamneseRow) => void
 }) {
   const init: AnamneseFormData = existing ? {
-    nome: existing.nome, dataNasc: existing.data_nasc, telefone: existing.telefone, profissao: existing.profissao,
+    nome: existing.nome, dataNasc: existing.data_nasc, telefone: existing.telefone, profissao: existing.profissao, altura: existing.altura ?? '',
     doencas: (() => { try { const p = JSON.parse(existing.doencas); return Array.isArray(p) ? p : [] } catch { return [] } })(),
     outraDoenca: existing.outra_doenca, medicamentos: existing.medicamentos, cirurgia: existing.cirurgia, limitacoes: existing.limitacoes,
     praticaAtual: existing.pratica_atual, atividadeAtual: existing.atividade_atual, treinouPersonal: existing.treinou_personal,
@@ -150,6 +163,7 @@ function CoachAnamneseDrawer({ studentName, studentUuid, studentRowId, existing,
       data_nasc:        form.dataNasc,
       telefone:         form.telefone,
       profissao:        form.profissao,
+      altura:           form.altura,
       doencas:          JSON.stringify(form.doencas),
       outra_doenca:     form.outraDoenca,
       medicamentos:     form.medicamentos,
@@ -216,7 +230,10 @@ function CoachAnamneseDrawer({ studentName, studentUuid, studentRowId, existing,
                 <div><label style={lbl}>Data de nascimento</label><input type="date" style={inp} value={form.dataNasc} onChange={e => set1('dataNasc', e.target.value)} /></div>
                 <div><label style={lbl}>Telefone / WhatsApp</label><input style={inp} placeholder="(11) 99999-9999" value={form.telefone} onChange={e => set1('telefone', e.target.value)} /></div>
               </div>
-              <div><label style={lbl}>Profissão</label><input style={inp} placeholder="Ex.: professora, analista..." value={form.profissao} onChange={e => set1('profissao', e.target.value)} /></div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <div><label style={lbl}>Profissão</label><input style={inp} placeholder="Ex.: professora, analista..." value={form.profissao} onChange={e => set1('profissao', e.target.value)} /></div>
+                <div><label style={lbl}>Altura (cm)</label><input type="number" style={inp} placeholder="Ex.: 170" min={100} max={250} value={form.altura} onChange={e => set1('altura', e.target.value)} /></div>
+              </div>
             </div>
           </section>
 
@@ -359,6 +376,99 @@ function Toast({ msg }: { msg: string }) {
   return (
     <div style={{ position: 'fixed', left: '50%', bottom: 28, transform: 'translateX(-50%)', zIndex: 90, background: '#1B2A4A', color: '#FAEEDA', font: `600 13.5px ${FF}`, padding: '13px 20px', borderRadius: 11, boxShadow: '0 10px 30px rgba(0,0,0,.28)' }}>
       {msg}
+    </div>
+  )
+}
+
+// ── Assign Program Modal ───────────────────────────────────────
+function AssignProgramModal({ studentId, coachId, onClose, onAssigned }: {
+  studentId: number; coachId: string; onClose: () => void; onAssigned: () => void
+}) {
+  const [programs, setPrograms] = useState<ProgramOption[]>([])
+  const [loading,  setLoading]  = useState(true)
+  const [selId,    setSelId]    = useState<number | null>(null)
+  const [saving,   setSaving]   = useState(false)
+  const [err,      setErr]      = useState('')
+
+  useEffect(() => {
+    supabase.from('programs')
+      .select('id, name, days_per_week, is_template, program_slots(position, workouts(name))')
+      .eq('coach_id', coachId)
+      .order('is_template', { ascending: false })
+      .order('created_at', { ascending: false })
+      .then(({ data }) => { setPrograms((data as ProgramOption[] | null) ?? []); setLoading(false) })
+  }, [coachId])
+
+  async function handleConfirm() {
+    if (!selId) { setErr('Selecione um programa.'); return }
+    setSaving(true)
+    await supabase.from('program_assignments').update({ active: false }).eq('student_id', studentId).eq('active', true)
+    const { error } = await supabase.from('program_assignments').insert({ program_id: selId, student_id: studentId, active: true })
+    if (error) { setErr('Erro: ' + error.message); setSaving(false); return }
+    onAssigned(); onClose()
+  }
+
+  const slotLabel = (pos: number) => String.fromCharCode(64 + pos)
+
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(20,25,40,.5)', zIndex: 82, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+      <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 480, background: '#fff', borderRadius: 16, boxShadow: '0 24px 60px rgba(0,0,0,.3)', display: 'flex', flexDirection: 'column', maxHeight: '86vh' }}>
+
+        <div style={{ padding: '24px 24px 16px', flexShrink: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 4 }}>
+            <h2 style={{ font: `800 20px ${FF}`, color: '#1B2A4A', margin: 0, letterSpacing: '-.4px' }}>Atribuir programa</h2>
+            <button type="button" onClick={onClose} style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#9a948a', padding: 2 }}>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
+            </button>
+          </div>
+          <p style={{ font: `400 13px ${FF}`, color: '#7c7869', margin: '6px 0 0' }}>Selecione um programa para atribuir a este aluno.</p>
+        </div>
+
+        <div style={{ flex: 1, overflowY: 'auto', padding: '0 24px 8px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {loading ? (
+            <div style={{ font: `400 13px ${FF}`, color: '#9a948a', padding: '20px 0' }}>Carregando...</div>
+          ) : programs.length === 0 ? (
+            <div style={{ font: `400 13px ${FF}`, color: '#9a948a', padding: '20px 0', textAlign: 'center' }}>Nenhum programa criado ainda. Crie um programa na aba Treinos.</div>
+          ) : programs.map(p => {
+            const active = selId === p.id
+            const slots = [...(p.slots ?? [])].sort((a, b) => a.position - b.position)
+            return (
+              <button key={p.id} type="button" onClick={() => { setSelId(p.id); setErr('') }}
+                style={{ width: '100%', textAlign: 'left', border: `2px solid ${active ? '#E8542A' : '#ece7d9'}`, background: active ? '#fff8f6' : '#fff', borderRadius: 12, padding: '14px 16px', cursor: 'pointer' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                  <span style={{ font: `700 14px ${FF}`, color: '#1B2A4A', flex: 1 }}>{p.name}</span>
+                  {p.is_template && (
+                    <span style={{ font: `600 10px ${FF}`, color: '#5a4ea0', background: '#ece9f6', borderRadius: 20, padding: '2px 8px', flexShrink: 0 }}>Template</span>
+                  )}
+                  <span style={{ font: `400 11px ${FF}`, color: '#9a948a', flexShrink: 0 }}>{p.days_per_week}×/sem</span>
+                </div>
+                <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+                  {slots.map(sl => (
+                    <span key={sl.position} style={{ font: `500 11.5px ${FF}`, color: '#4a4742', background: '#f4efe3', borderRadius: 6, padding: '3px 8px', display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <span style={{ font: `700 10px ${FF}`, color: '#E8542A' }}>{slotLabel(sl.position)}</span>
+                      {sl.workouts ? sl.workouts.name : <span style={{ color: '#9a948a' }}>Vazio</span>}
+                    </span>
+                  ))}
+                </div>
+              </button>
+            )
+          })}
+        </div>
+
+        <div style={{ padding: '16px 24px 24px', flexShrink: 0, borderTop: '1px solid #f4efe3' }}>
+          {err && <div style={{ font: `500 13px ${FF}`, color: '#c4421e', marginBottom: 10 }}>{err}</div>}
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button type="button" onClick={onClose}
+              style={{ flex: 1, height: 46, border: '1.5px solid #d6cfbe', background: '#fff', color: '#4a4742', borderRadius: 10, font: `600 14px ${FF}`, cursor: 'pointer' }}>
+              Cancelar
+            </button>
+            <button type="button" onClick={handleConfirm} disabled={saving || !selId}
+              style={{ flex: 2, height: 46, border: 'none', background: saving || !selId ? '#e0cfc7' : '#E8542A', color: '#fff', borderRadius: 10, font: `700 14px ${FF}`, cursor: saving || !selId ? 'default' : 'pointer', boxShadow: saving || !selId ? 'none' : '0 2px 0 #c4421e' }}>
+              {saving ? 'Atribuindo...' : 'Atribuir programa'}
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   )
 }
@@ -677,7 +787,7 @@ export default function PerfilAluno() {
   const toastRef  = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
   // ── Auth / student ────────────────────────────────────────
-  const { students, fetchStudents, deleteStudent, updatePlan, updateStudentInfo, blockStudent, setStudentStripeSubId, updateAssessmentFrequency, updateNextAssessment } = useStudentsStore()
+  const { students, fetchStudents, deleteStudent, updatePlan, updateStudentInfo, blockStudent, updateAssessmentFrequency, updateNextAssessment } = useStudentsStore()
   const { user }  = useAuthStore()
   const studentId = parseInt(id ?? '0', 10)
   const [confirmDelete, setConfirmDelete] = useState(false)
@@ -697,10 +807,6 @@ export default function PerfilAluno() {
   const [editPhone,     setEditPhone]         = useState('')
   const [editSaving,    setEditSaving]        = useState(false)
   const [blockLoading,  setBlockLoading]      = useState(false)
-  const [subLoading,    setSubLoading]        = useState(false)
-  const [subError,      setSubError]          = useState<string | null>(null)
-  const [checkoutUrl,   setCheckoutUrl]       = useState<string | null>(null)
-  const [urlCopied,       setUrlCopied]       = useState(false)
   const [showAnamneseForm,  setShowAnamneseForm]  = useState(false)
   const [showAssignModal,   setShowAssignModal]   = useState(false)
   const [openAssessId,      setOpenAssessId]      = useState<number | null>(null)
@@ -716,8 +822,12 @@ export default function PerfilAluno() {
   const [anamneseLoading, setAnamneseLoading] = useState(false)
   const [assignments,     setAssignments]     = useState<AssignmentRow[]>([])
   const [assignLoading,   setAssignLoading]   = useState(false)
+  const [activeProgram,   setActiveProgram]   = useState<ActiveProgram | null>(null)
+  const [programLoading,  setProgramLoading]  = useState(false)
+  const [showAssignProgram, setShowAssignProgram] = useState(false)
   const [assessments,     setAssessments]     = useState<AssessmentRow[]>([])
   const [assessLoading,   setAssessLoading]   = useState(false)
+  const [assessError,     setAssessError]     = useState<string | null>(null)
   const [payments,        setPayments]        = useState<PaymentRow[]>([])
   const [payLoading,      setPayLoading]      = useState(false)
   const [editingDueId,    setEditingDueId]    = useState<number | null>(null)
@@ -764,6 +874,33 @@ export default function PerfilAluno() {
     setAssignLoading(false)
   }, [studentId])
 
+  const fetchActiveProgram = useCallback(async () => {
+    if (!studentId || loaded.current.has('program')) return
+    loaded.current.add('program')
+    setProgramLoading(true)
+    const { data } = await supabase
+      .from('program_assignments')
+      .select(`id, programs(id, name, days_per_week, program_slots(id, position, day_of_week, workouts(id, name, muscle_group, duration_min)))`)
+      .eq('student_id', studentId)
+      .eq('active', true)
+      .order('assigned_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    if (data?.programs) {
+      const prog = data.programs as { id: number; name: string; days_per_week: number; program_slots: ProgramSlotDetail[] }
+      setActiveProgram({
+        assignment_id: data.id,
+        program_id: prog.id,
+        name: prog.name,
+        days_per_week: prog.days_per_week,
+        slots: [...(prog.program_slots ?? [])].sort((a, b) => a.position - b.position),
+      })
+    } else {
+      setActiveProgram(null)
+    }
+    setProgramLoading(false)
+  }, [studentId])
+
   const fetchAssessments = useCallback(async () => {
     if (!studentId || loaded.current.has('assessments')) return
     loaded.current.add('assessments')
@@ -771,7 +908,10 @@ export default function PerfilAluno() {
     const { data, error } = await supabase.from('assessments')
       .select('id,assessed_at,weight_kg,body_fat_pct,chest_cm,waist_cm,hip_cm,arm_cm,thigh_cm,notes,photo_frente_url,photo_lado_esq_url,photo_lado_dir_url,photo_costas_url')
       .eq('student_id', studentId).order('assessed_at', { ascending: true })
-    if (error) console.error('[fetchAssessments]', error.message)
+    if (error) {
+      console.error('[fetchAssessments]', error.message)
+      setAssessError(error.message)
+    }
     setAssessments((data as AssessmentRow[] | null) ?? [])
     setAssessLoading(false)
   }, [studentId])
@@ -881,9 +1021,9 @@ export default function PerfilAluno() {
 
   useEffect(() => {
     if (!student) return
-    if (tab === 'overview')   { fetchAssignments(); fetchCheckins() }
+    if (tab === 'overview')   { fetchActiveProgram(); fetchCheckins() }
     if (tab === 'anamnese')   fetchAnamnese()
-    if (tab === 'treino')     fetchAssignments()
+    if (tab === 'treino')     fetchActiveProgram()
     if (tab === 'feedback')   fetchSessions()
     if (tab === 'avaliacoes') fetchAssessments()
     if (tab === 'pagamentos') fetchPayments()
@@ -937,30 +1077,6 @@ export default function PerfilAluno() {
     setUploadingAssId(null)
   }
 
-  async function handleCreateCheckout() {
-    setSubLoading(true); setSubError(null); setCheckoutUrl(null)
-    try {
-      const { data, error } = await supabase.functions.invoke('create-checkout', {
-        body: { studentId },
-      })
-      if (error) throw new Error(error.message)
-      if (data?.error) throw new Error(data.error)
-      if (data?.url) {
-        setCheckoutUrl(data.url)
-        if (data?.subscriptionId) setStudentStripeSubId(studentId, data.subscriptionId)
-      }
-    } catch (err) {
-      setSubError(err instanceof Error ? err.message : 'Erro ao gerar cobrança')
-    }
-    setSubLoading(false)
-  }
-
-  function copyCheckoutUrl() {
-    if (!checkoutUrl) return
-    try { navigator.clipboard.writeText(checkoutUrl) } catch {}
-    setUrlCopied(true); setTimeout(() => setUrlCopied(false), 1800)
-  }
-
   function openEditModal() {
     setEditName(student?.name ?? '')
     setEditEmail(student?.email ?? '')
@@ -983,10 +1099,14 @@ export default function PerfilAluno() {
 
   async function handleSavePlan(plan: string) {
     setSavingPlan(true)
-    await updatePlan(studentId, plan)
+    const ok = await updatePlan(studentId, plan)
     setSavingPlan(false)
-    setShowPlanPicker(false)
-    showToast(`Plano atualizado para ${plan}`)
+    if (ok) {
+      setShowPlanPicker(false)
+      showToast(`Plano atualizado para ${plan}`)
+    } else {
+      showToast('Erro ao salvar plano. Verifique a conexão e tente novamente.')
+    }
   }
 
   function showToast(msg: string) {
@@ -1000,6 +1120,12 @@ export default function PerfilAluno() {
     loaded.current.delete('assignments')
     await fetchAssignments()
     showToast('Treino atribuído com sucesso.')
+  }
+
+  async function handleAfterAssignProgram() {
+    loaded.current.delete('program')
+    await fetchActiveProgram()
+    showToast('Programa atribuído com sucesso.')
   }
 
   const TABS: { key: Tab; label: string }[] = [
@@ -1188,19 +1314,27 @@ export default function PerfilAluno() {
                 {/* Treino atual */}
                 <div style={{ background: '#fff', border: '1px solid #ece7d9', borderRadius: 14, padding: '20px 22px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-                    <h2 style={{ font: `700 16px ${FF}`, color: '#1B2A4A', margin: 0 }}>Treino atual</h2>
-                    {uniqueWorkouts.length > 0 && <span style={{ font: `600 11px ${FF}`, color: '#1B7a4a', background: '#e7f3ea', borderRadius: 20, padding: '4px 11px' }}>Ativo</span>}
+                    <h2 style={{ font: `700 16px ${FF}`, color: '#1B2A4A', margin: 0 }}>Programa ativo</h2>
+                    {activeProgram && <span style={{ font: `600 11px ${FF}`, color: '#1B7a4a', background: '#e7f3ea', borderRadius: 20, padding: '4px 11px' }}>Ativo</span>}
                   </div>
-                  {assignLoading ? (
+                  {programLoading ? (
                     <div style={{ font: `400 13px ${FF}`, color: '#9a948a' }}>Carregando...</div>
-                  ) : uniqueWorkouts.length === 0 ? (
-                    <div style={{ font: `400 13px ${FF}`, color: '#9a948a' }}>Nenhum treino atribuído ainda.</div>
+                  ) : !activeProgram ? (
+                    <div style={{ font: `400 13px ${FF}`, color: '#9a948a' }}>Nenhum programa atribuído ainda.</div>
                   ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                      {uniqueWorkouts.map(w => (
-                        <div key={w.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #f4efe3' }}>
-                          <span style={{ font: `600 14px ${FF}`, color: '#1B2A4A' }}>{w.name}</span>
-                          <span style={{ font: `400 12px ${FF}`, color: '#9a948a' }}>{w.muscle_group ?? w.difficulty} · {w.duration_min} min</span>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      <div style={{ font: `600 13px ${FF}`, color: '#E8542A', marginBottom: 6 }}>{activeProgram.name} · {activeProgram.days_per_week}×/sem</div>
+                      {activeProgram.slots.map(sl => (
+                        <div key={sl.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', borderBottom: '1px solid #f4efe3' }}>
+                          <span style={{ font: `700 11px ${FF}`, color: '#fff', background: '#1B2A4A', borderRadius: 5, padding: '2px 7px', flexShrink: 0 }}>
+                            {String.fromCharCode(64 + sl.position)}
+                          </span>
+                          <span style={{ font: `500 13px ${FF}`, color: sl.workouts ? '#1B2A4A' : '#9a948a' }}>
+                            {sl.workouts ? sl.workouts.name : 'Sem treino'}
+                          </span>
+                          {sl.day_of_week != null && (
+                            <span style={{ marginLeft: 'auto', font: `400 11px ${FF}`, color: '#9a948a', flexShrink: 0 }}>{DAY_NAMES[sl.day_of_week]}</span>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -1294,6 +1428,7 @@ export default function PerfilAluno() {
                     { title: 'Dados pessoais', rows: [
                       { label: 'Nome', val: anamnese.nome }, { label: 'Nascimento', val: anamnese.data_nasc },
                       { label: 'Telefone', val: anamnese.telefone }, { label: 'Profissão', val: anamnese.profissao },
+                      { label: 'Altura', val: anamnese.altura ? `${anamnese.altura} cm` : '' },
                     ], grid: true },
                     { title: 'Saúde', rows: [
                       { label: 'Doenças / condições', val: (() => { try { const p = JSON.parse(anamnese.doencas); return Array.isArray(p) ? p.join(', ') : anamnese.doencas } catch { return anamnese.doencas } })() },
@@ -1344,48 +1479,70 @@ export default function PerfilAluno() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
                 <div>
-                  <h2 style={{ font: `800 20px ${FF}`, color: '#1B2A4A', margin: 0, letterSpacing: '-.4px' }}>Treinos atribuídos</h2>
-                  {uniqueWorkouts.length > 0 && <p style={{ font: `400 13px ${FF}`, color: '#7c7869', margin: '3px 0 0' }}>{uniqueWorkouts.length} treino{uniqueWorkouts.length > 1 ? 's' : ''} · {assignments.length} sessão{assignments.length > 1 ? 'ões' : ''} por semana</p>}
+                  <h2 style={{ font: `800 20px ${FF}`, color: '#1B2A4A', margin: 0, letterSpacing: '-.4px' }}>Programa de treino</h2>
+                  {activeProgram && <p style={{ font: `400 13px ${FF}`, color: '#7c7869', margin: '3px 0 0' }}>{activeProgram.name} · {activeProgram.days_per_week} dias/semana</p>}
                 </div>
-                <button type="button" onClick={() => setShowAssignModal(true)}
+                <button type="button" onClick={() => setShowAssignProgram(true)}
                   style={{ height: 42, padding: '0 18px', border: 'none', background: '#E8542A', color: '#fff', borderRadius: 10, font: `700 13.5px ${FF}`, cursor: 'pointer', boxShadow: '0 2px 0 #c4421e' }}>
-                  + Atribuir treino
+                  {activeProgram ? 'Trocar programa' : '+ Atribuir programa'}
                 </button>
               </div>
-              {assignLoading ? (
+
+              {programLoading ? (
                 <div style={{ font: `400 13px ${FF}`, color: '#9a948a', padding: '20px 0' }}>Carregando...</div>
-              ) : uniqueWorkouts.length === 0 ? (
-                <Empty icon="🏋️" title="Nenhum treino atribuído" sub="Use o botão acima para atribuir um treino a este aluno." />
+              ) : !activeProgram ? (
+                <Empty icon="📋" title="Nenhum programa atribuído" sub="Atribua um programa de treino a este aluno para que ele visualize os treinos da semana." />
               ) : (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(240px,1fr))', gap: 12 }}>
-                  {uniqueWorkouts.map(w => {
-                    const days = assignments.filter(a => a.workouts.id === w.id && a.day_of_week != null).map(a => DAY_NAMES[a.day_of_week!])
-                    return (
-                      <div key={w.id} style={{ background: '#fff', border: '1px solid #ece7d9', borderRadius: 14, padding: '16px 18px' }}>
-                        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 10 }}>
-                          <div>
-                            <div style={{ font: `700 14px ${FF}`, color: '#1B2A4A' }}>{w.name}</div>
-                            <div style={{ font: `400 11.5px ${FF}`, color: '#9a948a', marginTop: 2 }}>{w.muscle_group ?? w.difficulty} · {w.duration_min} min</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {/* Program header card */}
+                  <div style={{ background: '#1B2A4A', borderRadius: 14, padding: '18px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                    <div>
+                      <div style={{ font: `700 16px ${FF}`, color: '#FAEEDA', letterSpacing: '-.3px' }}>{activeProgram.name}</div>
+                      <div style={{ font: `400 12.5px ${FF}`, color: '#8B97AD', marginTop: 4 }}>{activeProgram.days_per_week} treinos por semana · {activeProgram.slots.length} slots</div>
+                    </div>
+                    <span style={{ font: `700 11px ${FF}`, color: '#1B7a4a', background: 'rgba(27,122,74,.18)', border: '1px solid rgba(27,122,74,.3)', borderRadius: 20, padding: '5px 12px', flexShrink: 0 }}>Ativo</span>
+                  </div>
+
+                  {/* Slot cards */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(220px,1fr))', gap: 10 }}>
+                    {activeProgram.slots.map(sl => (
+                      <div key={sl.id} style={{ background: '#fff', border: '1px solid #ece7d9', borderRadius: 14, padding: '16px 18px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 10 }}>
+                          <span style={{ font: `800 13px ${FF}`, color: '#fff', background: '#E8542A', borderRadius: 7, width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                            {String.fromCharCode(64 + sl.position)}
+                          </span>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ font: `700 13.5px ${FF}`, color: '#1B2A4A', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              {sl.workouts ? sl.workouts.name : <span style={{ color: '#9a948a', fontWeight: 400 }}>Sem treino</span>}
+                            </div>
+                            {sl.workouts && (
+                              <div style={{ font: `400 11px ${FF}`, color: '#9a948a', marginTop: 2 }}>
+                                {sl.workouts.muscle_group ?? '—'} · {sl.workouts.duration_min} min
+                              </div>
+                            )}
                           </div>
                         </div>
-                        {days.length > 0 && (
-                          <div style={{ display: 'flex', gap: 4, marginBottom: 10, flexWrap: 'wrap' }}>
-                            {days.map(d => <span key={d} style={{ font: `600 10px ${FF}`, color: '#1B2A4A', background: '#f1ece0', borderRadius: 6, padding: '2px 7px' }}>{d}</span>)}
-                          </div>
-                        )}
-                        {w.exercises.length > 0 && (
-                          <div style={{ borderTop: '1px solid #f4efe3', paddingTop: 8 }}>
-                            {[...w.exercises].sort((a,b) => a.sort_order - b.sort_order).map(ex => (
-                              <div key={ex.name} style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', borderBottom: '1px solid #f8f5ef' }}>
-                                <span style={{ font: `500 12.5px ${FF}`, color: '#4a4742' }}>{ex.name}</span>
-                                <span style={{ font: `400 12px ${FF}`, color: '#9a948a' }}>{ex.sets}×{ex.reps}</span>
-                              </div>
-                            ))}
+                        {sl.day_of_week != null && (
+                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: '#f1ece0', borderRadius: 7, padding: '4px 10px' }}>
+                            <span style={{ font: `600 11px ${FF}`, color: '#6b5c3e' }}>{DAY_NAMES[sl.day_of_week]}</span>
                           </div>
                         )}
                       </div>
-                    )
-                  })}
+                    ))}
+                  </div>
+
+                  {/* Remove assignment */}
+                  <button type="button"
+                    onClick={async () => {
+                      if (!window.confirm('Remover programa deste aluno?')) return
+                      await supabase.from('program_assignments').update({ active: false }).eq('id', activeProgram.assignment_id)
+                      loaded.current.delete('program')
+                      await fetchActiveProgram()
+                      showToast('Programa removido.')
+                    }}
+                    style={{ alignSelf: 'flex-start', height: 36, padding: '0 14px', border: '1.5px solid #d6cfbe', background: '#fff', color: '#7c7869', borderRadius: 8, font: `500 12.5px ${FF}`, cursor: 'pointer' }}>
+                    Remover programa
+                  </button>
                 </div>
               )}
             </div>
@@ -1548,6 +1705,12 @@ export default function PerfilAluno() {
 
                 {assessLoading ? (
                   <div style={{ font: `400 13px ${FF}`, color: '#9a948a', padding: '20px 0' }}>Carregando...</div>
+                ) : assessError ? (
+                  <div style={{ background: '#fbe6e1', border: '1px solid #f4c4b8', borderRadius: 12, padding: '14px 16px', marginTop: 8 }}>
+                    <div style={{ font: `700 13px ${FF}`, color: '#c4421e', marginBottom: 4 }}>Erro ao carregar avaliações</div>
+                    <div style={{ font: `400 12px ${FF}`, color: '#7c3a2a', fontFamily: 'monospace', wordBreak: 'break-all' }}>{assessError}</div>
+                    <div style={{ font: `400 12px ${FF}`, color: '#7c3a2a', marginTop: 6 }}>Verifique se a migração <strong>024_assessments_photo_columns.sql</strong> foi aplicada no banco.</div>
+                  </div>
                 ) : assessments.length === 0 ? (
                   <Empty icon="📊" title="Nenhuma avaliação registrada" sub="Clique em '+ Nova avaliação' para registrar a primeira avaliação deste aluno." />
                 ) : showComparison && compLeft && compRight ? (
@@ -1777,54 +1940,6 @@ export default function PerfilAluno() {
                   <div style={{ font: `400 12px ${FF}`, color: '#9a948a', marginTop: 3 }}>{payments.filter(p => p.status === 'active').length} fatura{payments.filter(p => p.status === 'active').length !== 1 ? 's' : ''}</div>
                 </div>
               </div>
-              {/* ── Stripe Checkout ───────────────────────── */}
-              {student.plan !== 'Permuta' && (!student.stripeSubId ? (
-                <div style={{ background: '#fff', border: '2px dashed #d9d3c4', borderRadius: 14, padding: '22px 24px' }}>
-                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
-                    <div>
-                      <div style={{ font: `700 15px ${FF}`, color: '#1B2A4A', marginBottom: 4 }}>Cobrança automática via Stripe</div>
-                      <div style={{ font: `400 13px ${FF}`, color: '#7c7869', maxWidth: 420 }}>
-                        Gera um link de pagamento de <strong>R$ 247 / mês</strong>. O aluno escolhe Pix, boleto ou cartão. Renovação automática todo mês.
-                      </div>
-                    </div>
-                    <button type="button" onClick={handleCreateCheckout} disabled={subLoading}
-                      style={{ flexShrink: 0, height: 44, padding: '0 20px', border: 'none', background: '#1B2A4A', color: '#fff', borderRadius: 10, font: `700 13.5px ${FF}`, cursor: subLoading ? 'default' : 'pointer', opacity: subLoading ? .7 : 1, display: 'flex', alignItems: 'center', gap: 8 }}>
-                      {subLoading
-                        ? <><span style={{ width: 15, height: 15, border: '2px solid rgba(255,255,255,.4)', borderTopColor: '#fff', borderRadius: '50%', display: 'inline-block', animation: 'kspin .7s linear infinite' }} /> Gerando...</>
-                        : '⚡ Gerar link de pagamento'
-                      }
-                    </button>
-                  </div>
-                  {subError && (
-                    <div style={{ marginTop: 14, display: 'flex', alignItems: 'center', gap: 8, background: '#fdeee9', border: '1px solid #f6cdbf', borderRadius: 9, padding: '10px 13px' }}>
-                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#E8542A" strokeWidth="2.2" strokeLinecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v6"/><path d="M12 16.5v.5"/></svg>
-                      <span style={{ font: `500 13px ${FF}`, color: '#c4421e' }}>{subError}</span>
-                    </div>
-                  )}
-                  {checkoutUrl && (
-                    <div style={{ marginTop: 16, background: '#f0f9f3', border: '1px solid #b7e0c6', borderRadius: 11, padding: '14px 16px' }}>
-                      <div style={{ font: `600 11px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#1B7a4a', marginBottom: 8 }}>Link de pagamento gerado</div>
-                      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                        <div style={{ flex: 1, minWidth: 0, height: 42, border: '1px solid #c2e0ce', borderRadius: 9, background: '#fff', display: 'flex', alignItems: 'center', padding: '0 13px', font: `500 12px ${FF}`, color: '#1B2A4A', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{checkoutUrl}</div>
-                        <button type="button" onClick={copyCheckoutUrl}
-                          style={{ flexShrink: 0, height: 42, padding: '0 16px', border: 'none', borderRadius: 9, background: urlCopied ? '#1B7a4a' : '#1B2A4A', color: '#fff', font: `700 13px ${FF}`, cursor: 'pointer', transition: 'background .2s' }}>
-                          {urlCopied ? '✓ Copiado' : 'Copiar'}
-                        </button>
-                      </div>
-                      <div style={{ font: `400 12px ${FF}`, color: '#4a9a6a', marginTop: 8 }}>Envie este link ao aluno. Ele escolhe Pix, boleto ou cartão na hora do pagamento.</div>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div style={{ background: '#f0f9f3', border: '1px solid #b7e0c6', borderRadius: 12, padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1B7a4a" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 12l3 3 5-6"/></svg>
-                  <div>
-                    <div style={{ font: `700 13.5px ${FF}`, color: '#1B7a4a' }}>Assinatura Stripe ativa</div>
-                    <div style={{ font: `400 12px ${FF}`, color: '#4a9a6a', marginTop: 2 }}>Renovação automática mensal · Pix, boleto ou cartão</div>
-                  </div>
-                </div>
-              ))}
-
               {/* Botão nova fatura quando lista vazia */}
               {payments.length === 0 && !newPayOpen && !payLoading && (
                 <div style={{ textAlign: 'right' }}>
@@ -2080,6 +2195,15 @@ export default function PerfilAluno() {
             setAnamnese(row)
             showToast('Anamnese salva com sucesso.')
           }}
+        />
+      )}
+
+      {showAssignProgram && user && (
+        <AssignProgramModal
+          studentId={studentId}
+          coachId={user.id!}
+          onClose={() => setShowAssignProgram(false)}
+          onAssigned={handleAfterAssignProgram}
         />
       )}
 

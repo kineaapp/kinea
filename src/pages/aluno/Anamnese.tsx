@@ -8,7 +8,7 @@ import { supabase } from '../../lib/supabase'
 // ── Types ────────────────────────────────────────────────────
 
 interface AnamneseData {
-  nome: string; dataNasc: string; telefone: string; profissao: string
+  nome: string; dataNasc: string; telefone: string; profissao: string; altura: string
   doencas: string[]; outraDoenca: string; medicamentos: string; cirurgia: string; limitacoes: string
   praticaAtual: string; atividadeAtual: string; treinouPersonal: string
   objetivo: string; diasSemana: string; horario: string
@@ -16,7 +16,7 @@ interface AnamneseData {
 }
 
 const EMPTY: AnamneseData = {
-  nome: '', dataNasc: '', telefone: '', profissao: '',
+  nome: '', dataNasc: '', telefone: '', profissao: '', altura: '',
   doencas: [], outraDoenca: '', medicamentos: '', cirurgia: '', limitacoes: '',
   praticaAtual: '', atividadeAtual: '', treinouPersonal: '',
   objetivo: '', diasSemana: '', horario: '',
@@ -202,6 +202,7 @@ export default function Anamnese() {
           data_nasc:       data.dataNasc,
           telefone:        data.telefone,
           profissao:       data.profissao,
+          altura:          data.altura,
           doencas:         JSON.stringify(data.doencas),
           outra_doenca:    data.outraDoenca,
           medicamentos:    data.medicamentos,
@@ -233,6 +234,7 @@ export default function Anamnese() {
       <Field label="Data de nascimento *" type="date" value={data.dataNasc} onChange={e => set1('dataNasc', e.target.value)} />
       <Field label="Telefone / WhatsApp *" type="tel" placeholder="(11) 99999-9999" value={data.telefone} onChange={e => set1('telefone', e.target.value)} />
       <Field label="Profissão" type="text" placeholder="Ex.: professora, analista..." value={data.profissao} onChange={e => set1('profissao', e.target.value)} />
+      <Field label="Altura (cm)" type="number" placeholder="Ex.: 170" min="100" max="250" value={data.altura} onChange={e => set1('altura', e.target.value)} />
     </div>,
 
     // Step 1 — Histórico de Saúde

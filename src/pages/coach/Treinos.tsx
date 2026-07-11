@@ -6,35 +6,34 @@ import { supabase } from '../../lib/supabase'
 
 const FF = '"Libre Franklin",sans-serif'
 
-// ── Types ───────────────────────────────────────────────────
+// ── Types ────────────────────────────────────────────────────
 type Goal = 'Hipertrofia' | 'Emagrecimento' | 'Força' | 'Condicionamento' | 'Mobilidade'
 
-interface Exercise {
-  _k:     number
-  name:   string
-  muscle: string
-  scheme: string
-  rest:   string
+interface WorkoutOption {
+  id: number; name: string; goal: string
+  muscle_group: string | null; duration_min: number; ex_count: number
 }
 
-interface LibraryExercise {
-  name:   string
-  muscle: string
-  scheme: string
-  rest:   string
+interface ProgramSlot {
+  id: number; position: number
+  workout_id: number | null; workout: WorkoutOption | null
+  day_of_week: number | null
 }
 
+interface Program {
+  id: number; name: string; days_per_week: number
+  is_template: boolean; slots: ProgramSlot[]
+  applied_count: number
+}
+
+interface Exercise { _k: number; name: string; muscle: string; scheme: string; rest: string }
+interface LibraryExercise { name: string; muscle: string; scheme: string; rest: string }
 interface Treino {
-  id:       number
-  name:     string
-  split:    string
-  goal:     Goal
-  duration: string
-  assigned: number
-  ex:       Exercise[]
+  id: number; name: string; split: string; goal: Goal
+  duration: string; assigned: number; ex: Exercise[]
 }
 
-// ── Constants ───────────────────────────────────────────────
+// ── Constants ─────────────────────────────────────────────────
 const GOAL_STYLE: Record<Goal, { color: string; bg: string }> = {
   Hipertrofia:    { color: '#c4421e', bg: '#fbe6e1' },
   Emagrecimento:  { color: '#1B7a4a', bg: '#e7f3ea' },
@@ -42,68 +41,425 @@ const GOAL_STYLE: Record<Goal, { color: string; bg: string }> = {
   Condicionamento:{ color: '#b06a12', bg: '#f7ecd9' },
   Mobilidade:     { color: '#5a4ea0', bg: '#ece9f6' },
 }
-
 const GOALS = Object.keys(GOAL_STYLE) as Goal[]
+const MUSCLE_CHIPS = ['Peito','Dorsal','Ombros','Bíceps','Tríceps','Quadríceps','Posterior','Glúteos','Panturrilha','Core','Corpo todo']
+const DAYS = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb']
+const slotLabel = (pos: number) => String.fromCharCode(64 + pos)
 
-const MUSCLE_CHIPS = ['Peito', 'Dorsal', 'Ombros', 'Bíceps', 'Tríceps', 'Quadríceps', 'Posterior', 'Glúteos', 'Panturrilha', 'Core', 'Corpo todo']
-
-// ── Toast ───────────────────────────────────────────────────
+// ── Toast ─────────────────────────────────────────────────────
 function Toast({ msg }: { msg: string }) {
   if (!msg) return null
   return (
-    <div style={{ position: 'fixed', left: '50%', bottom: 28, transform: 'translateX(-50%)', zIndex: 80, background: '#1B2A4A', color: '#FAEEDA', font: `600 13.5px ${FF}`, padding: '13px 20px', borderRadius: 11, boxShadow: '0 10px 30px rgba(0,0,0,.28)', whiteSpace: 'nowrap' }}>
+    <div style={{ position: 'fixed', left: '50%', bottom: 28, transform: 'translateX(-50%)', zIndex: 90, background: '#1B2A4A', color: '#FAEEDA', font: `600 13.5px ${FF}`, padding: '13px 22px', borderRadius: 11, boxShadow: '0 10px 30px rgba(0,0,0,.28)', whiteSpace: 'nowrap' }}>
       {msg}
     </div>
   )
 }
 
-// ── Workout card ─────────────────────────────────────────────
-function TreinoCard({ t, onClick }: { t: Treino; onClick: (id: number) => void }) {
-  const g = GOAL_STYLE[t.goal] ?? { color: '#1B2A4A', bg: '#eef1f6' }
+// ── Program Card ──────────────────────────────────────────────
+function ProgramCard({ program, onClick }: { program: Program; onClick: () => void }) {
   return (
     <div
-      onClick={() => onClick(t.id)}
-      style={{ background: '#fff', border: '1px solid #ece7d9', borderRadius: 16, padding: 18, cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 14, transition: 'box-shadow .15s, transform .15s' }}
+      onClick={onClick}
+      style={{ background: '#fff', border: '1px solid #ece7d9', borderRadius: 16, padding: 20, cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 14, transition: 'box-shadow .15s, transform .15s' }}
       onMouseEnter={e => { e.currentTarget.style.boxShadow = '0 8px 22px rgba(27,42,74,.14)'; e.currentTarget.style.transform = 'translateY(-2px)' }}
       onMouseLeave={e => { e.currentTarget.style.boxShadow = 'none'; e.currentTarget.style.transform = 'none' }}
     >
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
-        <div style={{ width: 46, height: 46, borderRadius: 12, background: g.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={g.color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M6.5 6.5l11 11"/><path d="M21 21l-1-1"/><path d="M3 3l1 1"/><path d="M18 22l4-4"/><path d="M2 6l4-4"/>
+        <div style={{ width: 44, height: 44, borderRadius: 12, background: '#eef1f6', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#1B2A4A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M3 10h18"/>
           </svg>
         </div>
-        <span style={{ font: `600 11px ${FF}`, color: g.color, background: g.bg, borderRadius: 20, padding: '5px 11px', whiteSpace: 'nowrap' }}>{t.goal}</span>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+          {program.is_template && (
+            <span style={{ font: `600 10px ${FF}`, color: '#5a4ea0', background: '#ece9f6', borderRadius: 20, padding: '4px 9px' }}>Template</span>
+          )}
+          <span style={{ font: `600 10px ${FF}`, color: '#1B2A4A', background: '#eef1f6', borderRadius: 20, padding: '4px 9px' }}>{program.days_per_week}×/semana</span>
+        </div>
       </div>
       <div>
-        <div style={{ font: `800 16.5px ${FF}`, color: '#1B2A4A', letterSpacing: '-.3px', lineHeight: 1.25 }}>{t.name}</div>
-        <div style={{ font: `400 12.5px ${FF}`, color: '#9a948a', marginTop: 4 }}>{t.split}</div>
+        <div style={{ font: `800 16.5px ${FF}`, color: '#1B2A4A', letterSpacing: '-.3px', marginBottom: 6 }}>{program.name}</div>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          {program.slots.map(s => (
+            <div key={s.position} style={{ display: 'flex', alignItems: 'center', gap: 5, background: s.workout ? '#f4efe3' : '#f9f7f3', border: `1px solid ${s.workout ? '#d6cfbe' : '#e8e2d8'}`, borderRadius: 8, padding: '4px 9px' }}>
+              <span style={{ font: `800 10px ${FF}`, color: '#E8542A' }}>Treino {slotLabel(s.position)}</span>
+              {s.workout && <span style={{ font: `400 11px ${FF}`, color: '#7c7869' }}>{s.workout.name}</span>}
+              {!s.workout && <span style={{ font: `400 11px ${FF}`, color: '#b0a99c' }}>vazio</span>}
+            </div>
+          ))}
+        </div>
       </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 16, borderTop: '1px solid #f4efe3', paddingTop: 13 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#b0a99c" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M8 6h13"/><path d="M8 12h13"/><path d="M8 18h13"/><path d="M3 6h.01"/><path d="M3 12h.01"/><path d="M3 18h.01"/></svg>
-          <span style={{ font: `600 12px ${FF}`, color: '#6b6657' }}>{t.ex.length} ex.</span>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 16, borderTop: '1px solid #f4efe3', paddingTop: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#b0a99c" strokeWidth="2" strokeLinecap="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+          <span style={{ font: `600 12px ${FF}`, color: '#6b6657' }}>{program.applied_count} aluno{program.applied_count !== 1 ? 's' : ''}</span>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#b0a99c" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
-          <span style={{ font: `600 12px ${FF}`, color: '#6b6657' }}>{t.duration}</span>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 'auto' }}>
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#b0a99c" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
-          <span style={{ font: `700 12px ${FF}`, color: '#1B2A4A' }}>{t.assigned}</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginLeft: 'auto' }}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#b0a99c" strokeWidth="2" strokeLinecap="round"><path d="M8 6h13"/><path d="M8 12h13"/><path d="M8 18h13"/><path d="M3 6h.01"/><path d="M3 12h.01"/><path d="M3 18h.01"/></svg>
+          <span style={{ font: `600 12px ${FF}`, color: '#6b6657' }}>{program.slots.filter(s => s.workout).length}/{program.days_per_week} treinos</span>
         </div>
       </div>
     </div>
   )
 }
 
-// ── Exercise row ─────────────────────────────────────────────
+// ── Workout picker (for slot) ─────────────────────────────────
+function WorkoutPickerModal({ workouts, onSelect, onClose }: {
+  workouts: WorkoutOption[]; onSelect: (w: WorkoutOption) => void; onClose: () => void
+}) {
+  const [query, setQuery] = useState('')
+  const q = query.trim().toLowerCase()
+  const filtered = q ? workouts.filter(w => w.name.toLowerCase().includes(q) || (w.goal ?? '').toLowerCase().includes(q)) : workouts
+
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(20,25,40,.55)', zIndex: 75, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+      <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 460, background: '#fff', borderRadius: 16, boxShadow: '0 24px 60px rgba(0,0,0,.3)', display: 'flex', flexDirection: 'column', maxHeight: '80vh' }}>
+        <div style={{ padding: '22px 22px 14px', flexShrink: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+            <h2 style={{ font: `800 18px ${FF}`, color: '#1B2A4A', margin: 0 }}>Escolher treino</h2>
+            <button onClick={onClose} style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#9a948a', padding: 2 }}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
+            </button>
+          </div>
+          <div style={{ position: 'relative' }}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#9a948a" strokeWidth="2" strokeLinecap="round" style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)' }}><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.3-4.3"/></svg>
+            <input autoFocus type="text" value={query} onChange={e => setQuery(e.target.value)} placeholder="Buscar treino…"
+              style={{ width: '100%', height: 38, border: '1.5px solid #e0d9c8', borderRadius: 9, background: '#faf7ee', padding: '0 12px 0 32px', font: `400 13px ${FF}`, color: '#1B2A4A', outline: 'none', boxSizing: 'border-box' }}
+              onFocus={e => { e.currentTarget.style.borderColor = '#E8542A' }}
+              onBlur={e => { e.currentTarget.style.borderColor = '#e0d9c8' }}
+            />
+          </div>
+        </div>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '0 14px 14px' }}>
+          {filtered.length === 0
+            ? <div style={{ padding: '28px 0', textAlign: 'center', font: `400 13px ${FF}`, color: '#a89f8e' }}>Nenhum treino encontrado.</div>
+            : <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {filtered.map(w => {
+                  const g = GOAL_STYLE[w.goal as Goal] ?? { color: '#1B2A4A', bg: '#eef1f6' }
+                  return (
+                    <button key={w.id} type="button" onClick={() => onSelect(w)}
+                      style={{ display: 'flex', alignItems: 'center', gap: 12, border: '1.5px solid #ece7d9', background: '#fff', borderRadius: 11, padding: '11px 13px', cursor: 'pointer', textAlign: 'left', width: '100%', transition: 'border-color .1s, background .1s' }}
+                      onMouseEnter={e => { e.currentTarget.style.borderColor = '#E8542A'; e.currentTarget.style.background = '#fdf3ee' }}
+                      onMouseLeave={e => { e.currentTarget.style.borderColor = '#ece7d9'; e.currentTarget.style.background = '#fff' }}
+                    >
+                      <div style={{ width: 34, height: 34, borderRadius: 9, background: g.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <span style={{ font: `800 10px ${FF}`, color: g.color }}>{w.goal.slice(0,3).toUpperCase()}</span>
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ font: `700 13.5px ${FF}`, color: '#1B2A4A', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{w.name}</div>
+                        <div style={{ font: `400 11px ${FF}`, color: '#9a948a' }}>{w.muscle_group ?? w.goal} · {w.ex_count} ex. · {w.duration_min} min</div>
+                      </div>
+                    </button>
+                  )
+                })}
+              </div>
+          }
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Apply Program Modal ────────────────────────────────────────
+function ApplyProgramModal({ programName, students, onConfirm, onClose }: {
+  programName: string
+  students:    { id: number; name: string; goal: string }[]
+  onConfirm:   (ids: number[]) => void
+  onClose:     () => void
+}) {
+  const [selected, setSelected] = useState<Set<number>>(new Set())
+  function toggle(id: number) {
+    setSelected(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
+  }
+  const n = selected.size
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(20,25,40,.5)', zIndex: 75, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+      <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 420, background: '#fff', borderRadius: 16, padding: 24, boxShadow: '0 24px 60px rgba(0,0,0,.3)', maxHeight: '82vh', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 8 }}>
+          <h2 style={{ font: `800 18px ${FF}`, color: '#1B2A4A', margin: 0 }}>Aplicar programa</h2>
+          <button onClick={onClose} style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#9a948a', padding: 2 }}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
+          </button>
+        </div>
+        <p style={{ font: `400 12.5px ${FF}`, color: '#9a948a', margin: '0 0 16px' }}>
+          <strong style={{ color: '#1B2A4A' }}>{programName}</strong> — selecione os alunos
+        </p>
+        <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 7 }}>
+          {students.length === 0 && (
+            <div style={{ padding: '28px 0', textAlign: 'center', font: `400 13px ${FF}`, color: '#a89f8e' }}>Nenhum aluno cadastrado.</div>
+          )}
+          {students.map(s => {
+            const sel = selected.has(s.id)
+            const pal = avatarPalette(s.id)
+            return (
+              <button key={s.id} type="button" onClick={() => toggle(s.id)}
+                style={{ display: 'flex', alignItems: 'center', gap: 12, border: `1.5px solid ${sel ? '#E8542A' : '#ece7d9'}`, background: sel ? '#fdf3ee' : '#fff', borderRadius: 11, padding: '11px 13px', cursor: 'pointer', textAlign: 'left', width: '100%' }}
+              >
+                <div style={{ width: 36, height: 36, borderRadius: '50%', background: pal[0], color: pal[1], display: 'flex', alignItems: 'center', justifyContent: 'center', font: `700 12px ${FF}`, flexShrink: 0 }}>
+                  {getInitials(s.name)}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ font: `700 13px ${FF}`, color: '#1B2A4A', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name}</div>
+                  <div style={{ font: `400 11px ${FF}`, color: '#9a948a' }}>{s.goal}</div>
+                </div>
+                <div style={{ width: 20, height: 20, borderRadius: 6, border: `2px solid ${sel ? '#E8542A' : '#d2cbbb'}`, background: sel ? '#E8542A' : '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3.5" strokeLinecap="round" style={{ opacity: sel ? 1 : 0 }}><path d="M20 6L9 17l-5-5"/></svg>
+                </div>
+              </button>
+            )
+          })}
+        </div>
+        <button type="button" onClick={() => { if (n) onConfirm(Array.from(selected)) }}
+          disabled={n === 0}
+          style={{ marginTop: 16, width: '100%', height: 46, border: 'none', background: n ? '#E8542A' : '#e0d9c8', color: '#fff', borderRadius: 10, font: `700 14px ${FF}`, cursor: n ? 'pointer' : 'default', boxShadow: n ? '0 2px 0 #c4421e' : 'none' }}>
+          {n ? `Aplicar a ${n} aluno${n > 1 ? 's' : ''}` : 'Selecione alunos'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ── Program Builder Drawer ─────────────────────────────────────
+function ProgramBuilderDrawer({ program, workouts, onClose, onUpdate, onApply, onDelete }: {
+  program:   Program
+  workouts:  WorkoutOption[]
+  onClose:   () => void
+  onUpdate:  (p: Program) => void
+  onApply:   () => void
+  onDelete:  () => void
+}) {
+  const [slots, setSlots] = useState<ProgramSlot[]>(program.slots)
+  const [pickerSlot, setPickerSlot] = useState<number | null>(null) // position
+  const [deleteConfirm, setDeleteConfirm] = useState(false)
+  const savingRef = useRef<Record<number, boolean>>({})
+
+  useEffect(() => { setSlots(program.slots) }, [program.id])
+
+  async function assignWorkout(position: number, workout: WorkoutOption) {
+    const slot = slots.find(s => s.position === position)!
+    if (savingRef.current[slot.id]) return
+    savingRef.current[slot.id] = true
+    await supabase.from('program_slots').update({ workout_id: workout.id }).eq('id', slot.id)
+    savingRef.current[slot.id] = false
+    const updated = slots.map(s => s.position === position ? { ...s, workout_id: workout.id, workout } : s)
+    setSlots(updated)
+    onUpdate({ ...program, slots: updated })
+    setPickerSlot(null)
+  }
+
+  async function removeWorkout(position: number) {
+    const slot = slots.find(s => s.position === position)!
+    await supabase.from('program_slots').update({ workout_id: null }).eq('id', slot.id)
+    const updated = slots.map(s => s.position === position ? { ...s, workout_id: null, workout: null } : s)
+    setSlots(updated)
+    onUpdate({ ...program, slots: updated })
+  }
+
+  async function setDay(position: number, day: number | null) {
+    const slot = slots.find(s => s.position === position)!
+    await supabase.from('program_slots').update({ day_of_week: day }).eq('id', slot.id)
+    const updated = slots.map(s => s.position === position ? { ...s, day_of_week: day } : s)
+    setSlots(updated)
+    onUpdate({ ...program, slots: updated })
+  }
+
+  return (
+    <>
+      <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(20,25,40,.45)', zIndex: 55 }} />
+      <div onClick={e => e.stopPropagation()} style={{ position: 'fixed', top: 0, right: 0, bottom: 0, width: 520, maxWidth: '95vw', background: '#F4EFE3', zIndex: 56, boxShadow: '-12px 0 40px rgba(0,0,0,.22)', display: 'flex', flexDirection: 'column' }}>
+
+        {/* Header */}
+        <div style={{ background: '#1B2A4A', padding: '24px 24px 20px', flexShrink: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+            <div>
+              <div style={{ display: 'flex', gap: 6, marginBottom: 10, flexWrap: 'wrap' }}>
+                {program.is_template && <span style={{ font: `600 10px ${FF}`, color: '#c9b8f5', background: 'rgba(90,78,160,.35)', borderRadius: 20, padding: '3px 9px' }}>Template</span>}
+                <span style={{ font: `600 10px ${FF}`, color: '#aeb9cc', background: 'rgba(255,255,255,.12)', borderRadius: 20, padding: '3px 9px' }}>{program.days_per_week}×/semana</span>
+              </div>
+              <h2 style={{ font: `800 22px ${FF}`, color: '#fff', margin: 0, letterSpacing: '-.4px' }}>{program.name}</h2>
+              <div style={{ font: `400 12.5px ${FF}`, color: '#aeb9cc', marginTop: 5 }}>
+                {slots.filter(s => s.workout).length} de {program.days_per_week} treinos preenchidos
+              </div>
+            </div>
+            <button onClick={onClose} style={{ border: 'none', background: 'rgba(255,255,255,.1)', cursor: 'pointer', color: '#fff', width: 32, height: 32, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
+            </button>
+          </div>
+        </div>
+
+        {/* Slots */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px 24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {slots.map(slot => {
+            const g = slot.workout ? (GOAL_STYLE[slot.workout.goal as Goal] ?? { color: '#1B2A4A', bg: '#eef1f6' }) : null
+            return (
+              <div key={slot.position}>
+                {/* Slot header */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <div style={{ width: 28, height: 28, borderRadius: 8, background: '#E8542A', display: 'flex', alignItems: 'center', justifyContent: 'center', font: `900 13px ${FF}`, color: '#fff' }}>
+                      {slotLabel(slot.position)}
+                    </div>
+                    <span style={{ font: `700 12px ${FF}`, color: '#1B2A4A', textTransform: 'uppercase', letterSpacing: '.4px' }}>Treino {slotLabel(slot.position)}</span>
+                  </div>
+                  {/* Day picker */}
+                  <div style={{ display: 'flex', gap: 4 }}>
+                    {DAYS.map((d, i) => {
+                      const active = slot.day_of_week === i
+                      return (
+                        <button key={i} type="button" onClick={() => setDay(slot.position, active ? null : i)}
+                          style={{ width: 30, height: 26, border: `1.5px solid ${active ? '#E8542A' : '#d9d3c4'}`, background: active ? '#E8542A' : '#fff', color: active ? '#fff' : '#7c7869', font: `700 10px ${FF}`, borderRadius: 6, cursor: 'pointer' }}>
+                          {d}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                {/* Slot body */}
+                {slot.workout && g ? (
+                  <div style={{ background: '#fff', border: '1px solid #ece7d9', borderRadius: 12, padding: '14px 16px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                      <div style={{ width: 38, height: 38, borderRadius: 10, background: g.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <span style={{ font: `800 9px ${FF}`, color: g.color }}>{slot.workout.goal.slice(0,3).toUpperCase()}</span>
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ font: `700 14px ${FF}`, color: '#1B2A4A', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{slot.workout.name}</div>
+                        <div style={{ font: `400 11.5px ${FF}`, color: '#9a948a', marginTop: 2 }}>
+                          {slot.workout.muscle_group ?? slot.workout.goal} · {slot.workout.ex_count} ex. · {slot.workout.duration_min} min
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                        <button type="button" onClick={() => setPickerSlot(slot.position)}
+                          style={{ height: 32, padding: '0 12px', border: '1.5px solid #d9d3c4', background: '#fff', color: '#1B2A4A', borderRadius: 8, font: `600 12px ${FF}`, cursor: 'pointer' }}>
+                          Trocar
+                        </button>
+                        <button type="button" onClick={() => removeWorkout(slot.position)}
+                          style={{ width: 32, height: 32, border: '1.5px solid #e0d9c8', background: '#fff', color: '#a89f8e', borderRadius: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                          onMouseEnter={e => { e.currentTarget.style.borderColor = '#c4421e'; e.currentTarget.style.color = '#c4421e' }}
+                          onMouseLeave={e => { e.currentTarget.style.borderColor = '#e0d9c8'; e.currentTarget.style.color = '#a89f8e' }}
+                        >
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <button type="button" onClick={() => setPickerSlot(slot.position)}
+                    style={{ width: '100%', border: '2px dashed #d8d1c0', background: '#fff', color: '#9a948a', borderRadius: 12, padding: '18px 0', font: `600 13px ${FF}`, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7 }}
+                    onMouseEnter={e => { e.currentTarget.style.borderColor = '#E8542A'; e.currentTarget.style.color = '#E8542A' }}
+                    onMouseLeave={e => { e.currentTarget.style.borderColor = '#d8d1c0'; e.currentTarget.style.color = '#9a948a' }}
+                  >
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+                    Adicionar treino
+                  </button>
+                )}
+              </div>
+            )
+          })}
+        </div>
+
+        {/* Footer */}
+        <div style={{ flexShrink: 0, padding: '14px 24px 20px', background: '#fff', borderTop: '1px solid #ece7d9' }}>
+          {deleteConfirm ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div style={{ font: `600 13px ${FF}`, color: '#c4421e', textAlign: 'center' }}>Excluir <strong>"{program.name}"</strong>?</div>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button onClick={() => setDeleteConfirm(false)} style={{ flex: 1, height: 44, border: '1.5px solid #d9d3c4', background: '#fff', color: '#1B2A4A', borderRadius: 10, font: `700 13px ${FF}`, cursor: 'pointer' }}>Cancelar</button>
+                <button onClick={onDelete} style={{ flex: 1, height: 44, border: 'none', background: '#c4421e', color: '#fff', borderRadius: 10, font: `700 13px ${FF}`, cursor: 'pointer' }}>Sim, excluir</button>
+              </div>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button type="button" onClick={() => setDeleteConfirm(true)}
+                style={{ width: 46, height: 46, border: '1.5px solid #e0d9c8', background: '#fff', color: '#a89f8e', borderRadius: 10, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = '#c4421e'; e.currentTarget.style.color = '#c4421e' }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = '#e0d9c8'; e.currentTarget.style.color = '#a89f8e' }}
+              >
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+              </button>
+              <button type="button" onClick={onApply}
+                style={{ flex: 1, height: 46, border: 'none', background: '#E8542A', color: '#fff', borderRadius: 10, font: `700 14px ${FF}`, cursor: 'pointer', boxShadow: '0 2px 0 #c4421e', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6"/><path d="M22 11h-6"/></svg>
+                Aplicar a aluno
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {pickerSlot !== null && (
+        <WorkoutPickerModal
+          workouts={workouts}
+          onSelect={w => assignWorkout(pickerSlot, w)}
+          onClose={() => setPickerSlot(null)}
+        />
+      )}
+    </>
+  )
+}
+
+// ── New Program Modal ──────────────────────────────────────────
+function NewProgramModal({ onClose, onAdd }: {
+  onClose: () => void
+  onAdd:   (name: string, daysPerWeek: number, isTemplate: boolean) => void
+}) {
+  const [name,       setName]       = useState('')
+  const [days,       setDays]       = useState(3)
+  const [isTemplate, setIsTemplate] = useState(false)
+
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(20,25,40,.5)', zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+      <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 440, background: '#fff', borderRadius: 16, padding: 26, boxShadow: '0 24px 60px rgba(0,0,0,.3)' }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 20 }}>
+          <h2 style={{ font: `800 20px ${FF}`, color: '#1B2A4A', margin: 0, letterSpacing: '-.4px' }}>Novo programa</h2>
+          <button onClick={onClose} style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#9a948a', padding: 2 }}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
+          </button>
+        </div>
+
+        <label style={{ display: 'block', font: `600 11px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#6b6657', marginBottom: 7 }}>Nome do programa</label>
+        <input type="text" placeholder="Ex: Hipertrofia 3×, Iniciante Full Body…" value={name}
+          onChange={e => setName(e.target.value)}
+          style={{ width: '100%', height: 46, border: '1.5px solid #d9d3c4', borderRadius: 10, background: '#fff', padding: '0 14px', font: `400 14px ${FF}`, color: '#1B2A4A', outline: 'none', marginBottom: 20, boxSizing: 'border-box' }}
+          onFocus={e => { e.currentTarget.style.borderColor = '#E8542A'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(232,84,42,.13)' }}
+          onBlur={e => { e.currentTarget.style.borderColor = '#d9d3c4'; e.currentTarget.style.boxShadow = 'none' }}
+        />
+
+        <label style={{ display: 'block', font: `600 11px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#6b6657', marginBottom: 10 }}>Treinos por semana</label>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
+          {[2, 3, 4, 5, 6].map(d => (
+            <button key={d} type="button" onClick={() => setDays(d)}
+              style={{ flex: 1, height: 44, border: `1.5px solid ${days === d ? '#E8542A' : '#d9d3c4'}`, background: days === d ? '#E8542A' : '#fff', color: days === d ? '#fff' : '#7c7869', font: `700 15px ${FF}`, borderRadius: 10, cursor: 'pointer' }}>
+              {d}×
+            </button>
+          ))}
+        </div>
+
+        <button type="button" onClick={() => setIsTemplate(v => !v)}
+          style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 12, border: `1.5px solid ${isTemplate ? '#5a4ea0' : '#d9d3c4'}`, background: isTemplate ? '#ece9f6' : '#fff', borderRadius: 10, padding: '12px 14px', cursor: 'pointer', marginBottom: 20 }}>
+          <div style={{ width: 20, height: 20, borderRadius: 6, border: `2px solid ${isTemplate ? '#5a4ea0' : '#d2cbbb'}`, background: isTemplate ? '#5a4ea0' : '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3.5" strokeLinecap="round" style={{ opacity: isTemplate ? 1 : 0 }}><path d="M20 6L9 17l-5-5"/></svg>
+          </div>
+          <div style={{ textAlign: 'left' }}>
+            <div style={{ font: `600 13px ${FF}`, color: '#1B2A4A' }}>Salvar como template</div>
+            <div style={{ font: `400 11.5px ${FF}`, color: '#9a948a' }}>Reutilizável para múltiplos alunos</div>
+          </div>
+        </button>
+
+        <button type="button" onClick={() => { if (name.trim()) onAdd(name.trim(), days, isTemplate) }}
+          style={{ width: '100%', height: 48, border: 'none', background: '#E8542A', color: '#fff', borderRadius: 10, font: `700 14.5px ${FF}`, cursor: 'pointer', boxShadow: '0 2px 0 #c4421e' }}>
+          Criar e montar treinos →
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ── Biblioteca components (existing, kept intact) ────────────
 function ExRow({ ex, order, tagBg, tagColor, dragOverId, onDragStart, onDragEnd, onDragOver, onDragLeave, onDrop }: {
-  ex:          Exercise
-  order:       number
-  tagBg:       string
-  tagColor:    string
-  dragOverId:  number | null
+  ex: { _k: number; name: string; muscle: string; scheme: string; rest: string }
+  order: number; tagBg: string; tagColor: string; dragOverId: number | null
   onDragStart: (e: DragEvent<HTMLDivElement>, k: number) => void
   onDragEnd:   (e: DragEvent<HTMLDivElement>) => void
   onDragOver:  (e: DragEvent<HTMLDivElement>, k: number) => void
@@ -112,150 +468,78 @@ function ExRow({ ex, order, tagBg, tagColor, dragOverId, onDragStart, onDragEnd,
 }) {
   const isOver = dragOverId === ex._k
   return (
-    <div
-      draggable
-      onDragStart={e => onDragStart(e, ex._k)}
-      onDragEnd={onDragEnd}
-      onDragOver={e => onDragOver(e, ex._k)}
-      onDragLeave={onDragLeave}
-      onDrop={e => onDrop(e, ex._k)}
-      style={{
-        background: isOver ? '#fdf3ee' : '#fff',
-        boxShadow: isOver ? 'inset 0 0 0 2px #E8542A' : 'none',
-        border: '1px solid #ece7d9', borderRadius: 12, padding: '13px 14px',
-        display: 'flex', alignItems: 'center', gap: 12, cursor: 'grab', transition: 'background .1s',
-      }}
-    >
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#c9c1b0" strokeWidth="2" strokeLinecap="round" style={{ flexShrink: 0 }}>
+    <div draggable onDragStart={e => onDragStart(e, ex._k)} onDragEnd={onDragEnd}
+      onDragOver={e => onDragOver(e, ex._k)} onDragLeave={onDragLeave} onDrop={e => onDrop(e, ex._k)}
+      style={{ background: isOver ? '#fdf3ee' : '#fff', boxShadow: isOver ? 'inset 0 0 0 2px #E8542A' : 'none', border: '1px solid #ece7d9', borderRadius: 12, padding: '13px 14px', display: 'flex', alignItems: 'center', gap: 12, cursor: 'grab' }}>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#c9c1b0" strokeWidth="2" strokeLinecap="round" style={{ flexShrink: 0 }}>
         <circle cx="9" cy="6" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="9" cy="18" r="1"/>
         <circle cx="15" cy="6" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="18" r="1"/>
       </svg>
-      <div style={{ width: 30, height: 30, borderRadius: 8, background: tagBg, color: tagColor, display: 'flex', alignItems: 'center', justifyContent: 'center', font: `800 11px ${FF}`, flexShrink: 0 }}>
-        {order}
-      </div>
-      <div style={{ minWidth: 0, flex: 1 }}>
-        <div style={{ font: `700 13.5px ${FF}`, color: '#1B2A4A', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{ex.name}</div>
-        <div style={{ font: `500 11.5px ${FF}`, color: '#9a948a', marginTop: 2 }}>{ex.muscle}</div>
+      <div style={{ width: 28, height: 28, borderRadius: 7, background: tagBg, color: tagColor, display: 'flex', alignItems: 'center', justifyContent: 'center', font: `800 10px ${FF}`, flexShrink: 0 }}>{order}</div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ font: `700 13px ${FF}`, color: '#1B2A4A', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ex.name}</div>
+        <div style={{ font: `500 11px ${FF}`, color: '#9a948a', marginTop: 2 }}>{ex.muscle}</div>
       </div>
       <div style={{ textAlign: 'right', flexShrink: 0 }}>
-        <div style={{ font: `800 14px ${FF}`, color: '#1B2A4A' }}>{ex.scheme}</div>
-        <div style={{ font: `500 11px ${FF}`, color: '#b0a99c' }}>desc. {ex.rest}</div>
+        <div style={{ font: `800 13px ${FF}`, color: '#1B2A4A' }}>{ex.scheme}</div>
+        <div style={{ font: `500 10px ${FF}`, color: '#b0a99c' }}>desc. {ex.rest}</div>
       </div>
     </div>
   )
 }
 
-// ── New exercise modal ────────────────────────────────────────
-function NewExerciseModal({ onClose, onAdd }: {
-  onClose: () => void
-  onAdd:   (ex: Omit<Exercise, '_k'>) => void
-}) {
-  const [name,   setName]   = useState('')
+function NewExerciseModal({ onClose, onAdd }: { onClose: () => void; onAdd: (ex: Omit<Exercise, '_k'>) => void }) {
+  const [name, setName] = useState('')
   const [muscle, setMuscle] = useState('')
   const [series, setSeries] = useState('3')
-  const [reps,   setReps]   = useState('12')
-  const [rest,   setRest]   = useState('60s')
-  const [err,    setErr]    = useState('')
-
-  function handleAdd() {
-    if (!name.trim()) { setErr('Informe o nome do exercício.'); return }
-    const scheme = `${series.trim() || '3'} × ${reps.trim() || '12'}`
-    onAdd({ name: name.trim(), muscle: muscle.trim() || '—', scheme, rest: rest.trim() || '60s' })
-  }
-
-  const inputBase: React.CSSProperties = {
-    width: '100%', height: 46, border: '1.5px solid #d9d3c4', borderRadius: 10,
-    background: '#fff', padding: '0 14px', font: `400 14px ${FF}`, color: '#1B2A4A',
-    outline: 'none', boxSizing: 'border-box',
-  }
-  const numBase: React.CSSProperties = { ...inputBase, font: `700 15px ${FF}`, textAlign: 'center' }
-
-  function focusOn(e: React.FocusEvent<HTMLInputElement>) {
-    e.currentTarget.style.borderColor = '#E8542A'
-    e.currentTarget.style.boxShadow   = '0 0 0 3px rgba(232,84,42,.13)'
-  }
-  function focusOff(e: React.FocusEvent<HTMLInputElement>) {
-    e.currentTarget.style.borderColor = '#d9d3c4'
-    e.currentTarget.style.boxShadow   = 'none'
-  }
-
+  const [reps, setReps] = useState('12')
+  const [rest, setRest] = useState('60s')
+  const [err, setErr] = useState('')
+  const inp: React.CSSProperties = { width: '100%', height: 46, border: '1.5px solid #d9d3c4', borderRadius: 10, background: '#fff', padding: '0 14px', font: `400 14px ${FF}`, color: '#1B2A4A', outline: 'none', boxSizing: 'border-box' }
+  const num: React.CSSProperties = { ...inp, font: `700 15px ${FF}`, textAlign: 'center' }
+  const focusOn  = (e: React.FocusEvent<HTMLInputElement>) => { e.currentTarget.style.borderColor = '#E8542A'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(232,84,42,.13)' }
+  const focusOff = (e: React.FocusEvent<HTMLInputElement>) => { e.currentTarget.style.borderColor = '#d9d3c4'; e.currentTarget.style.boxShadow = 'none' }
   return (
-    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(20,25,40,.55)', zIndex: 70, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(20,25,40,.55)', zIndex: 80, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
       <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 460, background: '#fff', borderRadius: 16, padding: 26, boxShadow: '0 24px 60px rgba(0,0,0,.35)', maxHeight: '90vh', overflowY: 'auto' }}>
-
-        {/* Header */}
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 20 }}>
-          <div>
-            <h2 style={{ font: `800 20px ${FF}`, color: '#1B2A4A', margin: 0, letterSpacing: '-.4px' }}>Novo exercício</h2>
-            <p style={{ font: `400 12.5px ${FF}`, color: '#9a948a', margin: '4px 0 0' }}>Preencha os campos e clique em adicionar</p>
-          </div>
-          <button onClick={onClose} aria-label="Fechar" style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#9a948a', padding: 2, flexShrink: 0 }}>
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
+          <h2 style={{ font: `800 20px ${FF}`, color: '#1B2A4A', margin: 0 }}>Novo exercício</h2>
+          <button onClick={onClose} style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#9a948a', padding: 2 }}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
           </button>
         </div>
-
-        {/* Nome */}
         <label style={{ display: 'block', font: `600 11px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#6b6657', marginBottom: 7 }}>Nome do exercício</label>
-        <input
-          type="text" value={name} placeholder="Ex: Supino reto com barra"
-          onChange={e => { setName(e.target.value); setErr('') }}
-          onFocus={focusOn} onBlur={focusOff}
-          style={{ ...inputBase, border: `1.5px solid ${err ? '#c4421e' : '#d9d3c4'}`, marginBottom: err ? 6 : 18 }}
-        />
+        <input type="text" value={name} placeholder="Ex: Supino reto com barra" onChange={e => { setName(e.target.value); setErr('') }} onFocus={focusOn} onBlur={focusOff}
+          style={{ ...inp, border: `1.5px solid ${err ? '#c4421e' : '#d9d3c4'}`, marginBottom: err ? 6 : 18 }} />
         {err && <div style={{ font: `500 12px ${FF}`, color: '#c4421e', marginBottom: 14 }}>{err}</div>}
-
-        {/* Grupo muscular */}
         <label style={{ display: 'block', font: `600 11px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#6b6657', marginBottom: 8 }}>Grupo muscular</label>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
           {MUSCLE_CHIPS.map(m => (
-            <button
-              key={m} type="button" onClick={() => setMuscle(m)}
-              style={{ border: `1.5px solid ${muscle === m ? '#E8542A' : '#e0d9c8'}`, background: muscle === m ? '#fdf3ee' : '#fff', color: muscle === m ? '#E8542A' : '#7c7869', font: `600 11.5px ${FF}`, borderRadius: 18, padding: '6px 12px', cursor: 'pointer' }}
-            >
-              {m}
-            </button>
+            <button key={m} type="button" onClick={() => setMuscle(m)}
+              style={{ border: `1.5px solid ${muscle === m ? '#E8542A' : '#e0d9c8'}`, background: muscle === m ? '#fdf3ee' : '#fff', color: muscle === m ? '#E8542A' : '#7c7869', font: `600 11px ${FF}`, borderRadius: 18, padding: '5px 11px', cursor: 'pointer' }}>{m}</button>
           ))}
         </div>
-        <input
-          type="text" value={muscle} placeholder="Ou escreva um grupo personalizado…"
-          onChange={e => setMuscle(e.target.value)}
-          onFocus={focusOn} onBlur={focusOff}
-          style={{ ...inputBase, height: 42, font: `400 13.5px ${FF}`, marginBottom: 20 }}
-        />
-
-        {/* Séries × Reps × Descanso */}
+        <input type="text" value={muscle} placeholder="Ou escreva um grupo personalizado…" onChange={e => setMuscle(e.target.value)} onFocus={focusOn} onBlur={focusOff}
+          style={{ ...inp, height: 42, font: `400 13px ${FF}`, marginBottom: 20 }} />
         <div style={{ display: 'grid', gridTemplateColumns: '80px 1fr 100px', gap: 12, alignItems: 'end', marginBottom: 24 }}>
           <div>
             <label style={{ display: 'block', font: `600 11px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#6b6657', marginBottom: 7 }}>Séries</label>
-            <input type="text" value={series} onChange={e => setSeries(e.target.value)} onFocus={focusOn} onBlur={focusOff} style={numBase} />
+            <input type="text" value={series} onChange={e => setSeries(e.target.value)} onFocus={focusOn} onBlur={focusOff} style={num} />
           </div>
           <div>
             <label style={{ display: 'block', font: `600 11px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#6b6657', marginBottom: 7 }}>Reps / Duração</label>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ font: `700 18px ${FF}`, color: '#c9c1b0', flexShrink: 0 }}>×</span>
-              <input type="text" value={reps} onChange={e => setReps(e.target.value)} onFocus={focusOn} onBlur={focusOff} placeholder="12 ou 30s" style={{ ...numBase, flex: 1, width: 'auto' }} />
+              <span style={{ font: `700 18px ${FF}`, color: '#c9c1b0' }}>×</span>
+              <input type="text" value={reps} onChange={e => setReps(e.target.value)} onFocus={focusOn} onBlur={focusOff} placeholder="12 ou 30s" style={{ ...num, flex: 1, width: 'auto' }} />
             </div>
           </div>
           <div>
             <label style={{ display: 'block', font: `600 11px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#6b6657', marginBottom: 7 }}>Descanso</label>
-            <input type="text" value={rest} onChange={e => setRest(e.target.value)} onFocus={focusOn} onBlur={focusOff} placeholder="60s" style={numBase} />
+            <input type="text" value={rest} onChange={e => setRest(e.target.value)} onFocus={focusOn} onBlur={focusOff} placeholder="60s" style={num} />
           </div>
         </div>
-
-        {/* Preview */}
-        {name.trim() && (
-          <div style={{ background: '#faf7ee', border: '1px solid #e0d9c8', borderRadius: 11, padding: '11px 14px', marginBottom: 18, display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div style={{ font: `700 13px ${FF}`, color: '#1B2A4A', flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{name.trim()}</div>
-            <div style={{ font: `600 11.5px ${FF}`, color: '#9a948a', flexShrink: 0 }}>{muscle || '—'}</div>
-            <div style={{ font: `800 13px ${FF}`, color: '#1B2A4A', flexShrink: 0 }}>{series || '3'} × {reps || '12'}</div>
-            <div style={{ font: `500 11px ${FF}`, color: '#b0a99c', flexShrink: 0 }}>desc. {rest || '60s'}</div>
-          </div>
-        )}
-
-        <button
-          type="button" onClick={handleAdd}
-          style={{ width: '100%', height: 48, border: 'none', background: '#E8542A', color: '#fff', borderRadius: 10, font: `700 14.5px ${FF}`, cursor: 'pointer', boxShadow: '0 2px 0 #c4421e' }}
-        >
+        <button type="button" onClick={() => { if (!name.trim()) { setErr('Informe o nome.'); return } onAdd({ name: name.trim(), muscle: muscle.trim() || '—', scheme: `${series.trim()||'3'} × ${reps.trim()||'12'}`, rest: rest.trim() || '60s' }) }}
+          style={{ width: '100%', height: 48, border: 'none', background: '#E8542A', color: '#fff', borderRadius: 10, font: `700 14px ${FF}`, cursor: 'pointer', boxShadow: '0 2px 0 #c4421e' }}>
           Adicionar exercício
         </button>
       </div>
@@ -263,86 +547,59 @@ function NewExerciseModal({ onClose, onAdd }: {
   )
 }
 
-// ── Exercise picker modal ─────────────────────────────────────
 function ExercisePickerModal({ library, onSelect, onCreateNew, onClose }: {
-  library:     LibraryExercise[]
-  onSelect:    (ex: Omit<Exercise, '_k'>) => void
-  onCreateNew: () => void
-  onClose:     () => void
+  library: LibraryExercise[]; onSelect: (ex: Omit<Exercise, '_k'>) => void; onCreateNew: () => void; onClose: () => void
 }) {
   const [query, setQuery] = useState('')
   const q = query.trim().toLowerCase()
-  const filtered = q
-    ? library.filter(ex => ex.name.toLowerCase().includes(q) || ex.muscle.toLowerCase().includes(q))
-    : library
-
+  const filtered = q ? library.filter(ex => ex.name.toLowerCase().includes(q) || ex.muscle.toLowerCase().includes(q)) : library
   return (
-    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(20,25,40,.55)', zIndex: 65, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(20,25,40,.55)', zIndex: 75, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
       <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 480, background: '#fff', borderRadius: 16, boxShadow: '0 24px 60px rgba(0,0,0,.35)', display: 'flex', flexDirection: 'column', maxHeight: '80vh' }}>
-
         <div style={{ padding: '22px 22px 14px', flexShrink: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-            <h2 style={{ font: `800 20px ${FF}`, color: '#1B2A4A', margin: 0, letterSpacing: '-.4px' }}>Adicionar exercício</h2>
-            <button onClick={onClose} aria-label="Fechar" style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#9a948a', padding: 2 }}>
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
+            <h2 style={{ font: `800 20px ${FF}`, color: '#1B2A4A', margin: 0 }}>Adicionar exercício</h2>
+            <button onClick={onClose} style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#9a948a', padding: 2 }}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
             </button>
           </div>
           <div style={{ position: 'relative' }}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9a948a" strokeWidth="2" strokeLinecap="round" style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)' }}>
-              <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.3-4.3"/>
-            </svg>
-            <input
-              autoFocus
-              type="text"
-              value={query}
-              onChange={e => setQuery(e.target.value)}
-              placeholder="Buscar exercício…"
-              style={{ width: '100%', height: 40, border: '1.5px solid #e0d9c8', borderRadius: 10, background: '#faf7ee', padding: '0 14px 0 36px', font: `400 13.5px ${FF}`, color: '#1B2A4A', outline: 'none', boxSizing: 'border-box' as const }}
-              onFocus={e => { e.currentTarget.style.borderColor = '#E8542A' }}
-              onBlur={e => { e.currentTarget.style.borderColor = '#e0d9c8' }}
-            />
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#9a948a" strokeWidth="2" strokeLinecap="round" style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)' }}><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.3-4.3"/></svg>
+            <input autoFocus type="text" value={query} onChange={e => setQuery(e.target.value)} placeholder="Buscar exercício…"
+              style={{ width: '100%', height: 40, border: '1.5px solid #e0d9c8', borderRadius: 10, background: '#faf7ee', padding: '0 14px 0 34px', font: `400 13px ${FF}`, color: '#1B2A4A', outline: 'none', boxSizing: 'border-box' }}
+              onFocus={e => { e.currentTarget.style.borderColor = '#E8542A' }} onBlur={e => { e.currentTarget.style.borderColor = '#e0d9c8' }} />
           </div>
         </div>
-
         <div style={{ flex: 1, overflowY: 'auto', padding: '0 14px', minHeight: 0 }}>
-          {filtered.length === 0 ? (
-            <div style={{ padding: '32px 0', textAlign: 'center', font: `500 13.5px ${FF}`, color: '#a89f8e' }}>
-              Nenhum exercício encontrado.
-            </div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, paddingBottom: 8 }}>
-              {filtered.map((ex, i) => (
-                <button
-                  key={i}
-                  type="button"
-                  onClick={() => onSelect(ex)}
-                  style={{ display: 'flex', alignItems: 'center', gap: 12, border: '1.5px solid #ece7d9', background: '#fff', borderRadius: 11, padding: '11px 13px', cursor: 'pointer', textAlign: 'left', width: '100%', transition: 'border-color .1s, background .1s' }}
-                  onMouseEnter={e => { const el = e.currentTarget; el.style.borderColor = '#E8542A'; el.style.background = '#fdf3ee' }}
-                  onMouseLeave={e => { const el = e.currentTarget; el.style.borderColor = '#ece7d9'; el.style.background = '#fff' }}
-                >
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ font: `700 13.5px ${FF}`, color: '#1B2A4A', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{ex.name}</div>
-                    <div style={{ font: `500 11.5px ${FF}`, color: '#9a948a', marginTop: 2 }}>{ex.muscle}</div>
-                  </div>
-                  <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                    <div style={{ font: `700 12px ${FF}`, color: '#1B2A4A' }}>{ex.scheme}</div>
-                    <div style={{ font: `500 10.5px ${FF}`, color: '#b0a99c' }}>desc. {ex.rest}</div>
-                  </div>
-                </button>
-              ))}
-            </div>
-          )}
+          {filtered.length === 0
+            ? <div style={{ padding: '28px 0', textAlign: 'center', font: `400 13px ${FF}`, color: '#a89f8e' }}>Nenhum exercício encontrado.</div>
+            : <div style={{ display: 'flex', flexDirection: 'column', gap: 6, paddingBottom: 8 }}>
+                {filtered.map((ex, i) => (
+                  <button key={i} type="button" onClick={() => onSelect(ex)}
+                    style={{ display: 'flex', alignItems: 'center', gap: 12, border: '1.5px solid #ece7d9', background: '#fff', borderRadius: 11, padding: '11px 13px', cursor: 'pointer', textAlign: 'left', width: '100%' }}
+                    onMouseEnter={e => { e.currentTarget.style.borderColor = '#E8542A'; e.currentTarget.style.background = '#fdf3ee' }}
+                    onMouseLeave={e => { e.currentTarget.style.borderColor = '#ece7d9'; e.currentTarget.style.background = '#fff' }}
+                  >
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ font: `700 13px ${FF}`, color: '#1B2A4A', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ex.name}</div>
+                      <div style={{ font: `500 11px ${FF}`, color: '#9a948a' }}>{ex.muscle}</div>
+                    </div>
+                    <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                      <div style={{ font: `700 12px ${FF}`, color: '#1B2A4A' }}>{ex.scheme}</div>
+                      <div style={{ font: `500 10px ${FF}`, color: '#b0a99c' }}>desc. {ex.rest}</div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+          }
         </div>
-
         <div style={{ padding: '14px 22px 20px', flexShrink: 0, borderTop: '1px solid #f4efe3' }}>
-          <button
-            type="button"
-            onClick={onCreateNew}
-            style={{ width: '100%', height: 46, border: '1.5px dashed #d8d1c0', background: 'none', color: '#7c7869', borderRadius: 10, font: `700 13.5px ${FF}`, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7 }}
-            onMouseEnter={e => { const el = e.currentTarget; el.style.borderColor = '#E8542A'; el.style.color = '#E8542A' }}
-            onMouseLeave={e => { const el = e.currentTarget; el.style.borderColor = '#d8d1c0'; el.style.color = '#7c7869' }}
+          <button type="button" onClick={onCreateNew}
+            style={{ width: '100%', height: 46, border: '1.5px dashed #d8d1c0', background: 'none', color: '#7c7869', borderRadius: 10, font: `700 13px ${FF}`, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7 }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = '#E8542A'; e.currentTarget.style.color = '#E8542A' }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = '#d8d1c0'; e.currentTarget.style.color = '#7c7869' }}
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
             Criar novo exercício
           </button>
         </div>
@@ -351,86 +608,54 @@ function ExercisePickerModal({ library, onSelect, onCreateNew, onClose }: {
   )
 }
 
-// ── Treino drawer ────────────────────────────────────────────
-function TreinoDrawer({ treino, library, onClose, onOpenAssign, onDuplicate, onUpdate, onAddToLibrary, onDelete }: {
-  treino:          Treino
-  library:         LibraryExercise[]
-  onClose:         () => void
-  onOpenAssign:    () => void
-  onDuplicate:     () => void
-  onUpdate:        (t: Treino) => void
-  onAddToLibrary:  (ex: LibraryExercise) => void
-  onDelete:        () => void
+function TreinoDrawer({ treino, library, onClose, onDuplicate, onUpdate, onAddToLibrary, onDelete }: {
+  treino: Treino; library: LibraryExercise[]; onClose: () => void
+  onDuplicate: () => void; onUpdate: (t: Treino) => void
+  onAddToLibrary: (ex: LibraryExercise) => void; onDelete: () => void
 }) {
   const g = GOAL_STYLE[treino.goal] ?? { color: '#1B2A4A', bg: '#eef1f6' }
-  const [exercises,   setExercises]   = useState<Exercise[]>(treino.ex)
-  const [_dragId,     setDragId]      = useState<number | null>(null)
-  const [dragOver,    setDragOver]    = useState<number | null>(null)
-  const [pickerOpen,    setPickerOpen]    = useState(false)
-  const [exModalOpen,   setExModalOpen]   = useState(false)
+  const [exercises, setExercises] = useState<Exercise[]>(treino.ex)
+  const [dragOver, setDragOver] = useState<number | null>(null)
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const [exModalOpen, setExModalOpen] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState(false)
-  const dragRef  = useRef<number | null>(null)
-  const nextExK  = useRef(Date.now())
-
+  const dragRef = useRef<number | null>(null)
+  const nextK = useRef(Date.now())
   useEffect(() => { setExercises(treino.ex) }, [treino.id])
-
-  function handleDragStart(e: DragEvent<HTMLDivElement>, k: number) {
-    dragRef.current = k; setDragId(k)
-    try { e.dataTransfer.effectAllowed = 'move' } catch {}
-    e.currentTarget.style.opacity = '0.5'
-  }
-  function handleDragEnd(e: DragEvent<HTMLDivElement>) {
-    e.currentTarget.style.opacity = '1'; setDragId(null); setDragOver(null); dragRef.current = null
-  }
-  function handleDragOver(e: DragEvent<HTMLDivElement>, k: number) {
-    e.preventDefault(); if (dragOver !== k) setDragOver(k)
-  }
-  function handleDragLeave(e: DragEvent<HTMLDivElement>) {
-    if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOver(null)
-  }
+  function handleDragStart(e: DragEvent<HTMLDivElement>, k: number) { dragRef.current = k; try { e.dataTransfer.effectAllowed = 'move' } catch {}; e.currentTarget.style.opacity = '0.5' }
+  function handleDragEnd(e: DragEvent<HTMLDivElement>) { e.currentTarget.style.opacity = '1'; setDragOver(null); dragRef.current = null }
+  function handleDragOver(e: DragEvent<HTMLDivElement>, k: number) { e.preventDefault(); if (dragOver !== k) setDragOver(k) }
+  function handleDragLeave(e: DragEvent<HTMLDivElement>) { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOver(null) }
   function handleDrop(e: DragEvent<HTMLDivElement>, targetK: number) {
     e.preventDefault(); setDragOver(null)
     const fromK = dragRef.current; if (!fromK || fromK === targetK) return
     const arr = [...exercises]
-    const from = arr.findIndex(x => x._k === fromK)
-    const to   = arr.findIndex(x => x._k === targetK)
+    const from = arr.findIndex(x => x._k === fromK), to = arr.findIndex(x => x._k === targetK)
     if (from < 0 || to < 0) return
     const [moved] = arr.splice(from, 1); arr.splice(to, 0, moved)
     setExercises(arr); onUpdate({ ...treino, ex: arr })
   }
-
   function handleAddEx(data: Omit<Exercise, '_k'>) {
-    const ex: Exercise = { ...data, _k: nextExK.current++ }
-    const updated = [...exercises, ex]
-    setExercises(updated)
-    onUpdate({ ...treino, ex: updated })
-    onAddToLibrary({ name: data.name, muscle: data.muscle, scheme: data.scheme, rest: data.rest })
-    setExModalOpen(false)
+    const ex: Exercise = { ...data, _k: nextK.current++ }
+    const updated = [...exercises, ex]; setExercises(updated); onUpdate({ ...treino, ex: updated })
+    onAddToLibrary({ name: data.name, muscle: data.muscle, scheme: data.scheme, rest: data.rest }); setExModalOpen(false)
   }
-
   function handlePickEx(data: Omit<Exercise, '_k'>) {
-    const ex: Exercise = { ...data, _k: nextExK.current++ }
-    const updated = [...exercises, ex]
-    setExercises(updated)
-    onUpdate({ ...treino, ex: updated })
-    setPickerOpen(false)
+    const ex: Exercise = { ...data, _k: nextK.current++ }
+    const updated = [...exercises, ex]; setExercises(updated); onUpdate({ ...treino, ex: updated }); setPickerOpen(false)
   }
-
   return (
     <>
-      <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(20,25,40,.45)', zIndex: 55 }} />
-      <div onClick={e => e.stopPropagation()} style={{ position: 'fixed', top: 0, right: 0, bottom: 0, width: 480, maxWidth: '94vw', background: '#F4EFE3', zIndex: 56, boxShadow: '-12px 0 40px rgba(0,0,0,.22)', display: 'flex', flexDirection: 'column' }}>
-        {/* Header */}
+      <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(20,25,40,.45)', zIndex: 60 }} />
+      <div onClick={e => e.stopPropagation()} style={{ position: 'fixed', top: 0, right: 0, bottom: 0, width: 480, maxWidth: '94vw', background: '#F4EFE3', zIndex: 61, boxShadow: '-12px 0 40px rgba(0,0,0,.22)', display: 'flex', flexDirection: 'column' }}>
         <div style={{ background: '#1B2A4A', padding: '24px 24px 22px', position: 'relative', flexShrink: 0 }}>
-          <button type="button" onClick={onClose} aria-label="Fechar" style={{ position: 'absolute', top: 16, right: 16, border: 'none', background: 'rgba(255,255,255,.1)', cursor: 'pointer', color: '#fff', width: 32, height: 32, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <button onClick={onClose} style={{ position: 'absolute', top: 16, right: 16, border: 'none', background: 'rgba(255,255,255,.1)', cursor: 'pointer', color: '#fff', width: 32, height: 32, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
           </button>
           <span style={{ font: `600 11px ${FF}`, color: g.color, background: g.bg, borderRadius: 20, padding: '5px 11px' }}>{treino.goal}</span>
-          <h2 style={{ font: `800 22px ${FF}`, color: '#fff', letterSpacing: '-.4px', margin: '13px 0 5px' }}>{treino.name}</h2>
-          <div style={{ font: `500 12.5px ${FF}`, color: '#aeb9cc' }}>{treino.split} · {exercises.length} exercícios · {treino.duration}</div>
+          <h2 style={{ font: `800 22px ${FF}`, color: '#fff', margin: '13px 0 5px', letterSpacing: '-.4px' }}>{treino.name}</h2>
+          <div style={{ font: `500 12px ${FF}`, color: '#aeb9cc' }}>{treino.split} · {exercises.length} exercícios · {treino.duration}</div>
         </div>
-
-        {/* Exercise list */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '18px 24px 24px' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 11 }}>
             <div style={{ font: `700 11px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#9a948a' }}>Exercícios</div>
@@ -438,522 +663,463 @@ function TreinoDrawer({ treino, library, onClose, onOpenAssign, onDuplicate, onU
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
             {exercises.map((ex, i) => (
-              <ExRow
-                key={ex._k}
-                ex={ex} order={i + 1} tagBg={g.bg} tagColor={g.color}
-                dragOverId={dragOver}
-                onDragStart={handleDragStart} onDragEnd={handleDragEnd}
-                onDragOver={handleDragOver}   onDragLeave={handleDragLeave}
-                onDrop={handleDrop}
-              />
+              <ExRow key={ex._k} ex={ex} order={i + 1} tagBg={g.bg} tagColor={g.color} dragOverId={dragOver}
+                onDragStart={handleDragStart} onDragEnd={handleDragEnd} onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop} />
             ))}
           </div>
-          <button
-            type="button" onClick={() => setPickerOpen(true)}
-            style={{ marginTop: 10, width: '100%', border: '1.5px dashed #d8d1c0', background: 'none', color: '#9a948a', font: `600 12.5px ${FF}`, cursor: 'pointer', padding: 11, borderRadius: 10 }}
+          <button type="button" onClick={() => setPickerOpen(true)}
+            style={{ marginTop: 10, width: '100%', border: '1.5px dashed #d8d1c0', background: 'none', color: '#9a948a', font: `600 12px ${FF}`, cursor: 'pointer', padding: 11, borderRadius: 10 }}
             onMouseEnter={e => { e.currentTarget.style.borderColor = '#E8542A'; e.currentTarget.style.color = '#E8542A' }}
-            onMouseLeave={e => { e.currentTarget.style.borderColor = '#d8d1c0'; e.currentTarget.style.color = '#9a948a' }}
-          >
+            onMouseLeave={e => { e.currentTarget.style.borderColor = '#d8d1c0'; e.currentTarget.style.color = '#9a948a' }}>
             + Adicionar exercício
           </button>
         </div>
-
-        {/* Footer */}
         <div style={{ flexShrink: 0, padding: '16px 24px', background: '#fff', borderTop: '1px solid #ece7d9' }}>
           {deleteConfirm ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <div style={{ font: `600 13px ${FF}`, color: '#c4421e', textAlign: 'center' }}>
-                Excluir <strong>"{treino.name}"</strong>?
-              </div>
+              <div style={{ font: `600 13px ${FF}`, color: '#c4421e', textAlign: 'center' }}>Excluir <strong>"{treino.name}"</strong>?</div>
               <div style={{ display: 'flex', gap: 10 }}>
-                <button
-                  type="button" onClick={() => setDeleteConfirm(false)}
-                  style={{ flex: 1, height: 44, border: '1.5px solid #d9d3c4', background: '#fff', color: '#1B2A4A', borderRadius: 10, font: `700 13.5px ${FF}`, cursor: 'pointer' }}
-                  onMouseEnter={e => { e.currentTarget.style.background = '#f4efe3' }}
-                  onMouseLeave={e => { e.currentTarget.style.background = '#fff' }}
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="button" onClick={onDelete}
-                  style={{ flex: 1, height: 44, border: 'none', background: '#c4421e', color: '#fff', borderRadius: 10, font: `700 13.5px ${FF}`, cursor: 'pointer', boxShadow: '0 2px 0 #a33519' }}
-                >
-                  Sim, excluir
-                </button>
+                <button onClick={() => setDeleteConfirm(false)} style={{ flex: 1, height: 44, border: '1.5px solid #d9d3c4', background: '#fff', color: '#1B2A4A', borderRadius: 10, font: `700 13px ${FF}`, cursor: 'pointer' }}>Cancelar</button>
+                <button onClick={onDelete} style={{ flex: 1, height: 44, border: 'none', background: '#c4421e', color: '#fff', borderRadius: 10, font: `700 13px ${FF}`, cursor: 'pointer' }}>Sim, excluir</button>
               </div>
             </div>
           ) : (
             <div style={{ display: 'flex', gap: 10 }}>
-              <button
-                type="button" onClick={() => setDeleteConfirm(true)}
-                aria-label="Excluir treino"
-                style={{ width: 46, height: 46, border: '1.5px solid #e0d9c8', background: '#fff', color: '#a89f8e', borderRadius: 10, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
-                onMouseEnter={e => { e.currentTarget.style.borderColor = '#c4421e'; e.currentTarget.style.color = '#c4421e'; e.currentTarget.style.background = '#fdf3ee' }}
-                onMouseLeave={e => { e.currentTarget.style.borderColor = '#e0d9c8'; e.currentTarget.style.color = '#a89f8e'; e.currentTarget.style.background = '#fff' }}
-              >
-                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+              <button onClick={() => setDeleteConfirm(true)}
+                style={{ width: 46, height: 46, border: '1.5px solid #e0d9c8', background: '#fff', color: '#a89f8e', borderRadius: 10, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = '#c4421e'; e.currentTarget.style.color = '#c4421e' }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = '#e0d9c8'; e.currentTarget.style.color = '#a89f8e' }}>
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
               </button>
-              <button
-                type="button" onClick={onDuplicate}
-                style={{ flex: 1, height: 46, border: '1.5px solid #d9d3c4', background: '#fff', color: '#1B2A4A', borderRadius: 10, font: `700 13.5px ${FF}`, cursor: 'pointer' }}
-                onMouseEnter={e => { e.currentTarget.style.background = '#f4efe3' }}
-                onMouseLeave={e => { e.currentTarget.style.background = '#fff' }}
-              >
+              <button onClick={onDuplicate}
+                style={{ flex: 1, height: 46, border: '1.5px solid #d9d3c4', background: '#fff', color: '#1B2A4A', borderRadius: 10, font: `700 13px ${FF}`, cursor: 'pointer' }}
+                onMouseEnter={e => { e.currentTarget.style.background = '#f4efe3' }} onMouseLeave={e => { e.currentTarget.style.background = '#fff' }}>
                 Duplicar
-              </button>
-              <button
-                type="button" onClick={onOpenAssign}
-                style={{ flex: 2, height: 46, border: 'none', background: '#E8542A', color: '#fff', borderRadius: 10, font: `700 13.5px ${FF}`, cursor: 'pointer', boxShadow: '0 2px 0 #c4421e', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6"/><path d="M22 11h-6"/></svg>
-                Atribuir a aluno
               </button>
             </div>
           )}
         </div>
       </div>
-      {pickerOpen && (
-        <ExercisePickerModal
-          library={library}
-          onSelect={handlePickEx}
-          onCreateNew={() => { setPickerOpen(false); setExModalOpen(true) }}
-          onClose={() => setPickerOpen(false)}
-        />
-      )}
+      {pickerOpen && <ExercisePickerModal library={library} onSelect={handlePickEx} onCreateNew={() => { setPickerOpen(false); setExModalOpen(true) }} onClose={() => setPickerOpen(false)} />}
       {exModalOpen && <NewExerciseModal onClose={() => setExModalOpen(false)} onAdd={handleAddEx} />}
     </>
   )
 }
 
-const DAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
+// ── Helpers ───────────────────────────────────────────────────
+function parseScheme(s: string) { const m = s.match(/^(\d+)\s*[×x]\s*(.+)$/); return m ? { sets: parseInt(m[1]), reps: m[2].trim() } : { sets: 3, reps: s } }
+function parseRest(r: string)   { return parseInt(r) || 60 }
+function parseDuration(d: string) { return parseInt(d) || 45 }
 
-// ── Assign modal ─────────────────────────────────────────────
-function AssignModal({ treinoName, students, selected, onToggle, onConfirm, onClose }: {
-  treinoName: string
-  students:   { id: number; name: string; goal: string }[]
-  selected:   Set<number>
-  onToggle:   (id: number) => void
-  onConfirm:  (dayOfWeek: number | null) => void
-  onClose:    () => void
-}) {
-  const [dayOfWeek, setDayOfWeek] = useState<number | null>(null)
-  const n = selected.size
-  const label = n ? `Atribuir a ${n} aluno${n > 1 ? 's' : ''}` : 'Atribuir treino'
-
-  return (
-    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(20,25,40,.5)', zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-      <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 430, background: '#fff', borderRadius: 16, padding: 24, boxShadow: '0 24px 60px rgba(0,0,0,.3)', maxHeight: '86vh', display: 'flex', flexDirection: 'column' }}>
-        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 6 }}>
-          <h2 style={{ font: `800 20px ${FF}`, color: '#1B2A4A', margin: 0, letterSpacing: '-.4px' }}>Atribuir treino</h2>
-          <button type="button" onClick={onClose} aria-label="Fechar" style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#9a948a', padding: 2 }}>
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
-          </button>
-        </div>
-        <p style={{ font: `400 13px ${FF}`, color: '#9a948a', margin: '0 0 16px' }}>
-          <strong style={{ color: '#1B2A4A' }}>{treinoName}</strong> — selecione os alunos
-        </p>
-
-        {/* Dia da semana */}
-        <div style={{ marginBottom: 18 }}>
-          <div style={{ font: `600 11px ${FF}`, color: '#6b6657', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 10 }}>
-            Dia da semana <span style={{ font: `400 11px ${FF}`, color: '#b0a99c', textTransform: 'none', letterSpacing: 0 }}>(opcional)</span>
-          </div>
-          <div style={{ display: 'flex', gap: 6 }}>
-            {DAYS.map((d, i) => {
-              const active = dayOfWeek === i
-              return (
-                <button
-                  key={i}
-                  type="button"
-                  onClick={() => setDayOfWeek(active ? null : i)}
-                  style={{ flex: 1, height: 38, border: `1.5px solid ${active ? '#E8542A' : '#e0d9c8'}`, background: active ? '#E8542A' : '#fff', color: active ? '#fff' : '#7c7869', font: `700 11.5px ${FF}`, borderRadius: 9, cursor: 'pointer', transition: 'all .1s' }}
-                >
-                  {d}
-                </button>
-              )
-            })}
-          </div>
-        </div>
-
-        <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 7 }}>
-          {students.length === 0 && (
-            <div style={{ padding: '30px 16px', textAlign: 'center', font: `400 13px ${FF}`, color: '#a89f8e' }}>
-              Nenhum aluno cadastrado ainda.
-            </div>
-          )}
-          {students.map(s => {
-            const sel = selected.has(s.id)
-            const pal = avatarPalette(s.id)
-            return (
-              <button
-                key={s.id}
-                type="button"
-                onClick={() => onToggle(s.id)}
-                style={{ display: 'flex', alignItems: 'center', gap: 12, border: `1.5px solid ${sel ? '#E8542A' : '#ece7d9'}`, background: sel ? '#fdf3ee' : '#fff', borderRadius: 12, padding: '11px 13px', cursor: 'pointer', textAlign: 'left', width: '100%', transition: 'background .1s, border-color .1s' }}
-              >
-                <div style={{ width: 36, height: 36, borderRadius: '50%', background: pal[0], color: pal[1], display: 'flex', alignItems: 'center', justifyContent: 'center', font: `700 12px ${FF}`, flexShrink: 0 }}>
-                  {getInitials(s.name)}
-                </div>
-                <div style={{ minWidth: 0, flex: 1 }}>
-                  <div style={{ font: `700 13.5px ${FF}`, color: '#1B2A4A', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.name}</div>
-                  <div style={{ font: `500 11.5px ${FF}`, color: '#9a948a' }}>{s.goal}</div>
-                </div>
-                <div style={{ width: 22, height: 22, borderRadius: 6, border: `2px solid ${sel ? '#E8542A' : '#d2cbbb'}`, background: sel ? '#E8542A' : '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'background .1s, border-color .1s' }}>
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: sel ? 1 : 0 }}><path d="M20 6L9 17l-5-5"/></svg>
-                </div>
-              </button>
-            )
-          })}
-        </div>
-
-        <button type="button" onClick={() => onConfirm(dayOfWeek)}
-          style={{ marginTop: 16, width: '100%', height: 48, border: 'none', background: '#E8542A', color: '#fff', borderRadius: 10, font: `700 14.5px ${FF}`, cursor: 'pointer', boxShadow: '0 2px 0 #c4421e' }}>
-          {label}
-          {dayOfWeek !== null && <span style={{ font: `500 13px ${FF}`, opacity: .85 }}> · {DAYS[dayOfWeek]}</span>}
-        </button>
-      </div>
-    </div>
-  )
-}
-
-// ── New treino modal ─────────────────────────────────────────
-function NewTreinoModal({ onClose, onAdd }: {
-  onClose: () => void
-  onAdd:   (name: string, goal: Goal) => void
-}) {
-  const [name, setName] = useState('')
-  const [goal, setGoal] = useState<Goal>('Hipertrofia')
-
-  return (
-    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(20,25,40,.5)', zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-      <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 440, background: '#fff', borderRadius: 16, padding: 26, boxShadow: '0 24px 60px rgba(0,0,0,.3)' }}>
-        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 16 }}>
-          <h2 style={{ font: `800 20px ${FF}`, color: '#1B2A4A', margin: 0, letterSpacing: '-.4px' }}>Novo treino</h2>
-          <button type="button" onClick={onClose} aria-label="Fechar" style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#9a948a', padding: 2 }}>
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
-          </button>
-        </div>
-
-        <label style={{ display: 'block', font: `600 11px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#6b6657', marginBottom: 7 }}>Nome do treino</label>
-        <input
-          type="text" placeholder="Ex: Treino A — Peito e Tríceps" value={name}
-          onChange={e => setName(e.target.value)}
-          style={{ width: '100%', height: 46, border: '1.5px solid #d9d3c4', borderRadius: 10, background: '#fff', padding: '0 14px', font: `400 14px ${FF}`, color: '#1B2A4A', outline: 'none', marginBottom: 14 }}
-          onFocus={e => { e.currentTarget.style.borderColor = '#E8542A'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(232,84,42,.13)' }}
-          onBlur={e => { e.currentTarget.style.borderColor = '#d9d3c4'; e.currentTarget.style.boxShadow = 'none' }}
-        />
-
-        <label style={{ display: 'block', font: `600 11px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#6b6657', marginBottom: 8 }}>Objetivo</label>
-        <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap', marginBottom: 20 }}>
-          {GOALS.map(g => {
-            const s = GOAL_STYLE[g]; const active = goal === g
-            return (
-              <button
-                key={g} type="button" onClick={() => setGoal(g)}
-                style={{ border: `1.5px solid ${active ? s.color : '#e0d9c8'}`, background: active ? s.color : '#fff', color: active ? '#fff' : '#7c7869', font: `600 12.5px ${FF}`, borderRadius: 20, padding: '8px 14px', cursor: 'pointer' }}
-              >
-                {g}
-              </button>
-            )
-          })}
-        </div>
-        <button
-          type="button" onClick={() => onAdd(name, goal)}
-          style={{ width: '100%', height: 48, border: 'none', background: '#E8542A', color: '#fff', borderRadius: 10, font: `700 14.5px ${FF}`, cursor: 'pointer', boxShadow: '0 2px 0 #c4421e' }}
-        >
-          Criar e montar exercícios
-        </button>
-      </div>
-    </div>
-  )
-}
-
-// ── Helpers ──────────────────────────────────────────────────
-function parseScheme(scheme: string): { sets: number; reps: string } {
-  const m = scheme.match(/^(\d+)\s*[×x]\s*(.+)$/)
-  return m ? { sets: parseInt(m[1]), reps: m[2].trim() } : { sets: 3, reps: scheme }
-}
-function parseRest(rest: string): number { return parseInt(rest) || 60 }
-function parseDuration(dur: string): number { return parseInt(dur) || 45 }
-
-// ── Main ─────────────────────────────────────────────────────
+// ── Main ──────────────────────────────────────────────────────
 export default function Treinos() {
   const { user }     = useAuthStore()
   const { students } = useStudentsStore()
-  const [treinos,    setTreinos]    = useState<Treino[]>([])
-  const [library,    setLibrary]    = useState<LibraryExercise[]>([])
-  const [query,      setQuery]      = useState('')
-  const [filter,     setFilter]     = useState<Goal | 'all'>('all')
-  const [openId,     setOpenId]     = useState<number | null>(null)
-  const [assignOpen, setAssignOpen] = useState(false)
-  const [selected,   setSelected]   = useState<Set<number>>(new Set())
-  const [newOpen,    setNewOpen]    = useState(false)
-  const [toast,      setToast]      = useState('')
+
+  // Programas tab state
+  const [programs,       setPrograms]       = useState<Program[]>([])
+  const [openProgramId,  setOpenProgramId]  = useState<number | null>(null)
+  const [newProgramOpen, setNewProgramOpen] = useState(false)
+  const [applyOpen,      setApplyOpen]      = useState(false)
+
+  // Biblioteca tab state
+  const [treinos,     setTreinos]     = useState<Treino[]>([])
+  const [library,     setLibrary]     = useState<LibraryExercise[]>([])
+  const [query,       setQuery]       = useState('')
+  const [filter,      setFilter]      = useState<Goal | 'all'>('all')
+  const [openId,      setOpenId]      = useState<number | null>(null)
+  const [newOpen,     setNewOpen]     = useState(false)
+
+  const [tab,   setTab]   = useState<'programas' | 'biblioteca'>('programas')
+  const [toast, setToast] = useState('')
   const toastRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const nextK    = useRef(9000)
 
-  useEffect(() => { if (user?.id) void fetchTreinos() }, [user?.id])
+  // Cached workouts for slot picker (from treinos)
+  const workoutOptions: WorkoutOption[] = treinos.map(t => ({
+    id: t.id, name: t.name, goal: t.goal,
+    muscle_group: t.split || null, duration_min: parseDuration(t.duration),
+    ex_count: t.ex.length,
+  }))
+
+  useEffect(() => {
+    if (!user?.id) return
+    void fetchPrograms()
+    void fetchTreinos()
+  }, [user?.id])
   useEffect(() => () => clearTimeout(toastRef.current), [])
 
-  async function fetchTreinos() {
+  function showToast(msg: string) { setToast(msg); clearTimeout(toastRef.current); toastRef.current = setTimeout(() => setToast(''), 1900) }
+
+  // ── Programs ─────────────────────────────────────────────────
+  async function fetchPrograms() {
     if (!user?.id) return
-    const { data, error } = await supabase
-      .from('workouts')
-      .select('*, exercises(*)')
+    const { data } = await supabase
+      .from('programs')
+      .select(`
+        id, name, days_per_week, is_template, created_at,
+        program_slots ( id, position, workout_id, day_of_week,
+          workouts ( id, name, goal, muscle_group, duration_min )
+        ),
+        program_assignments ( id )
+      `)
       .eq('coach_id', user.id)
       .order('created_at', { ascending: false })
-    if (error || !data) return
-
-    const wIds = data.map((w: any) => w.id)
-    const { data: asgn } = wIds.length
-      ? await supabase.from('workout_assignments').select('workout_id').in('workout_id', wIds)
-      : { data: [] }
-    const countMap: Record<number, number> = {}
-    for (const a of (asgn ?? []) as any[]) {
-      countMap[a.workout_id] = (countMap[a.workout_id] ?? 0) + 1
-    }
-
-    setTreinos((data as any[]).map(w => ({
-      id:       w.id,
-      name:     w.name,
-      split:    w.muscle_group ?? '',
-      goal:     (w.goal as Goal) ?? 'Hipertrofia',
-      duration: w.duration_min ? `${w.duration_min} min` : '— min',
-      assigned: countMap[w.id] ?? 0,
-      ex: [...(w.exercises ?? [])]
-        .sort((a: any, b: any) => a.sort_order - b.sort_order)
-        .map((e: any) => ({
-          _k:     e.id,
-          name:   e.name,
-          muscle: e.muscle_group ?? '—',
-          scheme: `${e.sets} × ${e.reps}`,
-          rest:   e.rest_sec ? `${e.rest_sec}s` : '60s',
+    if (!data) return
+    setPrograms((data as any[]).map(p => ({
+      id:            p.id,
+      name:          p.name,
+      days_per_week: p.days_per_week,
+      is_template:   p.is_template,
+      applied_count: (p.program_assignments ?? []).length,
+      slots: [...(p.program_slots ?? [])]
+        .sort((a: any, b: any) => a.position - b.position)
+        .map((s: any) => ({
+          id:          s.id,
+          position:    s.position,
+          workout_id:  s.workout_id,
+          day_of_week: s.day_of_week,
+          workout:     s.workouts ? {
+            id:           s.workouts.id,
+            name:         s.workouts.name,
+            goal:         s.workouts.goal,
+            muscle_group: s.workouts.muscle_group,
+            duration_min: s.workouts.duration_min,
+            ex_count:     0,
+          } : null,
         })),
     })))
   }
 
-  async function syncExercisesToDB(treino: Treino) {
+  async function handleCreateProgram(name: string, daysPerWeek: number, isTemplate: boolean) {
+    if (!user?.id) return
+    const { data: prog, error } = await supabase
+      .from('programs')
+      .insert({ coach_id: user.id, name, days_per_week: daysPerWeek, is_template: isTemplate })
+      .select()
+      .single()
+    if (error || !prog) { showToast('Erro ao criar programa.'); return }
+    // Create slots
+    const slotRows = Array.from({ length: daysPerWeek }, (_, i) => ({
+      program_id: (prog as any).id, position: i + 1, workout_id: null, day_of_week: null,
+    }))
+    await supabase.from('program_slots').insert(slotRows)
+    setNewProgramOpen(false)
+    await fetchPrograms()
+    setOpenProgramId((prog as any).id)
+    showToast('Programa criado. Adicione os treinos.')
+  }
+
+  async function handleApplyProgram(studentIds: number[]) {
+    if (!openProgramId) return
+    // Deactivate existing programs for these students
+    await supabase.from('program_assignments')
+      .update({ active: false })
+      .in('student_id', studentIds)
+    const rows = studentIds.map(id => ({ program_id: openProgramId, student_id: id, active: true }))
+    const { error } = await supabase.from('program_assignments').insert(rows)
+    if (error) { showToast('Erro ao aplicar programa.'); return }
+    const n = studentIds.length
+    setApplyOpen(false)
+    setPrograms(prev => prev.map(p => p.id === openProgramId ? { ...p, applied_count: p.applied_count + n } : p))
+    showToast(`Programa aplicado a ${n} aluno${n > 1 ? 's' : ''}.`)
+  }
+
+  async function handleDeleteProgram(id: number) {
+    await supabase.from('programs').delete().eq('id', id)
+    setPrograms(prev => prev.filter(p => p.id !== id))
+    setOpenProgramId(null)
+    showToast('Programa excluído.')
+  }
+
+  function handleUpdateProgram(updated: Program) {
+    setPrograms(prev => prev.map(p => p.id === updated.id ? updated : p))
+  }
+
+  // ── Biblioteca ────────────────────────────────────────────────
+  async function fetchTreinos() {
+    if (!user?.id) return
+    const { data } = await supabase
+      .from('workouts')
+      .select('*, exercises(*)')
+      .eq('coach_id', user.id)
+      .order('created_at', { ascending: false })
+    if (!data) return
+    setTreinos((data as any[]).map(w => ({
+      id: w.id, name: w.name, split: w.muscle_group ?? '',
+      goal: (w.goal as Goal) ?? 'Hipertrofia',
+      duration: w.duration_min ? `${w.duration_min} min` : '— min',
+      assigned: 0,
+      ex: [...(w.exercises ?? [])].sort((a: any, b: any) => a.sort_order - b.sort_order).map((e: any) => ({
+        _k: e.id, name: e.name, muscle: e.muscle_group ?? '—',
+        scheme: `${e.sets} × ${e.reps}`, rest: e.rest_sec ? `${e.rest_sec}s` : '60s',
+      })),
+    })))
+  }
+
+  async function syncExercises(treino: Treino) {
     await supabase.from('exercises').delete().eq('workout_id', treino.id)
-    if (treino.ex.length === 0) return
-    const rows = treino.ex.map((ex, i) => {
+    if (!treino.ex.length) return
+    await supabase.from('exercises').insert(treino.ex.map((ex, i) => {
       const { sets, reps } = parseScheme(ex.scheme)
-      return {
-        workout_id:   treino.id,
-        name:         ex.name,
-        muscle_group: ex.muscle,
-        sets,
-        reps,
-        rest_sec:     parseRest(ex.rest),
-        sort_order:   i,
-      }
-    })
-    await supabase.from('exercises').insert(rows)
+      return { workout_id: treino.id, name: ex.name, muscle_group: ex.muscle, sets, reps, rest_sec: parseRest(ex.rest), sort_order: i }
+    }))
+  }
+
+  async function handleAddTreino(name: string, goal: Goal) {
+    if (!name.trim() || !user?.id) return
+    const { data, error } = await supabase
+      .from('workouts')
+      .insert({ coach_id: user.id, name: name.trim(), goal, muscle_group: goal + ' · Novo', duration_min: 45 })
+      .select().single()
+    if (error || !data) { showToast('Erro ao criar treino.'); return }
+    const t: Treino = { id: (data as any).id, name: (data as any).name, split: (data as any).muscle_group, goal, duration: '45 min', assigned: 0, ex: [] }
+    setTreinos(prev => [t, ...prev]); setNewOpen(false); setOpenId((data as any).id)
+    showToast('Treino criado.')
+  }
+
+  async function handleDuplicate(id: number) {
+    const orig = treinos.find(t => t.id === id)
+    if (!orig || !user?.id) return
+    const { data: newW } = await supabase.from('workouts')
+      .insert({ coach_id: user.id, name: orig.name + ' (cópia)', goal: orig.goal, muscle_group: orig.split, duration_min: parseDuration(orig.duration) })
+      .select().single()
+    if (!newW) return
+    if (orig.ex.length) {
+      await supabase.from('exercises').insert(orig.ex.map((ex, i) => {
+        const { sets, reps } = parseScheme(ex.scheme)
+        return { workout_id: (newW as any).id, name: ex.name, muscle_group: ex.muscle, sets, reps, rest_sec: parseRest(ex.rest), sort_order: i }
+      }))
+    }
+    let baseK = nextK.current
+    const copy: Treino = { id: (newW as any).id, name: (newW as any).name, split: orig.split, goal: orig.goal, duration: orig.duration, assigned: 0, ex: orig.ex.map(ex => ({ ...ex, _k: baseK++ })) }
+    nextK.current = baseK
+    setTreinos(prev => { const idx = prev.findIndex(t => t.id === id); const next = [...prev]; next.splice(idx + 1, 0, copy); return next })
+    setOpenId((newW as any).id); showToast('Treino duplicado.')
+  }
+
+  async function handleDeleteTreino(id: number) {
+    await supabase.from('workouts').delete().eq('id', id)
+    setTreinos(prev => prev.filter(t => t.id !== id)); setOpenId(null); showToast('Treino excluído.')
+  }
+
+  function handleUpdate(updated: Treino) {
+    setTreinos(prev => prev.map(t => t.id === updated.id ? updated : t)); void syncExercises(updated)
   }
 
   function handleAddToLibrary(ex: LibraryExercise) {
-    setLibrary(prev => {
-      if (prev.some(e => e.name.toLowerCase() === ex.name.toLowerCase())) return prev
-      return [...prev, ex]
-    })
+    setLibrary(prev => prev.some(e => e.name.toLowerCase() === ex.name.toLowerCase()) ? prev : [...prev, ex])
   }
 
-  function showToast(msg: string) {
-    setToast(msg); clearTimeout(toastRef.current)
-    toastRef.current = setTimeout(() => setToast(''), 1900)
-  }
-
-  const q = query.trim().toLowerCase()
-  const visible = treinos.filter(t => {
+  const openProgram   = programs.find(p => p.id === openProgramId) ?? null
+  const openTreino    = treinos.find(t => t.id === openId) ?? null
+  const q             = query.trim().toLowerCase()
+  const visibleTreinos = treinos.filter(t => {
     const okGoal = filter === 'all' || t.goal === filter
     const okQ    = !q || t.name.toLowerCase().includes(q) || t.split.toLowerCase().includes(q)
     return okGoal && okQ
   })
 
-  const totalCount    = treinos.length
-  const assignedCount = treinos.reduce((a, t) => a + t.assigned, 0)
-  const openTreino    = openId !== null ? treinos.find(t => t.id === openId) ?? null : null
-
-  function handleUpdate(updated: Treino) {
-    setTreinos(prev => prev.map(t => t.id === updated.id ? updated : t))
-    void syncExercisesToDB(updated)
-  }
-
-  function handleToggleStudent(id: number) {
-    setSelected(prev => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id); else next.add(id)
-      return next
-    })
-  }
-
-  async function handleConfirmAssign(dayOfWeek: number | null) {
-    const n = selected.size
-    if (!n) { showToast('Selecione ao menos um aluno.'); return }
-    const rows = Array.from(selected).map(studentId => ({
-      workout_id:  openId!,
-      student_id:  studentId,
-      day_of_week: dayOfWeek,
-    }))
-    const { error } = await supabase.from('workout_assignments').insert(rows)
-    if (error) { showToast('Erro ao atribuir treino.'); return }
-    setTreinos(prev => prev.map(t => t.id === openId ? { ...t, assigned: t.assigned + n } : t))
-    setAssignOpen(false); setOpenId(null); setSelected(new Set())
-    showToast(`${n} aluno${n > 1 ? 's' : ''} recebeu o treino.`)
-  }
-
-  async function handleDuplicate(id: number) {
-    const original = treinos.find(t => t.id === id)
-    if (!original || !user?.id) return
-    const { data: newW, error } = await supabase
-      .from('workouts')
-      .insert({
-        coach_id:     user.id,
-        name:         original.name + ' (cópia)',
-        goal:         original.goal,
-        muscle_group: original.split,
-        duration_min: parseDuration(original.duration),
-      })
-      .select()
-      .single()
-    if (error || !newW) { showToast('Erro ao duplicar.'); return }
-    if (original.ex.length > 0) {
-      const exRows = original.ex.map((ex, i) => {
-        const { sets, reps } = parseScheme(ex.scheme)
-        return { workout_id: (newW as any).id, name: ex.name, muscle_group: ex.muscle, sets, reps, rest_sec: parseRest(ex.rest), sort_order: i }
-      })
-      await supabase.from('exercises').insert(exRows)
-    }
-    let baseK = nextK.current
-    const copy: Treino = {
-      id:       (newW as any).id,
-      name:     (newW as any).name,
-      split:    original.split,
-      goal:     original.goal,
-      duration: original.duration,
-      assigned: 0,
-      ex:       original.ex.map(ex => ({ ...ex, _k: baseK++ })),
-    }
-    nextK.current = baseK
-    setTreinos(prev => {
-      const idx = prev.findIndex(t => t.id === id)
-      const next = [...prev]; next.splice(idx + 1, 0, copy); return next
-    })
-    setOpenId((newW as any).id)
-    showToast('Treino duplicado.')
-  }
-
-  async function handleDelete(id: number) {
-    await supabase.from('workouts').delete().eq('id', id)
-    setTreinos(prev => prev.filter(t => t.id !== id))
-    setOpenId(null)
-    showToast('Treino excluído.')
-  }
-
-  async function handleAddTreino(name: string, goal: Goal) {
-    if (!name.trim() || !user?.id) { showToast('Dê um nome ao treino.'); return }
-    const { data, error } = await supabase
-      .from('workouts')
-      .insert({ coach_id: user.id, name: name.trim(), goal, muscle_group: goal + ' · Novo', duration_min: 45 })
-      .select()
-      .single()
-    if (error || !data) { showToast('Erro ao criar treino.'); return }
-    const t: Treino = { id: (data as any).id, name: (data as any).name, split: (data as any).muscle_group, goal, duration: '45 min', assigned: 0, ex: [] }
-    setTreinos(prev => [t, ...prev])
-    setNewOpen(false); setOpenId((data as any).id)
-    showToast('Treino criado. Adicione os exercícios.')
-  }
-
   function chipStyle(active: boolean, accent = '#1B2A4A') {
-    return {
-      border: `1.5px solid ${active ? accent : '#e0d9c8'}`,
-      background: active ? accent : '#fff',
-      color: active ? '#fff' : '#7c7869',
-      font: `600 12.5px ${FF}`,
-      borderRadius: 20,
-      padding: '8px 14px',
-      cursor: 'pointer' as const,
-    }
+    return { border: `1.5px solid ${active ? accent : '#e0d9c8'}`, background: active ? accent : '#fff', color: active ? '#fff' : '#7c7869', font: `600 12.5px ${FF}`, borderRadius: 20, padding: '8px 14px', cursor: 'pointer' as const }
   }
 
   return (
     <div style={{ padding: '30px 34px 40px', maxWidth: 1280 }}>
 
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap', marginBottom: 20 }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap', marginBottom: 24 }}>
         <div>
           <h1 style={{ font: `800 27px ${FF}`, color: '#1B2A4A', margin: 0, letterSpacing: '-.6px' }}>Treinos</h1>
           <p style={{ font: `400 14px ${FF}`, color: '#7c7869', margin: '4px 0 0' }}>
-            <strong style={{ color: '#1B2A4A' }}>{totalCount}</strong> modelos na biblioteca ·{' '}
-            <strong style={{ color: '#1B2A4A' }}>{assignedCount}</strong> atribuições ativas
+            <strong style={{ color: '#1B2A4A' }}>{programs.length}</strong> programa{programs.length !== 1 ? 's' : ''} · <strong style={{ color: '#1B2A4A' }}>{treinos.length}</strong> treinos na biblioteca
           </p>
         </div>
-        <button
-          type="button" onClick={() => setNewOpen(true)}
-          style={{ display: 'flex', alignItems: 'center', gap: 8, height: 42, padding: '0 18px', border: 'none', background: '#E8542A', color: '#fff', borderRadius: 10, font: `700 13.5px ${FF}`, cursor: 'pointer', boxShadow: '0 2px 0 #c4421e' }}
-        >
-          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
-          Novo treino
-        </button>
-      </div>
-
-      {/* Filters */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', marginBottom: 20 }}>
-        <div style={{ position: 'relative', flex: 1, minWidth: 220, maxWidth: 360 }}>
-          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#9a948a" strokeWidth="2" strokeLinecap="round" style={{ position: 'absolute', left: 13, top: '50%', transform: 'translateY(-50%)' }}><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.3-4.3"/></svg>
-          <input
-            type="text" placeholder="Buscar treino…" value={query}
-            onChange={e => setQuery(e.target.value)}
-            style={{ width: '100%', height: 42, border: '1.5px solid #e0d9c8', borderRadius: 10, background: '#fff', padding: '0 14px 0 38px', font: `400 14px ${FF}`, color: '#1B2A4A', outline: 'none' }}
-            onFocus={e => { e.currentTarget.style.borderColor = '#E8542A'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(232,84,42,.12)' }}
-            onBlur={e => { e.currentTarget.style.borderColor = '#e0d9c8'; e.currentTarget.style.boxShadow = 'none' }}
-          />
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap' }}>
-          <button type="button" onClick={() => setFilter('all')} style={chipStyle(filter === 'all')}>Todos</button>
-          {GOALS.map(g => (
-            <button key={g} type="button" onClick={() => setFilter(g)} style={chipStyle(filter === g, GOAL_STYLE[g].color)}>{g}</button>
-          ))}
+        <div style={{ display: 'flex', gap: 10 }}>
+          {tab === 'programas' && (
+            <button onClick={() => setNewProgramOpen(true)}
+              style={{ display: 'flex', alignItems: 'center', gap: 8, height: 42, padding: '0 18px', border: 'none', background: '#E8542A', color: '#fff', borderRadius: 10, font: `700 13.5px ${FF}`, cursor: 'pointer', boxShadow: '0 2px 0 #c4421e' }}>
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+              Novo programa
+            </button>
+          )}
+          {tab === 'biblioteca' && (
+            <button onClick={() => setNewOpen(true)}
+              style={{ display: 'flex', alignItems: 'center', gap: 8, height: 42, padding: '0 18px', border: '1.5px solid #d9d3c4', background: '#fff', color: '#1B2A4A', borderRadius: 10, font: `700 13.5px ${FF}`, cursor: 'pointer' }}>
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+              Novo treino
+            </button>
+          )}
         </div>
       </div>
 
-      {/* Grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(290px, 1fr))', gap: 16 }}>
-        {visible.map(t => <TreinoCard key={t.id} t={t} onClick={setOpenId} />)}
-        {visible.length === 0 && (
-          <div style={{ gridColumn: '1 / -1', padding: '50px 20px', textAlign: 'center', font: `500 14px ${FF}`, color: '#a89f8e', border: '1.5px dashed #d8d1c0', borderRadius: 14 }}>
-            Nenhum treino encontrado para este filtro.
+      {/* Tabs */}
+      <div style={{ display: 'flex', gap: 0, background: '#f4efe3', borderRadius: 12, padding: 4, width: 'fit-content', marginBottom: 24 }}>
+        {(['programas', 'biblioteca'] as const).map(t => (
+          <button key={t} onClick={() => setTab(t)}
+            style={{ height: 36, padding: '0 20px', border: 'none', borderRadius: 9, cursor: 'pointer', font: `700 13px ${FF}`, transition: 'all .15s',
+              background: tab === t ? '#fff' : 'transparent',
+              color: tab === t ? '#1B2A4A' : '#9a948a',
+              boxShadow: tab === t ? '0 1px 4px rgba(27,42,74,.1)' : 'none',
+            }}>
+            {t === 'programas' ? 'Programas' : 'Biblioteca de treinos'}
+          </button>
+        ))}
+      </div>
+
+      {/* Programas tab */}
+      {tab === 'programas' && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16 }}>
+          {programs.map(p => <ProgramCard key={p.id} program={p} onClick={() => setOpenProgramId(p.id)} />)}
+          {programs.length === 0 && (
+            <div style={{ gridColumn: '1 / -1', padding: '60px 20px', textAlign: 'center', border: '1.5px dashed #d8d1c0', borderRadius: 16 }}>
+              <div style={{ font: `700 15px ${FF}`, color: '#1B2A4A', marginBottom: 6 }}>Nenhum programa criado ainda</div>
+              <div style={{ font: `400 13px ${FF}`, color: '#a89f8e', marginBottom: 18 }}>Crie um programa com X treinos por semana e aplique aos alunos.</div>
+              <button onClick={() => setNewProgramOpen(true)}
+                style={{ height: 40, padding: '0 20px', border: 'none', background: '#E8542A', color: '#fff', borderRadius: 10, font: `700 13px ${FF}`, cursor: 'pointer', boxShadow: '0 2px 0 #c4421e' }}>
+                Criar primeiro programa
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Biblioteca tab */}
+      {tab === 'biblioteca' && (
+        <>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', marginBottom: 20 }}>
+            <div style={{ position: 'relative', flex: 1, minWidth: 220, maxWidth: 360 }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9a948a" strokeWidth="2" strokeLinecap="round" style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)' }}><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.3-4.3"/></svg>
+              <input type="text" placeholder="Buscar treino…" value={query} onChange={e => setQuery(e.target.value)}
+                style={{ width: '100%', height: 40, border: '1.5px solid #e0d9c8', borderRadius: 10, background: '#fff', padding: '0 14px 0 36px', font: `400 14px ${FF}`, color: '#1B2A4A', outline: 'none' }}
+                onFocus={e => { e.currentTarget.style.borderColor = '#E8542A' }} onBlur={e => { e.currentTarget.style.borderColor = '#e0d9c8' }} />
+            </div>
+            <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>
+              <button type="button" onClick={() => setFilter('all')} style={chipStyle(filter === 'all')}>Todos</button>
+              {GOALS.map(g => <button key={g} type="button" onClick={() => setFilter(g)} style={chipStyle(filter === g, GOAL_STYLE[g].color)}>{g}</button>)}
+            </div>
           </div>
-        )}
-      </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16 }}>
+            {visibleTreinos.map(t => {
+              const g = GOAL_STYLE[t.goal] ?? { color: '#1B2A4A', bg: '#eef1f6' }
+              return (
+                <div key={t.id} onClick={() => setOpenId(t.id)}
+                  style={{ background: '#fff', border: '1px solid #ece7d9', borderRadius: 16, padding: 18, cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 12, transition: 'box-shadow .15s, transform .15s' }}
+                  onMouseEnter={e => { e.currentTarget.style.boxShadow = '0 8px 22px rgba(27,42,74,.14)'; e.currentTarget.style.transform = 'translateY(-2px)' }}
+                  onMouseLeave={e => { e.currentTarget.style.boxShadow = 'none'; e.currentTarget.style.transform = 'none' }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+                    <div style={{ width: 44, height: 44, borderRadius: 12, background: g.bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={g.color} strokeWidth="2" strokeLinecap="round"><path d="M6.5 6.5l11 11"/><path d="M21 21l-1-1"/><path d="M3 3l1 1"/><path d="M18 22l4-4"/><path d="M2 6l4-4"/></svg>
+                    </div>
+                    <span style={{ font: `600 11px ${FF}`, color: g.color, background: g.bg, borderRadius: 20, padding: '5px 11px' }}>{t.goal}</span>
+                  </div>
+                  <div>
+                    <div style={{ font: `800 15px ${FF}`, color: '#1B2A4A', letterSpacing: '-.3px' }}>{t.name}</div>
+                    <div style={{ font: `400 12px ${FF}`, color: '#9a948a', marginTop: 3 }}>{t.split}</div>
+                  </div>
+                  <div style={{ display: 'flex', gap: 14, borderTop: '1px solid #f4efe3', paddingTop: 11 }}>
+                    <span style={{ font: `600 12px ${FF}`, color: '#6b6657' }}>{t.ex.length} ex.</span>
+                    <span style={{ font: `600 12px ${FF}`, color: '#6b6657' }}>{t.duration}</span>
+                  </div>
+                </div>
+              )
+            })}
+            {visibleTreinos.length === 0 && (
+              <div style={{ gridColumn: '1 / -1', padding: '50px 20px', textAlign: 'center', font: `500 14px ${FF}`, color: '#a89f8e', border: '1.5px dashed #d8d1c0', borderRadius: 14 }}>
+                Nenhum treino encontrado.
+              </div>
+            )}
+          </div>
+        </>
+      )}
 
-      {/* Treino detail drawer */}
+      {/* Program builder drawer */}
+      {openProgram && (
+        <ProgramBuilderDrawer
+          program={openProgram}
+          workouts={workoutOptions}
+          onClose={() => setOpenProgramId(null)}
+          onUpdate={handleUpdateProgram}
+          onApply={() => setApplyOpen(true)}
+          onDelete={() => handleDeleteProgram(openProgram.id)}
+        />
+      )}
+
+      {/* Apply program modal */}
+      {applyOpen && openProgram && (
+        <ApplyProgramModal
+          programName={openProgram.name}
+          students={students}
+          onConfirm={handleApplyProgram}
+          onClose={() => setApplyOpen(false)}
+        />
+      )}
+
+      {/* Biblioteca drawer */}
       {openTreino && (
         <TreinoDrawer
           treino={openTreino}
           library={library}
           onClose={() => setOpenId(null)}
-          onOpenAssign={() => { setSelected(new Set()); setAssignOpen(true) }}
           onDuplicate={() => handleDuplicate(openTreino.id)}
           onUpdate={handleUpdate}
           onAddToLibrary={handleAddToLibrary}
-          onDelete={() => handleDelete(openTreino.id)}
+          onDelete={() => handleDeleteTreino(openTreino.id)}
         />
       )}
 
-      {/* Assign modal */}
-      {assignOpen && openTreino && (
-        <AssignModal
-          treinoName={openTreino.name}
-          students={students}
-          selected={selected}
-          onToggle={handleToggleStudent}
-          onConfirm={handleConfirmAssign}
-          onClose={() => setAssignOpen(false)}
-        />
+      {newProgramOpen && <NewProgramModal onClose={() => setNewProgramOpen(false)} onAdd={handleCreateProgram} />}
+      {newOpen && (
+        <div onClick={() => setNewOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(20,25,40,.5)', zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 440, background: '#fff', borderRadius: 16, padding: 26, boxShadow: '0 24px 60px rgba(0,0,0,.3)' }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 16 }}>
+              <h2 style={{ font: `800 20px ${FF}`, color: '#1B2A4A', margin: 0 }}>Novo treino</h2>
+              <button onClick={() => setNewOpen(false)} style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#9a948a', padding: 2 }}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
+              </button>
+            </div>
+            <label style={{ display: 'block', font: `600 11px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#6b6657', marginBottom: 7 }}>Nome do treino</label>
+            <input id="new-treino-name" type="text" placeholder="Ex: Treino A — Peito e Tríceps"
+              style={{ width: '100%', height: 46, border: '1.5px solid #d9d3c4', borderRadius: 10, background: '#fff', padding: '0 14px', font: `400 14px ${FF}`, color: '#1B2A4A', outline: 'none', marginBottom: 14, boxSizing: 'border-box' }}
+              onFocus={e => { e.currentTarget.style.borderColor = '#E8542A'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(232,84,42,.13)' }}
+              onBlur={e => { e.currentTarget.style.borderColor = '#d9d3c4'; e.currentTarget.style.boxShadow = 'none' }}
+            />
+            <label style={{ display: 'block', font: `600 11px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#6b6657', marginBottom: 8 }}>Objetivo</label>
+            <div id="new-treino-goal-state" data-goal="Hipertrofia" style={{ display: 'flex', gap: 7, flexWrap: 'wrap', marginBottom: 20 }}>
+              {GOALS.map(g => {
+                const s = GOAL_STYLE[g]
+                return (
+                  <button key={g} type="button"
+                    onClick={e => {
+                      const container = (e.currentTarget.closest('[data-goal]') as HTMLElement)
+                      container.dataset.goal = g
+                      container.querySelectorAll('button').forEach(b => {
+                        const bg = b.dataset.g!
+                        const gs = GOAL_STYLE[bg as Goal]
+                        b.style.background = bg === g ? gs.color : '#fff'
+                        b.style.color      = bg === g ? '#fff'    : '#7c7869'
+                        b.style.borderColor = bg === g ? gs.color : '#e0d9c8'
+                      })
+                    }}
+                    data-g={g}
+                    style={{ border: `1.5px solid ${g === 'Hipertrofia' ? s.color : '#e0d9c8'}`, background: g === 'Hipertrofia' ? s.color : '#fff', color: g === 'Hipertrofia' ? '#fff' : '#7c7869', font: `600 12.5px ${FF}`, borderRadius: 20, padding: '8px 14px', cursor: 'pointer' }}>
+                    {g}
+                  </button>
+                )
+              })}
+            </div>
+            <button type="button"
+              onClick={() => {
+                const nameEl = document.getElementById('new-treino-name') as HTMLInputElement
+                const goalEl = document.getElementById('new-treino-goal-state') as HTMLElement
+                handleAddTreino(nameEl?.value ?? '', (goalEl?.dataset.goal as Goal) ?? 'Hipertrofia')
+              }}
+              style={{ width: '100%', height: 48, border: 'none', background: '#E8542A', color: '#fff', borderRadius: 10, font: `700 14.5px ${FF}`, cursor: 'pointer', boxShadow: '0 2px 0 #c4421e' }}>
+              Criar treino
+            </button>
+          </div>
+        </div>
       )}
-
-      {/* New treino modal */}
-      {newOpen && <NewTreinoModal onClose={() => setNewOpen(false)} onAdd={handleAddTreino} />}
 
       <Toast msg={toast} />
     </div>
