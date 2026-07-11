@@ -62,6 +62,17 @@ interface PaymentRow {
   due_date: string; paid_at: string | null; description: string | null
 }
 
+interface AsaasSubPayRow {
+  id: string; cycle_number: number; value: number
+  status: string; paid_at: string | null; due_date: string | null
+}
+interface AsaasSubInfo {
+  id: string; status: string; current_cycle: number
+  max_cycles: number | null; next_due_date: string | null
+  planLabel: string; planValue: number
+  payments: AsaasSubPayRow[]
+}
+
 interface AttachmentRow {
   id: number; name: string; url: string
   size: number | null; mime_type: string | null; uploaded_at: string
@@ -99,6 +110,20 @@ const STATUS_PAY: Record<string, { label: string; color: string; bg: string }> =
   active:  { label: 'Pago',     color: '#1B7a4a', bg: '#e7f3ea' },
   pending: { label: 'Pendente', color: '#b06a12', bg: '#f7ecd9' },
   overdue: { label: 'Atrasado', color: '#c4421e', bg: '#fbe6e1' },
+}
+
+const STATUS_ASAAS_SUB: Record<string, { label: string; color: string; bg: string }> = {
+  active:   { label: 'Ativo',     color: '#1B7a4a', bg: '#e7f3ea' },
+  pending:  { label: 'Pendente',  color: '#b06a12', bg: '#f7ecd9' },
+  overdue:  { label: 'Vencido',   color: '#c4421e', bg: '#fbe6e1' },
+  canceled: { label: 'Cancelado', color: '#7c7869', bg: '#f4efe3' },
+  finished: { label: 'Encerrado', color: '#7c7869', bg: '#f4efe3' },
+}
+const STATUS_ASAAS_PAY: Record<string, { label: string; color: string }> = {
+  confirmed: { label: 'Pago',      color: '#1B7a4a' },
+  pending:   { label: 'Pendente',  color: '#b06a12' },
+  overdue:   { label: 'Vencido',   color: '#c4421e' },
+  refunded:  { label: 'Estornado', color: '#7c7869' },
 }
 
 // ── Coach Anamnese Drawer ──────────────────────────────────────
@@ -830,6 +855,7 @@ export default function PerfilAluno() {
   const [assessError,     setAssessError]     = useState<string | null>(null)
   const [payments,        setPayments]        = useState<PaymentRow[]>([])
   const [payLoading,      setPayLoading]      = useState(false)
+  const [asaasSub,        setAsaasSub]        = useState<AsaasSubInfo | null>(null)
   const [editingDueId,    setEditingDueId]    = useState<number | null>(null)
   const [editingDueVal,   setEditingDueVal]   = useState('')
   const [newPayOpen,      setNewPayOpen]      = useState(false)
@@ -994,6 +1020,35 @@ export default function PerfilAluno() {
     setPayLoading(false)
   }, [studentId])
 
+  const fetchAsaasSub = useCallback(async () => {
+    if (!studentId || loaded.current.has('asaas')) return
+    loaded.current.add('asaas')
+    const { data: clientData } = await supabase
+      .from('clients').select('id').eq('auth_user_id', studentId).maybeSingle()
+    if (!clientData) return
+    const { data: subData } = await supabase
+      .from('subscriptions')
+      .select('id,status,current_cycle,max_cycles,next_due_date,plans(label,value),subscription_payments(id,cycle_number,value,status,paid_at,due_date)')
+      .eq('client_id', clientData.id)
+      .not('status', 'in', '("canceled","finished")')
+      .order('created_at', { ascending: false })
+      .limit(1).maybeSingle()
+    if (!subData) return
+    const plan = subData.plans as unknown as { label: string; value: number }
+    const payments = ((subData.subscription_payments ?? []) as AsaasSubPayRow[])
+      .sort((a, b) => a.cycle_number - b.cycle_number)
+    setAsaasSub({
+      id: subData.id,
+      status: subData.status,
+      current_cycle: subData.current_cycle,
+      max_cycles: subData.max_cycles,
+      next_due_date: subData.next_due_date,
+      planLabel: plan?.label ?? '',
+      planValue: plan?.value ?? 0,
+      payments,
+    })
+  }, [studentId])
+
   const fetchCheckins = useCallback(async () => {
     if (!studentId || loaded.current.has('checkins')) return
     loaded.current.add('checkins')
@@ -1026,9 +1081,9 @@ export default function PerfilAluno() {
     if (tab === 'treino')     fetchActiveProgram()
     if (tab === 'feedback')   fetchSessions()
     if (tab === 'avaliacoes') fetchAssessments()
-    if (tab === 'pagamentos') fetchPayments()
+    if (tab === 'pagamentos') { fetchPayments(); fetchAsaasSub() }
     if (tab === 'anexos')     fetchAttachments()
-    if (tab === 'historico')  { fetchCheckins(); fetchAssessments(); fetchPayments() }
+    if (tab === 'historico')  { fetchCheckins(); fetchAssessments(); fetchPayments(); fetchAsaasSub() }
   }, [tab, student?.id])
 
   // ── Derived ───────────────────────────────────────────────
@@ -1928,58 +1983,104 @@ export default function PerfilAluno() {
                 </div>
                 <div style={{ flex: 1, minWidth: 150, background: '#fff', border: '1px solid #ece7d9', borderRadius: 14, padding: '18px 20px' }}>
                   <div style={{ font: `500 12px ${FF}`, color: '#9a948a' }}>Total pago</div>
-                  <div style={{ font: `800 19px ${FF}`, color: '#1B2A4A', marginTop: 5 }}>
-                    {fmtMoney(payments.filter(p => p.status === 'active').reduce((s, p) => s + p.amount, 0))}
-                  </div>
-                  <div style={{ font: `400 12px ${FF}`, color: '#9a948a', marginTop: 3 }}>{payments.filter(p => p.status === 'active').length} fatura{payments.filter(p => p.status === 'active').length !== 1 ? 's' : ''}</div>
+                  {asaasSub ? (() => {
+                    const confirmed = asaasSub.payments.filter(p => p.status === 'confirmed')
+                    return <>
+                      <div style={{ font: `800 19px ${FF}`, color: '#1B2A4A', marginTop: 5 }}>
+                        {fmtMoney(confirmed.reduce((s, p) => s + p.value, 0))}
+                      </div>
+                      <div style={{ font: `400 12px ${FF}`, color: '#9a948a', marginTop: 3 }}>
+                        {confirmed.length} parcela{confirmed.length !== 1 ? 's' : ''} confirmada{confirmed.length !== 1 ? 's' : ''}
+                      </div>
+                    </>
+                  })() : <>
+                    <div style={{ font: `800 19px ${FF}`, color: '#1B2A4A', marginTop: 5 }}>
+                      {fmtMoney(payments.filter(p => p.status === 'active').reduce((s, p) => s + p.amount, 0))}
+                    </div>
+                    <div style={{ font: `400 12px ${FF}`, color: '#9a948a', marginTop: 3 }}>{payments.filter(p => p.status === 'active').length} fatura{payments.filter(p => p.status === 'active').length !== 1 ? 's' : ''}</div>
+                  </>}
                 </div>
               </div>
-              {/* Botão nova fatura quando lista vazia */}
-              {payments.length === 0 && !newPayOpen && !payLoading && (
-                <div style={{ textAlign: 'right' }}>
-                  <button type="button" onClick={() => setNewPayOpen(true)}
-                    style={{ height: 38, padding: '0 16px', border: 'none', background: '#E8542A', color: '#fff', borderRadius: 9, font: `700 13px ${FF}`, cursor: 'pointer', boxShadow: '0 2px 0 #c4421e' }}>
-                    + Nova fatura
-                  </button>
-                </div>
-              )}
 
-              {/* Nova fatura inline */}
-              {newPayOpen && (
-                <div style={{ background: '#fff', border: '1.5px solid #E8542A', borderRadius: 14, padding: '18px 20px' }}>
-                  <div style={{ font: `700 14px ${FF}`, color: '#1B2A4A', marginBottom: 14 }}>Nova fatura</div>
-                  <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                    <div style={{ flex: 2, minWidth: 140 }}>
-                      <div style={{ font: `600 11px ${FF}`, color: '#6b6657', textTransform: 'uppercase', letterSpacing: '.4px', marginBottom: 5 }}>Descrição</div>
-                      <input value={newPayDesc} onChange={e => setNewPayDesc(e.target.value)} placeholder="Mensalidade" style={{ width: '100%', height: 40, border: '1.5px solid #d9d3c4', borderRadius: 9, padding: '0 12px', font: `400 13.5px ${FF}`, color: '#1B2A4A', outline: 'none', background: '#fff' }} />
+              {/* ── Assinatura Asaas ── */}
+              {asaasSub && (() => {
+                const st = STATUS_ASAAS_SUB[asaasSub.status] ?? STATUS_ASAAS_SUB.pending
+                return (
+                  <div style={{ background: '#fff', border: '1px solid #ece7d9', borderRadius: 14, overflow: 'hidden' }}>
+                    <div style={{ padding: '14px 18px', background: '#fbf8f1', borderBottom: '1px solid #ece7d9', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <span style={{ font: `700 11px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#9a948a' }}>
+                        Assinatura · {asaasSub.planLabel}
+                      </span>
+                      <span style={{ font: `600 11px ${FF}`, color: st.color, background: st.bg, borderRadius: 20, padding: '3px 10px' }}>{st.label}</span>
                     </div>
-                    <div style={{ flex: 1, minWidth: 100 }}>
-                      <div style={{ font: `600 11px ${FF}`, color: '#6b6657', textTransform: 'uppercase', letterSpacing: '.4px', marginBottom: 5 }}>Valor (R$)</div>
-                      <input value={newPayAmount} onChange={e => setNewPayAmount(e.target.value)} placeholder="0,00" inputMode="decimal" style={{ width: '100%', height: 40, border: '1.5px solid #d9d3c4', borderRadius: 9, padding: '0 12px', font: `400 13.5px ${FF}`, color: '#1B2A4A', outline: 'none', background: '#fff' }} />
-                    </div>
-                    <div style={{ flex: 1, minWidth: 120 }}>
-                      <div style={{ font: `600 11px ${FF}`, color: '#6b6657', textTransform: 'uppercase', letterSpacing: '.4px', marginBottom: 5 }}>Vencimento</div>
-                      <input type="date" value={newPayDue} onChange={e => setNewPayDue(e.target.value)} style={{ width: '100%', height: 40, border: '1.5px solid #d9d3c4', borderRadius: 9, padding: '0 12px', font: `400 13.5px ${FF}`, color: '#1B2A4A', outline: 'none', background: '#fff' }} />
-                    </div>
+                    {asaasSub.payments.length === 0 ? (
+                      <div style={{ padding: '20px 18px', font: `400 13px ${FF}`, color: '#9a948a' }}>Aguardando primeiro pagamento...</div>
+                    ) : asaasSub.payments.map((p, i) => {
+                      const ps = STATUS_ASAAS_PAY[p.status] ?? STATUS_ASAAS_PAY.pending
+                      return (
+                        <div key={p.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '13px 18px', borderTop: i === 0 ? 'none' : '1px solid #f1ece0' }}>
+                          <div>
+                            <div style={{ font: `600 14px ${FF}`, color: '#1B2A4A' }}>Ciclo {p.cycle_number}</div>
+                            <div style={{ font: `400 12px ${FF}`, color: '#9a948a' }}>
+                              {p.paid_at ? `Pago em ${fmtDate(p.paid_at)}` : p.due_date ? `Vence ${fmtDate(p.due_date)}` : '—'}
+                            </div>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                            <span style={{ font: `700 13px ${FF}`, color: '#1B2A4A' }}>{fmtMoney(p.value)}</span>
+                            <span style={{ font: `600 11px ${FF}`, color: ps.color, background: ps.color + '1a', borderRadius: 20, padding: '3px 10px', whiteSpace: 'nowrap' }}>{ps.label}</span>
+                          </div>
+                        </div>
+                      )
+                    })}
                   </div>
-                  <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-                    <button type="button" onClick={saveNewPayment} disabled={newPaySaving || !newPayAmount || !newPayDue}
-                      style={{ height: 38, padding: '0 18px', border: 'none', background: '#E8542A', color: '#fff', borderRadius: 9, font: `700 13px ${FF}`, cursor: 'pointer', opacity: (!newPayAmount || !newPayDue) ? .5 : 1 }}>
-                      {newPaySaving ? 'Salvando...' : 'Registrar'}
-                    </button>
-                    <button type="button" onClick={() => { setNewPayOpen(false); setNewPayDesc(''); setNewPayAmount(''); setNewPayDue('') }}
-                      style={{ height: 38, padding: '0 14px', border: '1.5px solid #d9d3c4', background: '#fff', color: '#7c7869', borderRadius: 9, font: `600 13px ${FF}`, cursor: 'pointer' }}>
-                      Cancelar
-                    </button>
-                  </div>
-                </div>
-              )}
+                )
+              })()}
 
-              {payLoading ? (
-                <div style={{ font: `400 13px ${FF}`, color: '#9a948a', padding: '20px 0' }}>Carregando...</div>
-              ) : payments.length === 0 && !newPayOpen ? (
-                <Empty icon="💳" title="Nenhuma fatura registrada" sub="Clique em + Nova fatura para registrar." />
-              ) : payments.length > 0 ? (
+              {/* ── Faturas manuais (legado) ── */}
+              {!asaasSub && (
+                <>
+                  {payments.length === 0 && !newPayOpen && !payLoading && (
+                    <div style={{ textAlign: 'right' }}>
+                      <button type="button" onClick={() => setNewPayOpen(true)}
+                        style={{ height: 38, padding: '0 16px', border: 'none', background: '#E8542A', color: '#fff', borderRadius: 9, font: `700 13px ${FF}`, cursor: 'pointer', boxShadow: '0 2px 0 #c4421e' }}>
+                        + Nova fatura
+                      </button>
+                    </div>
+                  )}
+                  {newPayOpen && (
+                    <div style={{ background: '#fff', border: '1.5px solid #E8542A', borderRadius: 14, padding: '18px 20px' }}>
+                      <div style={{ font: `700 14px ${FF}`, color: '#1B2A4A', marginBottom: 14 }}>Nova fatura</div>
+                      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                        <div style={{ flex: 2, minWidth: 140 }}>
+                          <div style={{ font: `600 11px ${FF}`, color: '#6b6657', textTransform: 'uppercase', letterSpacing: '.4px', marginBottom: 5 }}>Descrição</div>
+                          <input value={newPayDesc} onChange={e => setNewPayDesc(e.target.value)} placeholder="Mensalidade" style={{ width: '100%', height: 40, border: '1.5px solid #d9d3c4', borderRadius: 9, padding: '0 12px', font: `400 13.5px ${FF}`, color: '#1B2A4A', outline: 'none', background: '#fff' }} />
+                        </div>
+                        <div style={{ flex: 1, minWidth: 100 }}>
+                          <div style={{ font: `600 11px ${FF}`, color: '#6b6657', textTransform: 'uppercase', letterSpacing: '.4px', marginBottom: 5 }}>Valor (R$)</div>
+                          <input value={newPayAmount} onChange={e => setNewPayAmount(e.target.value)} placeholder="0,00" inputMode="decimal" style={{ width: '100%', height: 40, border: '1.5px solid #d9d3c4', borderRadius: 9, padding: '0 12px', font: `400 13.5px ${FF}`, color: '#1B2A4A', outline: 'none', background: '#fff' }} />
+                        </div>
+                        <div style={{ flex: 1, minWidth: 120 }}>
+                          <div style={{ font: `600 11px ${FF}`, color: '#6b6657', textTransform: 'uppercase', letterSpacing: '.4px', marginBottom: 5 }}>Vencimento</div>
+                          <input type="date" value={newPayDue} onChange={e => setNewPayDue(e.target.value)} style={{ width: '100%', height: 40, border: '1.5px solid #d9d3c4', borderRadius: 9, padding: '0 12px', font: `400 13.5px ${FF}`, color: '#1B2A4A', outline: 'none', background: '#fff' }} />
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+                        <button type="button" onClick={saveNewPayment} disabled={newPaySaving || !newPayAmount || !newPayDue}
+                          style={{ height: 38, padding: '0 18px', border: 'none', background: '#E8542A', color: '#fff', borderRadius: 9, font: `700 13px ${FF}`, cursor: 'pointer', opacity: (!newPayAmount || !newPayDue) ? .5 : 1 }}>
+                          {newPaySaving ? 'Salvando...' : 'Registrar'}
+                        </button>
+                        <button type="button" onClick={() => { setNewPayOpen(false); setNewPayDesc(''); setNewPayAmount(''); setNewPayDue('') }}
+                          style={{ height: 38, padding: '0 14px', border: '1.5px solid #d9d3c4', background: '#fff', color: '#7c7869', borderRadius: 9, font: `600 13px ${FF}`, cursor: 'pointer' }}>
+                          Cancelar
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                  {payLoading ? (
+                    <div style={{ font: `400 13px ${FF}`, color: '#9a948a', padding: '20px 0' }}>Carregando...</div>
+                  ) : payments.length === 0 && !newPayOpen ? (
+                    <Empty icon="💳" title="Nenhuma fatura registrada" sub="Clique em + Nova fatura para registrar." />
+                  ) : payments.length > 0 ? (
                 <div style={{ background: '#fff', border: '1px solid #ece7d9', borderRadius: 14, overflow: 'hidden' }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 18px', background: '#fbf8f1', borderBottom: '1px solid #ece7d9' }}>
                     <span style={{ font: `700 11px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#9a948a' }}>Faturas</span>
@@ -2029,6 +2130,8 @@ export default function PerfilAluno() {
                   })}
                 </div>
               ) : null}
+                </>
+              )}
             </div>
           )}
 
