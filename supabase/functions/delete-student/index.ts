@@ -27,7 +27,6 @@ Deno.serve(async (req) => {
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
   )
 
-  // Confirma que o aluno pertence ao coach
   const { data: student } = await supabase
     .from('students')
     .select('id, student_id, email')
@@ -37,22 +36,18 @@ Deno.serve(async (req) => {
 
   if (!student) return new Response('Not found', { status: 404, headers: CORS })
 
-  // Tenta apagar pelo student_id (UUID de auth)
+  // Apaga de auth.users pelo UUID (cascata: clients → subscriptions → payments)
   if (student.student_id) {
     const { error } = await supabase.auth.admin.deleteUser(student.student_id)
-    if (error) console.error('[delete-student] deleteUser error:', error.message)
+    if (error) console.error('[delete-student] deleteUser by id error:', error.message)
   }
 
-  // Fallback: busca por e-mail caso student_id fosse nulo ou deleteUser falhou
+  // Garante remoção pelo e-mail via função SECURITY DEFINER (cobre student_id nulo ou falha acima)
   if (student.email) {
-    const { data: { users } } = await supabase.auth.admin.listUsers()
-    const authUser = users.find(u => u.email === student.email)
-    if (authUser && authUser.id !== student.student_id) {
-      await supabase.auth.admin.deleteUser(authUser.id)
-    }
+    const { error } = await supabase.rpc('delete_auth_user_by_email', { p_email: student.email })
+    if (error) console.error('[delete-student] deleteUser by email error:', error.message)
   }
 
-  // Remove o registro de students
   await supabase.from('students').delete().eq('id', studentId)
 
   return new Response(JSON.stringify({ ok: true }), {
