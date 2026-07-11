@@ -1,12 +1,15 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
 
+const CORS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, content-type',
+}
+
 Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization, content-type' } })
-  }
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS })
 
   const authHeader = req.headers.get('Authorization')
-  if (!authHeader) return new Response('Unauthorized', { status: 401 })
+  if (!authHeader) return new Response('Unauthorized', { status: 401, headers: CORS })
 
   // Verifica que o chamador é autenticado e é coach do aluno
   const supabaseUser = createClient(
@@ -15,10 +18,10 @@ Deno.serve(async (req) => {
     { global: { headers: { Authorization: authHeader } } },
   )
   const { data: { user }, error: authError } = await supabaseUser.auth.getUser()
-  if (authError || !user) return new Response('Unauthorized', { status: 401 })
+  if (authError || !user) return new Response('Unauthorized', { status: 401, headers: CORS })
 
   const { studentId } = await req.json() as { studentId: number }
-  if (!studentId) return new Response('studentId required', { status: 400 })
+  if (!studentId) return new Response('studentId required', { status: 400, headers: CORS })
 
   const supabase = createClient(
     Deno.env.get('SUPABASE_URL')!,
@@ -33,7 +36,7 @@ Deno.serve(async (req) => {
     .eq('coach_id', user.id)
     .maybeSingle()
 
-  if (!student) return new Response('Not found', { status: 404 })
+  if (!student) return new Response('Not found', { status: 404, headers: CORS })
 
   // Apaga o usuário de auth — cascata apaga clients, subscriptions, subscription_payments
   if (student.student_id) {
@@ -45,6 +48,6 @@ Deno.serve(async (req) => {
 
   return new Response(JSON.stringify({ ok: true }), {
     status: 200,
-    headers: { 'Content-Type': 'application/json' },
+    headers: { ...CORS, 'Content-Type': 'application/json' },
   })
 })
