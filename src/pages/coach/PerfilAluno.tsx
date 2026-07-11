@@ -1023,8 +1023,12 @@ export default function PerfilAluno() {
   const fetchAsaasSub = useCallback(async () => {
     if (!studentId || loaded.current.has('asaas')) return
     loaded.current.add('asaas')
+    // studentId é o students.id (numérico); precisa do student_id (UUID de auth) para achar clients
+    const { data: studentRow } = await supabase
+      .from('students').select('student_id').eq('id', studentId).maybeSingle()
+    if (!studentRow?.student_id) return
     const { data: clientData } = await supabase
-      .from('clients').select('id').eq('auth_user_id', studentId).maybeSingle()
+      .from('clients').select('id').eq('auth_user_id', studentRow.student_id).maybeSingle()
     if (!clientData) return
     const { data: subData } = await supabase
       .from('subscriptions')
