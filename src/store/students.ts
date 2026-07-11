@@ -121,8 +121,16 @@ export const useStudentsStore = create<StudentsStore>((set) => ({
   },
 
   deleteStudent: async (id) => {
-    const { error } = await supabase.from('students').delete().eq('id', id)
-    if (!error) set(s => ({ students: s.students.filter(st => st.id !== id) }))
+    const { data: { session } } = await supabase.auth.getSession()
+    const res = await fetch(
+      `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/delete-student`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token}` },
+        body: JSON.stringify({ studentId: id }),
+      }
+    )
+    if (res.ok) set(s => ({ students: s.students.filter(st => st.id !== id) }))
   },
 
   updatePlan: async (id, plan) => {
