@@ -11,7 +11,6 @@ Deno.serve(async (req) => {
   const authHeader = req.headers.get('Authorization')
   if (!authHeader) return new Response('Unauthorized', { status: 401, headers: CORS })
 
-  // Verifica que o chamador é autenticado e é coach do aluno
   const supabaseUser = createClient(
     Deno.env.get('SUPABASE_URL')!,
     Deno.env.get('SUPABASE_ANON_KEY')!,
@@ -31,19 +30,29 @@ Deno.serve(async (req) => {
   // Confirma que o aluno pertence ao coach
   const { data: student } = await supabase
     .from('students')
-    .select('id, student_id')
+    .select('id, student_id, email')
     .eq('id', studentId)
     .eq('coach_id', user.id)
     .maybeSingle()
 
   if (!student) return new Response('Not found', { status: 404, headers: CORS })
 
-  // Apaga o usuário de auth — cascata apaga clients, subscriptions, subscription_payments
+  // Tenta apagar pelo student_id (UUID de auth)
   if (student.student_id) {
-    await supabase.auth.admin.deleteUser(student.student_id)
+    const { error } = await supabase.auth.admin.deleteUser(student.student_id)
+    if (error) console.error('[delete-student] deleteUser error:', error.message)
   }
 
-  // Apaga o registro de students (pode já ter sido cascade se student_id era FK)
+  // Fallback: busca por e-mail caso student_id fosse nulo ou deleteUser falhou
+  if (student.email) {
+    const { data: { users } } = await supabase.auth.admin.listUsers()
+    const authUser = users.find(u => u.email === student.email)
+    if (authUser && authUser.id !== student.student_id) {
+      await supabase.auth.admin.deleteUser(authUser.id)
+    }
+  }
+
+  // Remove o registro de students
   await supabase.from('students').delete().eq('id', studentId)
 
   return new Response(JSON.stringify({ ok: true }), {
