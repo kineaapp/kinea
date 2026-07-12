@@ -1350,7 +1350,7 @@ export default function Treinos() {
           onUpdate={handleUpdateProgram}
           onApply={() => setApplyOpen(true)}
           onDelete={() => handleDeleteProgram(openProgram.id)}
-          onWorkoutCreated={(wo, t) => setTreinos(prev => [t, ...prev])}
+          onWorkoutCreated={(_wo, t) => setTreinos(prev => [t, ...prev])}
         />
       )}
 
