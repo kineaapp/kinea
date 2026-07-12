@@ -32,9 +32,18 @@ DO $$ BEGIN
   ALTER PUBLICATION supabase_realtime ADD TABLE public.chat_messages;
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
--- ── 2. student_attachments: student RLS + public storage read ─────────────────
+-- ── 2. student_attachments: create table + student RLS + public storage read ──
 
--- Table was created manually; ensure RLS is on
+CREATE TABLE IF NOT EXISTS public.student_attachments (
+  id          bigserial   PRIMARY KEY,
+  student_id  bigint      NOT NULL REFERENCES public.students(id) ON DELETE CASCADE,
+  name        text        NOT NULL,
+  url         text        NOT NULL,
+  size        int,
+  mime_type   text,
+  uploaded_at timestamptz NOT NULL DEFAULT now()
+);
+
 ALTER TABLE public.student_attachments ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "coach_student_attachments"   ON public.student_attachments;
