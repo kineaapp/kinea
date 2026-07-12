@@ -220,17 +220,169 @@ function ApplyProgramModal({ programName, students, onConfirm, onClose }: {
   )
 }
 
-// ── Program Builder Drawer ─────────────────────────────────────
-function ProgramBuilderDrawer({ program, workouts, onClose, onUpdate, onApply, onDelete }: {
-  program:   Program
-  workouts:  WorkoutOption[]
+// ── Create Workout Modal (dentro do programa) ──────────────────
+function CreateWorkoutModal({ library, onClose, onCreated }: {
+  library:   LibraryExercise[]
   onClose:   () => void
-  onUpdate:  (p: Program) => void
-  onApply:   () => void
-  onDelete:  () => void
+  onCreated: (wo: WorkoutOption, t: Treino) => void
+}) {
+  const { user } = useAuthStore()
+  const [name,       setName]       = useState('')
+  const [goal,       setGoal]       = useState<Goal>('Hipertrofia')
+  const [exercises,  setExercises]  = useState<Exercise[]>([])
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const [exModal,    setExModal]    = useState(false)
+  const [saving,     setSaving]     = useState(false)
+  const [err,        setErr]        = useState('')
+  const nextK = useRef(Date.now())
+
+  function addEx(data: Omit<Exercise, '_k'>) {
+    setExercises(p => [...p, { ...data, _k: nextK.current++ }])
+  }
+
+  async function handleSave() {
+    if (!name.trim()) { setErr('Informe o nome do treino.'); return }
+    if (!user?.id) return
+    setSaving(true)
+    const { data: w, error } = await supabase
+      .from('workouts')
+      .insert({ coach_id: user.id, name: name.trim(), goal, muscle_group: goal + ' · Novo', duration_min: 45 })
+      .select().single()
+    if (error || !w) { setSaving(false); setErr('Erro ao criar treino.'); return }
+    if (exercises.length > 0) {
+      const scheme = (ex: Exercise) => { const m = ex.scheme.match(/^(\d+)\s*[×x]\s*(.+)$/); return m ? { sets: parseInt(m[1]), reps: m[2].trim() } : { sets: 3, reps: ex.scheme } }
+      await supabase.from('exercises').insert(exercises.map((ex, i) => {
+        const { sets, reps } = scheme(ex)
+        return { workout_id: (w as any).id, name: ex.name, muscle_group: ex.muscle, sets, reps, rest_sec: parseInt(ex.rest) || 60, sort_order: i }
+      }))
+    }
+    const wo: WorkoutOption = { id: (w as any).id, name: (w as any).name, goal, muscle_group: (w as any).muscle_group, duration_min: 45, ex_count: exercises.length }
+    const treino: Treino    = { id: (w as any).id, name: (w as any).name, split: (w as any).muscle_group, goal, duration: '45 min', assigned: 0, ex: exercises }
+    setSaving(false)
+    onCreated(wo, treino)
+  }
+
+  const gs = GOAL_STYLE[goal]
+
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(20,25,40,.65)', zIndex: 80, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+      <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 520, background: '#fff', borderRadius: 16, boxShadow: '0 24px 60px rgba(0,0,0,.38)', display: 'flex', flexDirection: 'column', maxHeight: '90vh' }}>
+
+        {/* Header */}
+        <div style={{ padding: '24px 26px 0', flexShrink: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
+            <h2 style={{ font: `800 20px ${FF}`, color: '#1B2A4A', margin: 0, letterSpacing: '-.4px' }}>Criar treino</h2>
+            <button onClick={onClose} style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#9a948a', padding: 2 }}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
+            </button>
+          </div>
+
+          {/* Nome */}
+          <div style={{ marginBottom: 14 }}>
+            <label style={{ display: 'block', font: `600 11px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#6b6657', marginBottom: 7 }}>Nome do treino</label>
+            <input
+              autoFocus type="text" placeholder="Ex: Peito e Tríceps" value={name}
+              onChange={e => { setName(e.target.value); setErr('') }}
+              style={{ width: '100%', height: 44, border: `1.5px solid ${err ? '#c4421e' : '#d9d3c4'}`, borderRadius: 10, background: '#fff', padding: '0 14px', font: `400 14px ${FF}`, color: '#1B2A4A', outline: 'none', boxSizing: 'border-box' as const }}
+              onFocus={e => { e.currentTarget.style.borderColor = '#E8542A'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(232,84,42,.13)' }}
+              onBlur={e => { e.currentTarget.style.borderColor = err ? '#c4421e' : '#d9d3c4'; e.currentTarget.style.boxShadow = 'none' }}
+            />
+            {err && <div style={{ font: `500 12px ${FF}`, color: '#c4421e', marginTop: 5 }}>{err}</div>}
+          </div>
+
+          {/* Objetivo */}
+          <div style={{ marginBottom: 16 }}>
+            <label style={{ display: 'block', font: `600 11px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#6b6657', marginBottom: 8 }}>Objetivo</label>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              {GOALS.map(g => {
+                const s = GOAL_STYLE[g]
+                return (
+                  <button key={g} type="button" onClick={() => setGoal(g)}
+                    style={{ border: `1.5px solid ${goal === g ? s.color : '#e0d9c8'}`, background: goal === g ? s.color : '#fff', color: goal === g ? '#fff' : '#7c7869', font: `600 12px ${FF}`, borderRadius: 20, padding: '6px 12px', cursor: 'pointer' }}>
+                    {g}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          <div style={{ font: `700 11px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#9a948a', marginBottom: 10 }}>
+            Exercícios <span style={{ color: '#c9c1b0', fontWeight: 500, textTransform: 'none', letterSpacing: 0, fontSize: 10 }}>— opcional</span>
+          </div>
+        </div>
+
+        {/* Lista de exercícios */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: '0 26px', minHeight: 0 }}>
+          {exercises.length === 0 && (
+            <div style={{ padding: '14px 0', font: `400 13px ${FF}`, color: '#a89f8e', textAlign: 'center' }}>Nenhum exercício adicionado.</div>
+          )}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {exercises.map((ex, i) => (
+              <div key={ex._k} style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#faf7ee', border: '1px solid #e0d9c8', borderRadius: 11, padding: '10px 12px' }}>
+                <div style={{ width: 26, height: 26, borderRadius: 7, background: gs.bg, color: gs.color, display: 'flex', alignItems: 'center', justifyContent: 'center', font: `800 10px ${FF}`, flexShrink: 0 }}>{i + 1}</div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ font: `700 13px ${FF}`, color: '#1B2A4A', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ex.name}</div>
+                  <div style={{ font: `500 11px ${FF}`, color: '#9a948a' }}>{ex.muscle} · {ex.scheme} · desc. {ex.rest}</div>
+                </div>
+                <button type="button" onClick={() => setExercises(p => p.filter(e => e._k !== ex._k))}
+                  style={{ width: 28, height: 28, border: 'none', background: 'none', cursor: 'pointer', color: '#b0a99c', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, borderRadius: 6 }}
+                  onMouseEnter={e => { e.currentTarget.style.color = '#c4421e'; e.currentTarget.style.background = '#fbe6e1' }}
+                  onMouseLeave={e => { e.currentTarget.style.color = '#b0a99c'; e.currentTarget.style.background = 'none' }}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+                </button>
+              </div>
+            ))}
+          </div>
+          <button type="button" onClick={() => setPickerOpen(true)}
+            style={{ width: '100%', border: '1.5px dashed #d8d1c0', background: 'none', color: '#9a948a', borderRadius: 10, padding: '10px 0', font: `600 12.5px ${FF}`, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, margin: '10px 0 20px' }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = '#E8542A'; e.currentTarget.style.color = '#E8542A' }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = '#d8d1c0'; e.currentTarget.style.color = '#9a948a' }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+            Adicionar exercício
+          </button>
+        </div>
+
+        {/* Footer */}
+        <div style={{ padding: '14px 26px 24px', flexShrink: 0, borderTop: '1px solid #f4efe3' }}>
+          <button type="button" onClick={handleSave} disabled={saving}
+            style={{ width: '100%', height: 48, border: 'none', background: saving ? '#e0d9c8' : '#E8542A', color: '#fff', borderRadius: 10, font: `700 14.5px ${FF}`, cursor: saving ? 'default' : 'pointer', boxShadow: saving ? 'none' : '0 2px 0 #c4421e' }}>
+            {saving ? 'Criando…' : 'Criar e adicionar ao slot'}
+          </button>
+        </div>
+      </div>
+
+      {pickerOpen && (
+        <ExercisePickerModal
+          library={library}
+          onSelect={d => { addEx(d); setPickerOpen(false) }}
+          onCreateNew={() => { setPickerOpen(false); setExModal(true) }}
+          onClose={() => setPickerOpen(false)}
+        />
+      )}
+      {exModal && (
+        <NewExerciseModal
+          onClose={() => setExModal(false)}
+          onAdd={d => { addEx(d); setExModal(false) }}
+        />
+      )}
+    </div>
+  )
+}
+
+// ── Program Builder Drawer ─────────────────────────────────────
+function ProgramBuilderDrawer({ program, workouts, library, onClose, onUpdate, onApply, onDelete, onWorkoutCreated }: {
+  program:          Program
+  workouts:         WorkoutOption[]
+  library:          LibraryExercise[]
+  onClose:          () => void
+  onUpdate:         (p: Program) => void
+  onApply:          () => void
+  onDelete:         () => void
+  onWorkoutCreated: (wo: WorkoutOption, t: Treino) => void
 }) {
   const [slots, setSlots] = useState<ProgramSlot[]>(program.slots)
-  const [pickerSlot, setPickerSlot] = useState<number | null>(null) // position
+  const [pickerSlot,   setPickerSlot]   = useState<number | null>(null)
+  const [createSlot,   setCreateSlot]   = useState<number | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState(false)
   const savingRef = useRef<Record<number, boolean>>({})
 
@@ -345,14 +497,22 @@ function ProgramBuilderDrawer({ program, workouts, onClose, onUpdate, onApply, o
                     </div>
                   </div>
                 ) : (
-                  <button type="button" onClick={() => setPickerSlot(slot.position)}
-                    style={{ width: '100%', border: '2px dashed #d8d1c0', background: '#fff', color: '#9a948a', borderRadius: 12, padding: '18px 0', font: `600 13px ${FF}`, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7 }}
-                    onMouseEnter={e => { e.currentTarget.style.borderColor = '#E8542A'; e.currentTarget.style.color = '#E8542A' }}
-                    onMouseLeave={e => { e.currentTarget.style.borderColor = '#d8d1c0'; e.currentTarget.style.color = '#9a948a' }}
-                  >
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
-                    Adicionar treino
-                  </button>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button type="button" onClick={() => setCreateSlot(slot.position)}
+                      style={{ flex: 1, height: 52, border: '2px dashed #E8542A', background: '#fdf3ee', color: '#E8542A', borderRadius: 12, font: `700 12.5px ${FF}`, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+                      onMouseEnter={e => { e.currentTarget.style.background = '#fbe4d8' }}
+                      onMouseLeave={e => { e.currentTarget.style.background = '#fdf3ee' }}>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+                      Criar treino
+                    </button>
+                    <button type="button" onClick={() => setPickerSlot(slot.position)}
+                      style={{ flex: 1, height: 52, border: '1.5px solid #d8d1c0', background: '#fff', color: '#7c7869', borderRadius: 12, font: `600 12.5px ${FF}`, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+                      onMouseEnter={e => { e.currentTarget.style.borderColor = '#E8542A'; e.currentTarget.style.color = '#E8542A' }}
+                      onMouseLeave={e => { e.currentTarget.style.borderColor = '#d8d1c0'; e.currentTarget.style.color = '#7c7869' }}>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>
+                      Da biblioteca
+                    </button>
+                  </div>
                 )}
               </div>
             )
@@ -393,6 +553,17 @@ function ProgramBuilderDrawer({ program, workouts, onClose, onUpdate, onApply, o
           workouts={workouts}
           onSelect={w => assignWorkout(pickerSlot, w)}
           onClose={() => setPickerSlot(null)}
+        />
+      )}
+      {createSlot !== null && (
+        <CreateWorkoutModal
+          library={library}
+          onClose={() => setCreateSlot(null)}
+          onCreated={(wo, t) => {
+            onWorkoutCreated(wo, t)
+            assignWorkout(createSlot, wo)
+            setCreateSlot(null)
+          }}
         />
       )}
     </>
@@ -914,7 +1085,7 @@ export default function Treinos() {
       .insert({ coach_id: user.id, name, days_per_week: daysPerWeek, is_template: isTemplate })
       .select()
       .single()
-    if (error || !prog) { showToast('Erro ao criar programa.'); return }
+    if (error || !prog) { console.error('[createProgram]', error); showToast('Erro: ' + (error?.message ?? 'resposta vazia')); return }
     // Create slots
     const slotRows = Array.from({ length: daysPerWeek }, (_, i) => ({
       program_id: (prog as any).id, position: i + 1, workout_id: null, day_of_week: null,
@@ -1174,10 +1345,12 @@ export default function Treinos() {
         <ProgramBuilderDrawer
           program={openProgram}
           workouts={workoutOptions}
+          library={library}
           onClose={() => setOpenProgramId(null)}
           onUpdate={handleUpdateProgram}
           onApply={() => setApplyOpen(true)}
           onDelete={() => handleDeleteProgram(openProgram.id)}
+          onWorkoutCreated={(wo, t) => setTreinos(prev => [t, ...prev])}
         />
       )}
 
