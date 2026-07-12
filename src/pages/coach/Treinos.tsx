@@ -706,6 +706,122 @@ function TreinoDrawer({ treino, library, onClose, onDuplicate, onUpdate, onAddTo
   )
 }
 
+// ── New Treino Modal ───────────────────────────────────────────
+const BLOCK_LETTERS = 'ABCDEF'
+function blockLabel(n: number) { return BLOCK_LETTERS.slice(0, n) }
+
+function NewTreinoModal({ onClose, onAdd, onAddBlock }: {
+  onClose:    () => void
+  onAdd:      (name: string, goal: Goal) => void
+  onAddBlock: (goal: Goal, size: number) => void
+}) {
+  const [name,      setName]      = useState('')
+  const [goal,      setGoal]      = useState<Goal>('Hipertrofia')
+  const [mode,      setMode]      = useState<'individual' | 'bloco'>('individual')
+  const [blockSize, setBlockSize] = useState(3)
+  const [err,       setErr]       = useState('')
+
+  function handleSave() {
+    if (mode === 'individual') {
+      if (!name.trim()) { setErr('Informe o nome.'); return }
+      onAdd(name.trim(), goal)
+    } else {
+      onAddBlock(goal, blockSize)
+    }
+  }
+
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(20,25,40,.5)', zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+      <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 440, background: '#fff', borderRadius: 16, padding: 26, boxShadow: '0 24px 60px rgba(0,0,0,.3)' }}>
+
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 20 }}>
+          <h2 style={{ font: `800 20px ${FF}`, color: '#1B2A4A', margin: 0, letterSpacing: '-.4px' }}>Novo treino</h2>
+          <button onClick={onClose} style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#9a948a', padding: 2 }}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
+          </button>
+        </div>
+
+        {/* Mode toggle */}
+        <div style={{ display: 'flex', background: '#f4efe3', borderRadius: 10, padding: 4, marginBottom: 20 }}>
+          {(['individual', 'bloco'] as const).map(m => (
+            <button key={m} type="button" onClick={() => { setMode(m); setErr('') }}
+              style={{ flex: 1, height: 36, border: 'none', borderRadius: 8, cursor: 'pointer', font: `700 13px ${FF}`, transition: 'all .15s',
+                background: mode === m ? '#fff' : 'transparent',
+                color: mode === m ? '#1B2A4A' : '#9a948a',
+                boxShadow: mode === m ? '0 1px 4px rgba(27,42,74,.1)' : 'none',
+              }}>
+              {m === 'individual' ? 'Treino único' : 'Bloco (A B C…)'}
+            </button>
+          ))}
+        </div>
+
+        {/* Individual: name */}
+        {mode === 'individual' && (
+          <>
+            <label style={{ display: 'block', font: `600 11px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#6b6657', marginBottom: 7 }}>Nome do treino</label>
+            <input
+              autoFocus
+              type="text"
+              placeholder="Ex: Treino A — Peito e Tríceps"
+              value={name}
+              onChange={e => { setName(e.target.value); setErr('') }}
+              style={{ width: '100%', height: 46, border: `1.5px solid ${err ? '#c4421e' : '#d9d3c4'}`, borderRadius: 10, background: '#fff', padding: '0 14px', font: `400 14px ${FF}`, color: '#1B2A4A', outline: 'none', marginBottom: err ? 6 : 20, boxSizing: 'border-box' as const }}
+              onFocus={e => { e.currentTarget.style.borderColor = '#E8542A'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(232,84,42,.13)' }}
+              onBlur={e => { e.currentTarget.style.borderColor = err ? '#c4421e' : '#d9d3c4'; e.currentTarget.style.boxShadow = 'none' }}
+            />
+            {err && <div style={{ font: `500 12px ${FF}`, color: '#c4421e', marginBottom: 14 }}>{err}</div>}
+          </>
+        )}
+
+        {/* Bloco: size selector + preview */}
+        {mode === 'bloco' && (
+          <>
+            <label style={{ display: 'block', font: `600 11px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#6b6657', marginBottom: 10 }}>Tamanho do bloco</label>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+              {[2, 3, 4, 5, 6].map(n => (
+                <button key={n} type="button" onClick={() => setBlockSize(n)}
+                  style={{ flex: 1, height: 56, border: `1.5px solid ${blockSize === n ? '#E8542A' : '#d9d3c4'}`, background: blockSize === n ? '#fdf3ee' : '#fff', borderRadius: 10, cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2 }}>
+                  <span style={{ font: `800 13px ${FF}`, color: blockSize === n ? '#E8542A' : '#1B2A4A' }}>{blockLabel(n)}</span>
+                  <span style={{ font: `500 10px ${FF}`, color: blockSize === n ? '#E8542A' : '#b0a99c' }}>{n} treinos</span>
+                </button>
+              ))}
+            </div>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 20 }}>
+              {Array.from({ length: blockSize }, (_, i) => (
+                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#f4efe3', border: '1px solid #e0d9c8', borderRadius: 8, padding: '5px 10px' }}>
+                  <div style={{ width: 22, height: 22, borderRadius: 6, background: '#E8542A', display: 'flex', alignItems: 'center', justifyContent: 'center', font: `900 10px ${FF}`, color: '#fff', flexShrink: 0 }}>
+                    {BLOCK_LETTERS[i]}
+                  </div>
+                  <span style={{ font: `500 11px ${FF}`, color: '#7c7869' }}>Treino {BLOCK_LETTERS[i]}</span>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+
+        {/* Goal */}
+        <label style={{ display: 'block', font: `600 11px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#6b6657', marginBottom: 8 }}>Objetivo</label>
+        <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap', marginBottom: 22 }}>
+          {GOALS.map(g => {
+            const s = GOAL_STYLE[g]
+            return (
+              <button key={g} type="button" onClick={() => setGoal(g)}
+                style={{ border: `1.5px solid ${goal === g ? s.color : '#e0d9c8'}`, background: goal === g ? s.color : '#fff', color: goal === g ? '#fff' : '#7c7869', font: `600 12.5px ${FF}`, borderRadius: 20, padding: '8px 14px', cursor: 'pointer' }}>
+                {g}
+              </button>
+            )
+          })}
+        </div>
+
+        <button type="button" onClick={handleSave}
+          style={{ width: '100%', height: 48, border: 'none', background: '#E8542A', color: '#fff', borderRadius: 10, font: `700 14.5px ${FF}`, cursor: 'pointer', boxShadow: '0 2px 0 #c4421e' }}>
+          {mode === 'individual' ? 'Criar treino' : `Criar bloco ${blockLabel(blockSize)}`}
+        </button>
+      </div>
+    </div>
+  )
+}
+
 // ── Helpers ───────────────────────────────────────────────────
 function parseScheme(s: string) { const m = s.match(/^(\d+)\s*[×x]\s*(.+)$/); return m ? { sets: parseInt(m[1]), reps: m[2].trim() } : { sets: 3, reps: s } }
 function parseRest(r: string)   { return parseInt(r) || 60 }
@@ -876,6 +992,26 @@ export default function Treinos() {
     const t: Treino = { id: (data as any).id, name: (data as any).name, split: (data as any).muscle_group, goal, duration: '45 min', assigned: 0, ex: [] }
     setTreinos(prev => [t, ...prev]); setNewOpen(false); setOpenId((data as any).id)
     showToast('Treino criado.')
+  }
+
+  async function handleAddBlock(goal: Goal, size: number) {
+    if (!user?.id) return
+    const rows = Array.from({ length: size }, (_, i) => ({
+      coach_id: user.id,
+      name: `Treino ${BLOCK_LETTERS[i]}`,
+      goal,
+      muscle_group: `${goal} · Treino ${BLOCK_LETTERS[i]}`,
+      duration_min: 45,
+    }))
+    const { data, error } = await supabase.from('workouts').insert(rows).select()
+    if (error || !data) { showToast('Erro ao criar bloco.'); return }
+    const newTreinos: Treino[] = (data as any[]).map(w => ({
+      id: w.id, name: w.name, split: w.muscle_group, goal, duration: '45 min', assigned: 0, ex: [],
+    }))
+    setTreinos(prev => [...newTreinos, ...prev])
+    setNewOpen(false)
+    setOpenId(newTreinos[0].id)
+    showToast(`Bloco ${blockLabel(size)} criado. Adicione os exercícios.`)
   }
 
   async function handleDuplicate(id: number) {
@@ -1070,55 +1206,11 @@ export default function Treinos() {
 
       {newProgramOpen && <NewProgramModal onClose={() => setNewProgramOpen(false)} onAdd={handleCreateProgram} />}
       {newOpen && (
-        <div onClick={() => setNewOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(20,25,40,.5)', zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-          <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 440, background: '#fff', borderRadius: 16, padding: 26, boxShadow: '0 24px 60px rgba(0,0,0,.3)' }}>
-            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 16 }}>
-              <h2 style={{ font: `800 20px ${FF}`, color: '#1B2A4A', margin: 0 }}>Novo treino</h2>
-              <button onClick={() => setNewOpen(false)} style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#9a948a', padding: 2 }}>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
-              </button>
-            </div>
-            <label style={{ display: 'block', font: `600 11px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#6b6657', marginBottom: 7 }}>Nome do treino</label>
-            <input id="new-treino-name" type="text" placeholder="Ex: Treino A — Peito e Tríceps"
-              style={{ width: '100%', height: 46, border: '1.5px solid #d9d3c4', borderRadius: 10, background: '#fff', padding: '0 14px', font: `400 14px ${FF}`, color: '#1B2A4A', outline: 'none', marginBottom: 14, boxSizing: 'border-box' }}
-              onFocus={e => { e.currentTarget.style.borderColor = '#E8542A'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(232,84,42,.13)' }}
-              onBlur={e => { e.currentTarget.style.borderColor = '#d9d3c4'; e.currentTarget.style.boxShadow = 'none' }}
-            />
-            <label style={{ display: 'block', font: `600 11px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#6b6657', marginBottom: 8 }}>Objetivo</label>
-            <div id="new-treino-goal-state" data-goal="Hipertrofia" style={{ display: 'flex', gap: 7, flexWrap: 'wrap', marginBottom: 20 }}>
-              {GOALS.map(g => {
-                const s = GOAL_STYLE[g]
-                return (
-                  <button key={g} type="button"
-                    onClick={e => {
-                      const container = (e.currentTarget.closest('[data-goal]') as HTMLElement)
-                      container.dataset.goal = g
-                      container.querySelectorAll('button').forEach(b => {
-                        const bg = b.dataset.g!
-                        const gs = GOAL_STYLE[bg as Goal]
-                        b.style.background = bg === g ? gs.color : '#fff'
-                        b.style.color      = bg === g ? '#fff'    : '#7c7869'
-                        b.style.borderColor = bg === g ? gs.color : '#e0d9c8'
-                      })
-                    }}
-                    data-g={g}
-                    style={{ border: `1.5px solid ${g === 'Hipertrofia' ? s.color : '#e0d9c8'}`, background: g === 'Hipertrofia' ? s.color : '#fff', color: g === 'Hipertrofia' ? '#fff' : '#7c7869', font: `600 12.5px ${FF}`, borderRadius: 20, padding: '8px 14px', cursor: 'pointer' }}>
-                    {g}
-                  </button>
-                )
-              })}
-            </div>
-            <button type="button"
-              onClick={() => {
-                const nameEl = document.getElementById('new-treino-name') as HTMLInputElement
-                const goalEl = document.getElementById('new-treino-goal-state') as HTMLElement
-                handleAddTreino(nameEl?.value ?? '', (goalEl?.dataset.goal as Goal) ?? 'Hipertrofia')
-              }}
-              style={{ width: '100%', height: 48, border: 'none', background: '#E8542A', color: '#fff', borderRadius: 10, font: `700 14.5px ${FF}`, cursor: 'pointer', boxShadow: '0 2px 0 #c4421e' }}>
-              Criar treino
-            </button>
-          </div>
-        </div>
+        <NewTreinoModal
+          onClose={() => setNewOpen(false)}
+          onAdd={handleAddTreino}
+          onAddBlock={handleAddBlock}
+        />
       )}
 
       <Toast msg={toast} />
