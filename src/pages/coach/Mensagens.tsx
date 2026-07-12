@@ -147,7 +147,7 @@ export default function Mensagens() {
     const channel = supabase
       .channel(`coach-chat-${activeId}`)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages', filter: `student_id=eq.${activeId}` }, (payload) => {
-        const row = payload.new as { from_role: string; text: string; created_at: string }
+        const row = payload.new as { from_role: string; text: string | null; created_at: string; attachment_url?: string | null; attachment_name?: string | null; attachment_size?: number | null; attachment_kind?: string | null }
         if (row.from_role === 'student') addIncoming(activeId, row)
       })
       .subscribe()

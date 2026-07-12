@@ -2,6 +2,7 @@ import { useState } from 'react'
 import type { CSSProperties } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ChevronLeft, Check } from 'lucide-react'
+import { jsPDF } from 'jspdf'
 import { useAuthStore } from '../../store/auth'
 import { supabase } from '../../lib/supabase'
 
@@ -188,41 +189,164 @@ export default function Anamnese() {
     if (err) { setError(err); return }
     setError('')
     if (step < total - 1) { setStep(s => s + 1); return }
-    finish()
+    void finish()
   }
 
-  function finish() {
+  async function finish() {
+    if (!user?.id) return
     setLoading(true)
-    setTimeout(async () => {
-      if (user?.id) {
-        await supabase.from('profiles').update({ anamnese_completed: true }).eq('id', user.id)
-        await supabase.from('anamneses').insert({
-          student_id:      user.id,
-          nome:            data.nome,
-          data_nasc:       data.dataNasc,
-          telefone:        data.telefone,
-          profissao:       data.profissao,
-          altura:          data.altura,
-          doencas:         JSON.stringify(data.doencas),
-          outra_doenca:    data.outraDoenca,
-          medicamentos:    data.medicamentos,
-          cirurgia:        data.cirurgia,
-          limitacoes:      data.limitacoes,
-          pratica_atual:   data.praticaAtual,
-          atividade_atual: data.atividadeAtual,
-          treinou_personal:data.treinouPersonal,
-          objetivo:        data.objetivo,
-          dias_semana:     data.diasSemana,
-          horario:         data.horario,
-          horas_sono:      data.horasSono,
-          nivel_estresse:  data.nivelEstresse,
-          fuma:            data.fuma,
-          alcool:          data.alcool,
+    try {
+      // 1. Save anamnese to DB
+      await supabase.from('profiles').update({ anamnese_completed: true }).eq('id', user.id)
+      await supabase.from('anamneses').insert({
+        student_id:       user.id,
+        nome:             data.nome,
+        data_nasc:        data.dataNasc,
+        telefone:         data.telefone,
+        profissao:        data.profissao,
+        altura:           data.altura,
+        doencas:          JSON.stringify(data.doencas),
+        outra_doenca:     data.outraDoenca,
+        medicamentos:     data.medicamentos,
+        cirurgia:         data.cirurgia,
+        limitacoes:       data.limitacoes,
+        pratica_atual:    data.praticaAtual,
+        atividade_atual:  data.atividadeAtual,
+        treinou_personal: data.treinouPersonal,
+        objetivo:         data.objetivo,
+        dias_semana:      data.diasSemana,
+        horario:          data.horario,
+        horas_sono:       data.horasSono,
+        nivel_estresse:   data.nivelEstresse,
+        fuma:             data.fuma,
+        alcool:           data.alcool,
+      })
+
+      // 2. Generate PDF
+      const doc = new jsPDF({ unit: 'mm', format: 'a4' })
+      const W = 210, ml = 18, mr = 18, cw = W - ml - mr
+      let y = 0
+
+      function header() {
+        doc.setFillColor(27, 42, 74)
+        doc.rect(0, 0, W, 22, 'F')
+        doc.setFont('helvetica', 'bold')
+        doc.setFontSize(15)
+        doc.setTextColor(250, 238, 218)
+        doc.text('KINEA', ml, 14)
+        doc.setFont('helvetica', 'normal')
+        doc.setFontSize(10)
+        doc.setTextColor(139, 151, 173)
+        doc.text('Ficha de Anamnese', ml + 26, 14)
+        y = 32
+      }
+
+      function section(title: string) {
+        if (y > 255) { doc.addPage(); header() }
+        doc.setFont('helvetica', 'bold')
+        doc.setFontSize(9)
+        doc.setTextColor(232, 84, 42)
+        doc.text(title.toUpperCase(), ml, y)
+        y += 1
+        doc.setDrawColor(232, 84, 42)
+        doc.setLineWidth(0.4)
+        doc.line(ml, y, ml + cw, y)
+        y += 5
+        doc.setTextColor(27, 42, 74)
+      }
+
+      function field(label: string, value: string) {
+        if (!value) return
+        if (y > 268) { doc.addPage(); header() }
+        doc.setFont('helvetica', 'bold')
+        doc.setFontSize(8)
+        doc.setTextColor(124, 120, 105)
+        doc.text(label + ':', ml, y)
+        doc.setFont('helvetica', 'normal')
+        doc.setTextColor(27, 42, 74)
+        const lines = doc.splitTextToSize(value, cw - 36)
+        doc.text(lines, ml + 36, y)
+        y += lines.length * 5 + 2
+      }
+
+      header()
+
+      section('Dados Pessoais')
+      field('Nome', data.nome)
+      field('Data de Nascimento', data.dataNasc)
+      field('Telefone', data.telefone)
+      field('Profissão', data.profissao || '—')
+      field('Altura (cm)', data.altura || '—')
+      y += 3
+
+      section('Histórico de Saúde')
+      field('Doenças', data.doencas.length ? data.doencas.join(', ') : 'Nenhuma')
+      if (data.outraDoenca) field('Outras doenças', data.outraDoenca)
+      field('Medicamentos', data.medicamentos || 'Nenhum')
+      field('Cirurgias', data.cirurgia || 'Nenhuma')
+      field('Limitações / Dores', data.limitacoes || 'Nenhuma')
+      y += 3
+
+      section('Atividade Física')
+      field('Pratica exercício', data.praticaAtual)
+      if (data.atividadeAtual) field('Atividade atual', data.atividadeAtual)
+      field('Treinou com personal', data.treinouPersonal)
+      y += 3
+
+      section('Objetivos')
+      field('Objetivo principal', data.objetivo)
+      field('Dias por semana', data.diasSemana + 'x')
+      field('Horário preferido', data.horario)
+      y += 3
+
+      section('Estilo de Vida')
+      field('Horas de sono', data.horasSono)
+      field('Nível de estresse', data.nivelEstresse + ' / 5')
+      field('Tabagismo', data.fuma)
+      field('Consumo de álcool', data.alcool)
+
+      // Footer
+      const pageCount = doc.getNumberOfPages()
+      for (let p = 1; p <= pageCount; p++) {
+        doc.setPage(p)
+        doc.setFont('helvetica', 'normal')
+        doc.setFontSize(7)
+        doc.setTextColor(180, 170, 155)
+        const dateStr = new Date().toLocaleDateString('pt-BR')
+        doc.text(`Gerado em ${dateStr}  •  Página ${p} de ${pageCount}`, ml, 292)
+      }
+
+      const pdfBlob = doc.output('blob')
+      const fileName = `anamnese/${user.id}_${Date.now()}.pdf`
+
+      // 3. Upload PDF to storage
+      await supabase.storage.from('chat-attachments').upload(fileName, pdfBlob, { contentType: 'application/pdf' })
+      const { data: { publicUrl } } = supabase.storage.from('chat-attachments').getPublicUrl(fileName)
+
+      // 4. Find numeric student ID and send to coach chat
+      const { data: studentRow } = await supabase
+        .from('students')
+        .select('id')
+        .eq('student_id', user.id)
+        .maybeSingle()
+
+      if (studentRow) {
+        await supabase.from('chat_messages').insert({
+          student_id:      studentRow.id,
+          from_role:       'student',
+          text:            null,
+          attachment_url:  publicUrl,
+          attachment_name: `Anamnese — ${data.nome}.pdf`,
+          attachment_size: pdfBlob.size,
+          attachment_kind: 'file',
         })
       }
-      if (user) setUser({ ...user, anamneseCompleted: true })
-      navigate('/aluno/primeira-avaliacao')
-    }, 1200)
+    } catch (err) {
+      console.error('[Anamnese] finish error:', err)
+    }
+
+    if (user) setUser({ ...user, anamneseCompleted: true })
+    navigate('/aluno/primeira-avaliacao')
   }
 
   // ── Step renders ─────────────────────────────────────────

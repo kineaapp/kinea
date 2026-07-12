@@ -10,7 +10,17 @@ export type MsgEntry =
 
 export const SEED_MSGS: MsgEntry[] = []
 
-interface DbRow { from_role: string; text: string; created_at: string }
+interface DbRow {
+  from_role: string; text: string | null; created_at: string
+  attachment_url?: string | null; attachment_name?: string | null
+  attachment_size?: number | null; attachment_kind?: string | null
+}
+
+function fmtBytes(b: number): string {
+  if (b < 1024) return b + ' B'
+  if (b < 1048576) return (b / 1024).toFixed(1) + ' KB'
+  return (b / 1048576).toFixed(1) + ' MB'
+}
 
 function rowsToEntries(rows: DbRow[]): MsgEntry[] {
   const result: MsgEntry[] = []
@@ -25,7 +35,17 @@ function rowsToEntries(rows: DbRow[]): MsgEntry[] {
       lastDay = dayStr
     }
     const hh = `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`
-    result.push({ type: 'msg', from: row.from_role === 'coach' ? 'me' : 'them', text: row.text, time: hh })
+    const from: 'me' | 'them' = row.from_role === 'coach' ? 'me' : 'them'
+    if (row.attachment_url && row.attachment_name) {
+      result.push({
+        type: 'attach', from, kind: (row.attachment_kind ?? 'file') as AttachKind,
+        url: row.attachment_url, name: row.attachment_name,
+        size: row.attachment_size != null ? fmtBytes(row.attachment_size) : '',
+        time: hh,
+      })
+    } else {
+      result.push({ type: 'msg', from, text: row.text ?? '', time: hh })
+    }
   }
   return result
 }
@@ -52,7 +72,7 @@ export const useCoachChatStore = create<CoachChatStore>((set, get) => ({
     set(s => ({ loading: { ...s.loading, [studentId]: true } }))
     const { data } = await supabase
       .from('chat_messages')
-      .select('from_role, text, created_at')
+      .select('from_role, text, created_at, attachment_url, attachment_name, attachment_size, attachment_kind')
       .eq('student_id', studentId)
       .order('created_at', { ascending: true })
     const entries = rowsToEntries((data as DbRow[] | null) ?? [])
@@ -85,8 +105,10 @@ export const useCoachChatStore = create<CoachChatStore>((set, get) => ({
   addIncoming: (studentId, row) => {
     const d  = new Date(row.created_at)
     const hh = `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`
+    const entries = rowsToEntries([row])
+    const msg = entries.find(e => e.type !== 'day') ?? { type: 'msg' as const, from: 'them' as const, text: row.text ?? '', time: hh }
     set(s => ({
-      msgs:   { ...s.msgs,   [studentId]: [...(s.msgs[studentId] ?? []), { type: 'msg', from: 'them', text: row.text, time: hh }] },
+      msgs:   { ...s.msgs,   [studentId]: [...(s.msgs[studentId] ?? []), msg] },
       unread: { ...s.unread, [studentId]: (s.unread[studentId] ?? 0) + 1 },
     }))
   },
