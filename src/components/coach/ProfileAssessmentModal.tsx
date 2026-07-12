@@ -72,7 +72,7 @@ interface Props {
 }
 
 export function ProfileAssessmentModal({ studentId, studentName, studentUuid, onClose, onSaved }: Props) {
-  const [date,      setDate]      = useState(() => new Date().toISOString().split('T')[0])
+  const [date,      setDate]      = useState(() => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}-${String(n.getDate()).padStart(2,'0')}` })
   const [weight,    setWeight]    = useState('')
   const [sex,       setSex]       = useState<'M' | 'F'>('F')
   const [age,       setAge]       = useState('')
