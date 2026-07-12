@@ -12,12 +12,6 @@ Deno.serve(async (req) => {
     return new Response('ok', { headers: { 'Access-Control-Allow-Origin': '*' } })
   }
 
-  // Valida token do webhook configurado no painel Asaas
-  const webhookToken = req.headers.get('asaas-access-token')
-  if (webhookToken !== Deno.env.get('ASAAS_WEBHOOK_TOKEN')) {
-    return new Response('Unauthorized', { status: 401 })
-  }
-
   try {
     const body = await req.json()
     const { event, payment } = body as {
