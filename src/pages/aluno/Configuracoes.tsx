@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { ChevronLeft, Camera, Eye, EyeOff, Check } from 'lucide-react'
 import { useAuthStore } from '../../store/auth'
 import { useSettingsStore } from '../../store/settings'
+import { supabase } from '../../lib/supabase'
 
 // ── shared primitives ──────────────────────────────────────────────────────
 
@@ -103,12 +104,15 @@ export default function Configuracoes() {
     if (pwNew === pwCurrent)      return setPwError('A nova senha deve ser diferente da atual.')
     setPwError('')
     setPwLoading(true)
-    await new Promise(r => setTimeout(r, 700))
+    const { error: signInError } = await supabase.auth.signInWithPassword({ email: user?.email ?? '', password: pwCurrent })
+    if (signInError) { setPwLoading(false); return setPwError('Senha atual incorreta.') }
+    const { error: updateError } = await supabase.auth.updateUser({ password: pwNew })
     setPwLoading(false)
+    if (updateError) return setPwError('Erro ao alterar senha: ' + updateError.message)
     setPwSaved(true)
     setPwCurrent(''); setPwNew(''); setPwConfirm('')
     setTimeout(() => setPwSaved(false), 2500)
-  }, [pwCurrent, pwNew, pwConfirm])
+  }, [pwCurrent, pwNew, pwConfirm, user?.email])
 
   const initials = user?.initials ?? 'JM'
   const photo    = user?.photo

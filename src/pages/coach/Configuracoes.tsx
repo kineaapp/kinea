@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../../store/auth'
 import { useSettingsStore } from '../../store/settings'
 import KineaLogo from '../../components/KineaLogo'
+import { supabase } from '../../lib/supabase'
 
 const FF = '"Libre Franklin",sans-serif'
 
@@ -114,6 +115,7 @@ export default function Configuracoes() {
 
   // Security
   const [passFields, setPassFields] = useState({ current: '', next: '', confirm: '' })
+  const [passError, setPassError] = useState('')
 
   function showToast(msg: string) {
     setToast(msg)
@@ -132,10 +134,15 @@ export default function Configuracoes() {
     showToast('Perfil atualizado com sucesso.')
   }
 
-  function savePassword() {
-    if (!passFields.current) { showToast('Informe a senha atual.'); return }
-    if (passFields.next.length < 6) { showToast('A nova senha precisa ter pelo menos 6 caracteres.'); return }
-    if (passFields.next !== passFields.confirm) { showToast('As senhas não coincidem.'); return }
+  async function savePassword() {
+    setPassError('')
+    if (!passFields.current) { setPassError('Informe a senha atual.'); return }
+    if (passFields.next.length < 6) { setPassError('A nova senha precisa ter pelo menos 6 caracteres.'); return }
+    if (passFields.next !== passFields.confirm) { setPassError('As senhas não coincidem.'); return }
+    const { error: signInError } = await supabase.auth.signInWithPassword({ email: user?.email ?? '', password: passFields.current })
+    if (signInError) { setPassError('Senha atual incorreta.'); return }
+    const { error: updateError } = await supabase.auth.updateUser({ password: passFields.next })
+    if (updateError) { setPassError('Erro ao alterar senha: ' + updateError.message); return }
     setPassFields({ current: '', next: '', confirm: '' })
     showToast('Senha alterada com sucesso.')
   }
@@ -298,6 +305,7 @@ export default function Configuracoes() {
                 <Input value={passFields.confirm} onChange={v => setPassFields(p => ({ ...p, confirm: v }))} type="password" placeholder="Repita a senha" />
               </Field>
             </div>
+            {passError && <div style={{ font: `500 12px ${FF}`, color: '#c4421e' }}>{passError}</div>}
             <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
               <button
                 onClick={savePassword}

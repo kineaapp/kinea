@@ -854,6 +854,7 @@ export default function PerfilAluno() {
   const [checkLoading,    setCheckLoading]    = useState(false)
   const [sessions,        setSessions]        = useState<SessionRow[]>([])
   const [sessionsLoading, setSessionsLoading] = useState(false)
+  const [resetingPw,      setResetingPw]      = useState(false)
   const loaded = useRef(new Set<string>())
 
   const fetchAnamnese = useCallback(async () => {
@@ -1148,6 +1149,16 @@ export default function PerfilAluno() {
     setToast(msg)
     clearTimeout(toastRef.current)
     toastRef.current = setTimeout(() => setToast(''), 2000)
+  }
+
+  async function handleResetPassword() {
+    if (!student?.email) { showToast('Aluno não possui e-mail cadastrado.'); return }
+    setResetingPw(true)
+    const { error } = await supabase.auth.resetPasswordForEmail(student.email, {
+      redirectTo: window.location.origin + '/login',
+    })
+    setResetingPw(false)
+    showToast(error ? 'Erro ao enviar e-mail: ' + error.message : 'E-mail de redefinição enviado para ' + student.email)
   }
   useEffect(() => () => clearTimeout(toastRef.current), [])
 
@@ -1516,6 +1527,24 @@ export default function PerfilAluno() {
                       <span style={{ font: `600 13px ${FF}`, color: valColor }}>{val}</span>
                     </div>
                   ))}
+                </div>
+                {/* Acesso */}
+                <div style={{ background: '#fff', border: '1px solid #ece7d9', borderRadius: 14, padding: 18 }}>
+                  <h2 style={{ font: `700 15px ${FF}`, color: '#1B2A4A', margin: '0 0 6px' }}>Acesso</h2>
+                  <p style={{ font: `400 12.5px ${FF}`, color: '#9a948a', margin: '0 0 12px', lineHeight: 1.45 }}>
+                    Envia um e-mail de redefinição de senha para o aluno.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={handleResetPassword}
+                    disabled={resetingPw}
+                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, width: '100%', height: 40, border: '1.5px solid #d9d3c4', background: '#fff', color: '#1B2A4A', borderRadius: 10, font: `600 13px ${FF}`, cursor: resetingPw ? 'default' : 'pointer', opacity: resetingPw ? .6 : 1 }}
+                    onMouseEnter={e => { if (!resetingPw) { e.currentTarget.style.borderColor = '#E8542A'; e.currentTarget.style.color = '#E8542A' } }}
+                    onMouseLeave={e => { e.currentTarget.style.borderColor = '#d9d3c4'; e.currentTarget.style.color = '#1B2A4A' }}
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                    {resetingPw ? 'Enviando…' : 'Resetar senha do aluno'}
+                  </button>
                 </div>
               </div>
             </div>
