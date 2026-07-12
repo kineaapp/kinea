@@ -1,40 +1,52 @@
 import { useState, useRef, useEffect } from 'react'
-import { Send, FileText, Download } from 'lucide-react'
+import { Send } from 'lucide-react'
 import { useChatStore } from '../../store/chat'
 import { useAuthStore } from '../../store/auth'
 import { supabase } from '../../lib/supabase'
-import type { Msg } from '../../store/chat'
+import type { MsgEntry } from '../../store/chat'
 
-function FileBubble({ msg }: { msg: Extract<Msg, { type: 'file' }> }) {
+function AttachBubble({ msg }: { msg: Extract<MsgEntry, { type: 'attach' }> }) {
   const isAluno = msg.from === 'aluno'
+  const bg = isAluno ? '#1B2A4A' : '#fff'
+  const radius = isAluno ? '16px 16px 4px 16px' : '16px 16px 16px 4px'
+
   return (
     <div style={{ display: 'flex', justifyContent: isAluno ? 'flex-end' : 'flex-start' }}>
       <div style={{ maxWidth: '78%' }}>
-        <a
-          href={msg.dataUri}
-          download={msg.filename}
-          style={{
-            display: 'flex', alignItems: 'center', gap: 12,
-            background: isAluno ? '#1B2A4A' : '#fff',
-            borderRadius: isAluno ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
-            padding: '12px 14px',
-            boxShadow: isAluno ? 'none' : '0 2px 8px rgba(27,42,74,.07)',
-            textDecoration: 'none',
-          }}
-        >
-          <div style={{ width: 38, height: 38, borderRadius: 10, background: '#E8542A', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-            <FileText size={18} color="#fff" strokeWidth={2} />
-          </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ font: `600 12.5px "Libre Franklin",sans-serif`, color: isAluno ? '#FAEEDA' : '#1B2A4A', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {msg.filename}
+        <div style={{ background: bg, borderRadius: radius, overflow: 'hidden', boxShadow: isAluno ? 'none' : '0 2px 8px rgba(27,42,74,.07)' }}>
+
+          {msg.kind === 'image' && (
+            <img src={msg.url} alt={msg.name}
+              style={{ display: 'block', maxWidth: '100%', maxHeight: 260, objectFit: 'cover', cursor: 'pointer' }}
+              onClick={() => window.open(msg.url, '_blank')}
+            />
+          )}
+
+          {msg.kind === 'audio' && (
+            <div style={{ padding: '12px 14px' }}>
+              <div style={{ font: `700 12px "Libre Franklin",sans-serif`, color: isAluno ? '#FAEEDA' : '#1B2A4A', marginBottom: 6 }}>Mensagem de voz · {msg.size}</div>
+              <audio src={msg.url} controls style={{ width: '100%', height: 32, display: 'block' }} />
             </div>
-            <div style={{ font: `400 11px "Libre Franklin",sans-serif`, color: isAluno ? '#8B97AD' : '#A39E90', marginTop: 2 }}>
-              {msg.size} · PDF
-            </div>
-          </div>
-          <Download size={16} color={isAluno ? '#8B97AD' : '#A39E90'} strokeWidth={2} />
-        </a>
+          )}
+
+          {(msg.kind === 'file' || msg.kind === 'video') && (
+            <a href={msg.url} target="_blank" rel="noreferrer" download={msg.name}
+              style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', textDecoration: 'none' }}>
+              <div style={{ width: 38, height: 38, borderRadius: 10, background: isAluno ? 'rgba(255,255,255,.15)' : '#eef1f6', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={isAluno ? '#FAEEDA' : '#1B2A4A'} strokeWidth="2" strokeLinecap="round">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/>
+                </svg>
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ font: `600 12.5px "Libre Franklin",sans-serif`, color: isAluno ? '#FAEEDA' : '#1B2A4A', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{msg.name}</div>
+                {msg.size && <div style={{ font: `400 11px "Libre Franklin",sans-serif`, color: isAluno ? '#8B97AD' : '#A39E90', marginTop: 2 }}>{msg.size}</div>}
+              </div>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={isAluno ? '#8B97AD' : '#A39E90'} strokeWidth="2.2" strokeLinecap="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/>
+              </svg>
+            </a>
+          )}
+        </div>
         <div style={{ font: `400 10px "Libre Franklin",sans-serif`, color: '#C5BFB0', marginTop: 4, textAlign: isAluno ? 'right' : 'left', padding: '0 4px' }}>
           {msg.time}
         </div>
@@ -58,7 +70,7 @@ export default function Chat() {
     const channel = supabase
       .channel('student-chat')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages', filter: `student_id=eq.${studentId}` }, (payload) => {
-        const row = payload.new as { from_role: string; text: string; created_at: string }
+        const row = payload.new as { from_role: string; text: string | null; created_at: string; attachment_url?: string | null; attachment_name?: string | null; attachment_size?: number | null; attachment_kind?: string | null }
         if (row.from_role === 'coach') addIncoming(row)
       })
       .subscribe()
@@ -99,7 +111,7 @@ export default function Chat() {
           </div>
         )}
         {messages.map((m, i) => {
-          if (m.type === 'file') return <FileBubble key={i} msg={m} />
+          if (m.type === 'attach') return <AttachBubble key={i} msg={m} />
 
           const isAluno = m.from === 'aluno'
           return (

@@ -171,12 +171,24 @@ export default function Mensagens() {
   }
 
   // ── Attachment ────────────────────────────────────────────────────────────────
-  function handleFile(kind: AttachKind, file: File) {
+  async function handleFile(kind: AttachKind, file: File) {
     if (activeId === null) return
-    const url = URL.createObjectURL(file)
-    const hh  = now_hhmm()
-    addMsg(activeId, { type: 'attach', from: 'me', kind, url, name: file.name, size: fmtSize(file.size), time: hh })
     setAttachMenu(false)
+    const localUrl = URL.createObjectURL(file)
+    const hh = now_hhmm()
+    const sid = activeId
+    addMsg(sid, { type: 'attach', from: 'me', kind, url: localUrl, name: file.name, size: fmtSize(file.size), time: hh })
+    const ext  = file.name.split('.').pop() ?? 'bin'
+    const path = `coach/${sid}/${Date.now()}.${ext}`
+    const { error } = await supabase.storage.from('chat-attachments').upload(path, file)
+    if (!error) {
+      const { data: pd } = supabase.storage.from('chat-attachments').getPublicUrl(path)
+      await supabase.from('chat_messages').insert({
+        student_id: sid, from_role: 'coach', text: null,
+        attachment_url: pd.publicUrl, attachment_name: file.name,
+        attachment_size: file.size, attachment_kind: kind,
+      })
+    }
   }
 
   // ── Audio recording ───────────────────────────────────────────────────────────
@@ -189,18 +201,31 @@ export default function Mensagens() {
       const mr = new MediaRecorder(stream)
       chunksRef.current = []
       mr.ondataavailable = e => { if (e.data.size > 0) chunksRef.current.push(e.data) }
-      mr.onstop = () => {
+      mr.onstop = async () => {
         stream.getTracks().forEach(t => t.stop())
         clearInterval(timerRef.current)
         if (cancelRef.current) {
           setRecording(false); setRecSecs(0); recSecsRef.current = 0; return
         }
-        const blob = new Blob(chunksRef.current, { type: 'audio/webm' })
-        const url  = URL.createObjectURL(blob)
-        const hh   = now_hhmm()
-        const dur  = fmtDur(recSecsRef.current)
-        if (activeId !== null) {
-          addMsg(activeId, { type: 'attach', from: 'me', kind: 'audio', url, name: `Áudio ${hh}`, size: dur, time: hh })
+        const blob  = new Blob(chunksRef.current, { type: 'audio/webm' })
+        const hh    = now_hhmm()
+        const dur   = fmtDur(recSecsRef.current)
+        const name  = `Áudio ${hh}`
+        const sid   = activeId
+        let url = URL.createObjectURL(blob)
+        if (sid !== null) {
+          addMsg(sid, { type: 'attach', from: 'me', kind: 'audio', url, name, size: dur, time: hh })
+          const path = `coach/${sid}/${Date.now()}.webm`
+          const { error } = await supabase.storage.from('chat-attachments').upload(path, blob)
+          if (!error) {
+            const { data: pd } = supabase.storage.from('chat-attachments').getPublicUrl(path)
+            url = pd.publicUrl
+            await supabase.from('chat_messages').insert({
+              student_id: sid, from_role: 'coach', text: null,
+              attachment_url: url, attachment_name: name,
+              attachment_size: blob.size, attachment_kind: 'audio',
+            })
+          }
         }
         setRecording(false); setRecSecs(0); recSecsRef.current = 0
       }
