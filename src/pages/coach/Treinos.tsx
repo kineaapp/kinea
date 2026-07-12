@@ -3,6 +3,7 @@ import { getInitials, avatarPalette } from '../../data/mock'
 import { useStudentsStore } from '../../store/students'
 import { useAuthStore } from '../../store/auth'
 import { supabase } from '../../lib/supabase'
+import { EXERCISE_LIBRARY } from '../../data/exercicios'
 
 const FF = '"Libre Franklin",sans-serif'
 
@@ -1011,7 +1012,9 @@ export default function Treinos() {
 
   // Biblioteca tab state
   const [treinos,     setTreinos]     = useState<Treino[]>([])
-  const [library,     setLibrary]     = useState<LibraryExercise[]>([])
+  const [library,     setLibrary]     = useState<LibraryExercise[]>(
+    EXERCISE_LIBRARY.map(e => ({ name: e.name, muscle: e.muscle, scheme: '3 × 12', rest: '60s' }))
+  )
   const [query,       setQuery]       = useState('')
   const [filter,      setFilter]      = useState<Goal | 'all'>('all')
   const [openId,      setOpenId]      = useState<number | null>(null)
