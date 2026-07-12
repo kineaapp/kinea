@@ -1,11 +1,12 @@
 import { useNavigate } from 'react-router-dom'
-import { ChevronRight, CreditCard, Bell, Settings, HelpCircle, LogOut } from 'lucide-react'
+import { ChevronRight, CreditCard, Bell, Settings, HelpCircle, LogOut, Paperclip } from 'lucide-react'
 import { useAuthStore } from '../../store/auth'
 
 const FF = '"Libre Franklin",sans-serif'
 
 const MENU = [
   { icon: CreditCard, label: 'Pagamentos',    to: '/aluno/perfil/pagamentos', danger: false },
+  { icon: Paperclip,  label: 'Arquivos',      to: '/aluno/arquivos',          danger: false },
   { icon: Bell,       label: 'Notificações',  to: '/aluno/notificacoes',      danger: false },
   { icon: Settings,   label: 'Configurações', to: '/aluno/configuracoes',     danger: false },
   { icon: HelpCircle, label: 'Suporte',       to: null,                       danger: false },

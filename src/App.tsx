@@ -23,6 +23,7 @@ import PrimeiraAvaliacao from './pages/aluno/PrimeiraAvaliacao'
 import NovaAvaliacao from './pages/aluno/NovaAvaliacao'
 import AlunoNotificacoes from './pages/aluno/Notificacoes'
 import AlunoConfiguracoes from './pages/aluno/Configuracoes'
+import AlunoArquivos from './pages/aluno/Arquivos'
 import Register from './pages/Register'
 
 
@@ -58,6 +59,7 @@ export default function App() {
         <Route path="perfil/pagamentos"   element={<AlunoPagamentos />} />
         <Route path="notificacoes"        element={<AlunoNotificacoes />} />
         <Route path="configuracoes"       element={<AlunoConfiguracoes />} />
+        <Route path="arquivos"            element={<AlunoArquivos />} />
       </Route>
       <Route path="*" element={<Navigate to="/login" replace />} />
     </Routes>
