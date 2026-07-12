@@ -629,9 +629,10 @@ function NewProgramModal({ onClose, onAdd }: {
 }
 
 // ── Biblioteca components (existing, kept intact) ────────────
-function ExRow({ ex, order, tagBg, tagColor, dragOverId, onDragStart, onDragEnd, onDragOver, onDragLeave, onDrop }: {
+function ExRow({ ex, order, tagBg, tagColor, dragOverId, onEdit, onDragStart, onDragEnd, onDragOver, onDragLeave, onDrop }: {
   ex: { _k: number; name: string; muscle: string; scheme: string; rest: string }
   order: number; tagBg: string; tagColor: string; dragOverId: number | null
+  onEdit:      (k: number) => void
   onDragStart: (e: DragEvent<HTMLDivElement>, k: number) => void
   onDragEnd:   (e: DragEvent<HTMLDivElement>) => void
   onDragOver:  (e: DragEvent<HTMLDivElement>, k: number) => void
@@ -652,6 +653,15 @@ function ExRow({ ex, order, tagBg, tagColor, dragOverId, onDragStart, onDragEnd,
         <div style={{ font: `700 13px ${FF}`, color: '#1B2A4A', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ex.name}</div>
         <div style={{ font: `500 11px ${FF}`, color: '#9a948a', marginTop: 2 }}>{ex.muscle}</div>
       </div>
+      <button
+        type="button"
+        onClick={e => { e.stopPropagation(); onEdit(ex._k) }}
+        style={{ width: 28, height: 28, border: '1px solid #e0d9c8', background: '#fff', borderRadius: 7, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, color: '#9a948a' }}
+        onMouseEnter={e => { e.currentTarget.style.borderColor = '#E8542A'; e.currentTarget.style.color = '#E8542A' }}
+        onMouseLeave={e => { e.currentTarget.style.borderColor = '#e0d9c8'; e.currentTarget.style.color = '#9a948a' }}
+      >
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+      </button>
       <div style={{ textAlign: 'right', flexShrink: 0 }}>
         <div style={{ font: `800 13px ${FF}`, color: '#1B2A4A' }}>{ex.scheme}</div>
         <div style={{ font: `500 10px ${FF}`, color: '#b0a99c' }}>desc. {ex.rest}</div>
@@ -780,6 +790,55 @@ function ExercisePickerModal({ library, onSelect, onCreateNew, onClose }: {
   )
 }
 
+// ── Edit Exercise Modal ───────────────────────────────────────
+function EditExerciseModal({ ex, initSets, initReps, initRest, onClose, onSave }: {
+  ex: { name: string; muscle: string }
+  initSets: string; initReps: string; initRest: string
+  onClose: () => void
+  onSave: (scheme: string, rest: string) => void
+}) {
+  const [sets, setSets] = useState(initSets)
+  const [reps, setReps] = useState(initReps)
+  const [rest, setRest] = useState(initRest)
+  const inp: React.CSSProperties = { height: 46, border: '1.5px solid #d9d3c4', borderRadius: 10, background: '#fff', padding: '0 12px', font: `700 15px ${FF}`, color: '#1B2A4A', outline: 'none', textAlign: 'center', boxSizing: 'border-box' as const }
+  const focusOn  = (e: React.FocusEvent<HTMLInputElement>) => { e.currentTarget.style.borderColor = '#E8542A'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(232,84,42,.13)' }
+  const focusOff = (e: React.FocusEvent<HTMLInputElement>) => { e.currentTarget.style.borderColor = '#d9d3c4'; e.currentTarget.style.boxShadow = 'none' }
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(20,25,40,.55)', zIndex: 90, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+      <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 380, background: '#fff', borderRadius: 16, padding: 24, boxShadow: '0 24px 60px rgba(0,0,0,.35)' }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 16 }}>
+          <div>
+            <h2 style={{ font: `800 17px ${FF}`, color: '#1B2A4A', margin: 0, letterSpacing: '-.3px' }}>{ex.name}</h2>
+            <div style={{ font: `500 12px ${FF}`, color: '#9a948a', marginTop: 3 }}>{ex.muscle}</div>
+          </div>
+          <button onClick={onClose} style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#9a948a', padding: 2 }}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
+          </button>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
+          <div>
+            <label style={{ display: 'block', font: `600 10px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#6b6657', marginBottom: 6 }}>Séries</label>
+            <input type="number" min="1" max="20" value={sets} onChange={e => setSets(e.target.value)} onFocus={focusOn} onBlur={focusOff} style={{ ...inp, width: '100%' }} />
+          </div>
+          <div>
+            <label style={{ display: 'block', font: `600 10px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#6b6657', marginBottom: 6 }}>Reps / tempo</label>
+            <input type="text" placeholder="12" value={reps} onChange={e => setReps(e.target.value)} onFocus={focusOn} onBlur={focusOff} style={{ ...inp, width: '100%' }} />
+          </div>
+        </div>
+        <div style={{ marginBottom: 20 }}>
+          <label style={{ display: 'block', font: `600 10px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#6b6657', marginBottom: 6 }}>Descanso</label>
+          <input type="text" placeholder="60s" value={rest} onChange={e => setRest(e.target.value)} onFocus={focusOn} onBlur={focusOff} style={{ ...inp, width: '100%', textAlign: 'left', padding: '0 14px' }} />
+        </div>
+        <button type="button"
+          onClick={() => onSave(`${sets} × ${reps}`, rest)}
+          style={{ width: '100%', height: 46, border: 'none', background: '#E8542A', color: '#fff', borderRadius: 10, font: `700 14px ${FF}`, cursor: 'pointer', boxShadow: '0 2px 0 #c4421e' }}>
+          Salvar
+        </button>
+      </div>
+    </div>
+  )
+}
+
 function TreinoDrawer({ treino, library, onClose, onDuplicate, onUpdate, onAddToLibrary, onDelete }: {
   treino: Treino; library: LibraryExercise[]; onClose: () => void
   onDuplicate: () => void; onUpdate: (t: Treino) => void
@@ -791,9 +850,17 @@ function TreinoDrawer({ treino, library, onClose, onDuplicate, onUpdate, onAddTo
   const [pickerOpen, setPickerOpen] = useState(false)
   const [exModalOpen, setExModalOpen] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState(false)
+  const [editExKey, setEditExKey] = useState<number | null>(null)
   const dragRef = useRef<number | null>(null)
   const nextK = useRef(Date.now())
   useEffect(() => { setExercises(treino.ex) }, [treino.id])
+
+  function handleSaveEdit(k: number, scheme: string, rest: string) {
+    const updated = exercises.map(ex => ex._k === k ? { ...ex, scheme, rest } : ex)
+    setExercises(updated)
+    onUpdate({ ...treino, ex: updated })
+    setEditExKey(null)
+  }
   function handleDragStart(e: DragEvent<HTMLDivElement>, k: number) { dragRef.current = k; try { e.dataTransfer.effectAllowed = 'move' } catch {}; e.currentTarget.style.opacity = '0.5' }
   function handleDragEnd(e: DragEvent<HTMLDivElement>) { e.currentTarget.style.opacity = '1'; setDragOver(null); dragRef.current = null }
   function handleDragOver(e: DragEvent<HTMLDivElement>, k: number) { e.preventDefault(); if (dragOver !== k) setDragOver(k) }
@@ -836,6 +903,7 @@ function TreinoDrawer({ treino, library, onClose, onDuplicate, onUpdate, onAddTo
           <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
             {exercises.map((ex, i) => (
               <ExRow key={ex._k} ex={ex} order={i + 1} tagBg={g.bg} tagColor={g.color} dragOverId={dragOver}
+                onEdit={k => setEditExKey(k)}
                 onDragStart={handleDragStart} onDragEnd={handleDragEnd} onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop} />
             ))}
           </div>
@@ -874,6 +942,19 @@ function TreinoDrawer({ treino, library, onClose, onDuplicate, onUpdate, onAddTo
       </div>
       {pickerOpen && <ExercisePickerModal library={library} onSelect={handlePickEx} onCreateNew={() => { setPickerOpen(false); setExModalOpen(true) }} onClose={() => setPickerOpen(false)} />}
       {exModalOpen && <NewExerciseModal onClose={() => setExModalOpen(false)} onAdd={handleAddEx} />}
+      {editExKey !== null && (() => {
+        const ex = exercises.find(e => e._k === editExKey)
+        if (!ex) return null
+        const parsed = ex.scheme.match(/^(\d+)\s*[×x]\s*(.+)$/)
+        return <EditExerciseModal
+          ex={ex}
+          initSets={parsed ? parsed[1] : '3'}
+          initReps={parsed ? parsed[2].trim() : ex.scheme}
+          initRest={ex.rest}
+          onClose={() => setEditExKey(null)}
+          onSave={(scheme, rest) => handleSaveEdit(editExKey, scheme, rest)}
+        />
+      })()}
     </>
   )
 }
