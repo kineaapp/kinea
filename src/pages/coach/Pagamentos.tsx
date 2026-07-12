@@ -47,7 +47,7 @@ const STATUS_MAP: Record<Status, { label: string; color: string; bg: string }> =
   atrasado: { label: 'Vencida',   color: '#c4421e', bg: '#fbe6e1' },
 }
 
-const PLANS: Record<string, number> = { Mensal: 399, Trimestral: 247, Semestral: 227, Anual: 207 }
+const PLANS: Record<string, number> = { Mensal: 399, Trimestral: 247 }
 
 function brl(n: number) {
   return 'R$ ' + Number(n).toLocaleString('pt-BR')

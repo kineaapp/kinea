@@ -259,9 +259,9 @@ function LeadDrawer({ lead, onClose, onMoveStage, onConvert, onWarn }: {
 
 // ── Constants for the modal ─────────────────────────────────
 const SOURCES = Object.keys(SOURCE_STYLE)
-const PLANS   = ['Mensal', 'Trimestral', 'Semestral', 'Anual', 'A definir']
+const PLANS   = ['Mensal', 'Trimestral', 'A definir']
 const PLAN_VALUE: Record<string, string> = {
-  Mensal: 'R$ 399/mês', Trimestral: 'R$ 247/mês', Semestral: 'R$ 227/mês', Anual: 'R$ 207/mês',
+  Mensal: 'R$ 399/mês', Trimestral: 'R$ 247/mês',
 }
 const GOALS = ['Emagrecimento', 'Hipertrofia', 'Força', 'Recomposição', 'Condicionamento', 'Mobilidade']
 

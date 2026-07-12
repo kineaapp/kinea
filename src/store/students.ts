@@ -134,7 +134,7 @@ export const useStudentsStore = create<StudentsStore>((set) => ({
   },
 
   updatePlan: async (id, plan) => {
-    const pay_status = plan === 'Permuta' ? 'active' : 'pending'
+    const pay_status = 'pending'
     const { error } = await supabase.from('students').update({ plan, pay_status }).eq('id', id)
     if (error) return false
     set(s => ({ students: s.students.map(st => st.id === id ? { ...st, plan, pay: pay_status as PayStatus } : st) }))
@@ -170,7 +170,7 @@ export const useStudentsStore = create<StudentsStore>((set) => ({
     const plan = data.plan ?? 'Sem plano'
     const { data: row, error } = await supabase
       .from('students')
-      .insert({ coach_id: coachId, name: data.name, email: data.email ?? '', goal: data.goal ?? '', plan, since: today, pay_status: plan === 'Permuta' ? 'active' : 'pending' })
+      .insert({ coach_id: coachId, name: data.name, email: data.email ?? '', goal: data.goal ?? '', plan, since: today, pay_status: 'pending' })
       .select()
       .single()
     if (!error && row) set(s => ({ students: [mapRow(row as Row), ...s.students] }))

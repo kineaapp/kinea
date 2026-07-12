@@ -60,6 +60,7 @@ interface AssessmentRow {
 interface PaymentRow {
   id: number; amount: number; status: string
   due_date: string; paid_at: string | null; description: string | null
+  order_nsu: string | null; checkout_url: string | null; ip_receipt_url: string | null
 }
 
 interface AttachmentRow {
@@ -839,6 +840,12 @@ export default function PerfilAluno() {
   const [newPayDue,       setNewPayDue]       = useState('')
   const [newPaySaving,    setNewPaySaving]    = useState(false)
   const [markingPaidId,   setMarkingPaidId]   = useState<number | null>(null)
+  const [showIpModal,     setShowIpModal]     = useState(false)
+  const [ipPlanKey,       setIpPlanKey]       = useState<'monthly' | 'quarterly'>('quarterly')
+  const [ipDesc,          setIpDesc]          = useState('')
+  const [ipGenerating,    setIpGenerating]    = useState(false)
+  const [ipLinkUrl,       setIpLinkUrl]       = useState<string | null>(null)
+  const [ipCopied,        setIpCopied]        = useState(false)
   const [attachments,     setAttachments]     = useState<AttachmentRow[]>([])
   const [attachLoading,   setAttachLoading]   = useState(false)
   const [attachUploading, setAttachUploading] = useState(false)
@@ -947,6 +954,33 @@ export default function PerfilAluno() {
     showToast('Pagamento confirmado.')
   }
 
+  async function generateIpLink() {
+    if (!studentId || ipGenerating) return
+    setIpGenerating(true)
+    const amount = ipPlanKey === 'monthly' ? 399 : 247
+    const desc = ipDesc.trim() || (ipPlanKey === 'monthly' ? 'Plano Mensal' : 'Plano Trimestral')
+    const redirectUrl = window.location.href
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const res = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-payment-link`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token}` },
+          body: JSON.stringify({ studentId, amount, description: desc, redirectUrl }),
+        }
+      )
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error ?? 'Erro')
+      setIpLinkUrl(json.checkoutUrl)
+      loaded.current.delete('payments')
+      fetchPayments()
+    } catch {
+      showToast('Erro ao gerar link. Tente novamente.')
+    }
+    setIpGenerating(false)
+  }
+
   const fetchAttachments = useCallback(async () => {
     if (!studentId || loaded.current.has('attachments')) return
     loaded.current.add('attachments')
@@ -989,7 +1023,7 @@ export default function PerfilAluno() {
     loaded.current.add('payments')
     setPayLoading(true)
     const { data } = await supabase.from('payments')
-      .select('id,amount,status,due_date,paid_at,description')
+      .select('id,amount,status,due_date,paid_at,description,order_nsu,checkout_url,ip_receipt_url')
       .eq('student_id', studentId).order('due_date', { ascending: false })
     setPayments((data as PaymentRow[] | null) ?? [])
     setPayLoading(false)
@@ -1044,7 +1078,7 @@ export default function PerfilAluno() {
   const openAssessIdx  = openAssess ? assessments.findIndex(a => a.id === openAssessId) : -1
   const openAssessPrev = openAssessIdx > 0 ? assessments[openAssessIdx - 1] : null
 
-  const PLANS = ['Mensal', 'Anual', 'Trimestral', 'Semestral', 'Permuta']
+  const PLANS = ['Mensal', 'Trimestral']
 
   async function handleAssessmentPhotoUpload(file: File) {
     const assId = pendingAssIdRef.current
@@ -1215,6 +1249,105 @@ export default function PerfilAluno() {
                 }
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── InfinitePay link modal ───────────────────────── */}
+      {showIpModal && (
+        <div onClick={() => { if (!ipGenerating) { setShowIpModal(false); setIpLinkUrl(null); setIpCopied(false) } }}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(20,25,40,.5)', zIndex: 80, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 16, padding: '28px 28px 24px', width: '100%', maxWidth: 420, boxShadow: '0 24px 60px rgba(0,0,0,.3)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+              <h2 style={{ font: `800 18px ${FF}`, color: '#1B2A4A', margin: 0, letterSpacing: '-.4px' }}>Gerar link de pagamento</h2>
+              <button onClick={() => { setShowIpModal(false); setIpLinkUrl(null); setIpCopied(false) }} style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#9a948a', padding: 4, display: 'flex' }}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
+              </button>
+            </div>
+
+            {!ipLinkUrl ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                {/* Plan selector */}
+                <div>
+                  <label style={{ display: 'block', font: `600 11px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#6b6657', marginBottom: 8 }}>Plano</label>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    {([
+                      { key: 'quarterly' as const, label: 'Trimestral', price: 'R$247/mês', badge: 'Mais popular' },
+                      { key: 'monthly'   as const, label: 'Mensal',     price: 'R$399/mês', badge: null },
+                    ]).map(p => {
+                      const sel = ipPlanKey === p.key
+                      return (
+                        <button key={p.key} type="button" onClick={() => setIpPlanKey(p.key)}
+                          style={{ flex: 1, border: `2px solid ${sel ? '#E8542A' : '#ece7d9'}`, background: sel ? '#fff8f6' : '#fff', borderRadius: 12, padding: '12px 14px', cursor: 'pointer', textAlign: 'left' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                            <span style={{ font: `700 13.5px ${FF}`, color: sel ? '#E8542A' : '#1B2A4A' }}>{p.label}</span>
+                            {p.badge && <span style={{ font: `600 9px ${FF}`, color: '#1B7a4a', background: '#e7f3ea', borderRadius: 20, padding: '2px 7px' }}>{p.badge}</span>}
+                          </div>
+                          <div style={{ font: `600 12px ${FF}`, color: '#7c7869' }}>{p.price}</div>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                {/* Description (optional) */}
+                <div>
+                  <label style={{ display: 'block', font: `600 11px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#6b6657', marginBottom: 6 }}>
+                    Descrição <span style={{ textTransform: 'none', fontWeight: 400, color: '#b0a99c' }}>(opcional)</span>
+                  </label>
+                  <input value={ipDesc} onChange={e => setIpDesc(e.target.value)}
+                    placeholder={ipPlanKey === 'monthly' ? 'Plano Mensal' : 'Plano Trimestral'}
+                    style={{ width: '100%', height: 42, border: '1.5px solid #d9d3c4', borderRadius: 9, padding: '0 12px', font: `400 13.5px ${FF}`, color: '#1B2A4A', outline: 'none', background: '#fff', boxSizing: 'border-box' }}
+                    onFocus={e => { e.currentTarget.style.borderColor = '#E8542A' }}
+                    onBlur={e =>  { e.currentTarget.style.borderColor = '#d9d3c4' }}
+                  />
+                </div>
+
+                <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+                  <button type="button" onClick={() => { setShowIpModal(false); setIpDesc('') }}
+                    style={{ flex: 1, height: 44, border: '1.5px solid #d9d3c4', background: '#fff', color: '#1B2A4A', borderRadius: 10, font: `600 13.5px ${FF}`, cursor: 'pointer' }}>
+                    Cancelar
+                  </button>
+                  <button type="button" onClick={generateIpLink} disabled={ipGenerating}
+                    style={{ flex: 2, height: 44, border: 'none', background: ipGenerating ? '#c4421e' : '#E8542A', color: '#fff', borderRadius: 10, font: `700 14px ${FF}`, cursor: ipGenerating ? 'default' : 'pointer', boxShadow: ipGenerating ? 'none' : '0 2px 0 #c4421e', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                    {ipGenerating
+                      ? <><span style={{ width: 15, height: 15, border: '2px solid rgba(255,255,255,.4)', borderTopColor: '#fff', borderRadius: '50%', display: 'inline-block', animation: 'kspin .7s linear infinite' }} /> Gerando...</>
+                      : 'Gerar link'}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <div style={{ background: '#e7f3ea', border: '1px solid #b8dfc5', borderRadius: 10, padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1B7a4a" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+                  <span style={{ font: `600 13px ${FF}`, color: '#1B7a4a' }}>Link gerado com sucesso!</span>
+                </div>
+                <div>
+                  <div style={{ font: `600 11px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#6b6657', marginBottom: 6 }}>Link de pagamento</div>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <input readOnly value={ipLinkUrl}
+                      style={{ flex: 1, height: 40, border: '1.5px solid #d9d3c4', borderRadius: 9, padding: '0 10px', font: `400 12px ${FF}`, color: '#4a4742', outline: 'none', background: '#fbf8f1', boxSizing: 'border-box', overflow: 'hidden', textOverflow: 'ellipsis' }}
+                      onClick={e => (e.target as HTMLInputElement).select()}
+                    />
+                    <button type="button"
+                      onClick={() => { navigator.clipboard.writeText(ipLinkUrl ?? ''); setIpCopied(true); setTimeout(() => setIpCopied(false), 2000) }}
+                      style={{ height: 40, padding: '0 14px', border: 'none', background: ipCopied ? '#1B7a4a' : '#1B2A4A', color: '#fff', borderRadius: 9, font: `700 12px ${FF}`, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                      {ipCopied ? 'Copiado!' : 'Copiar'}
+                    </button>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button type="button" onClick={() => { setShowIpModal(false); setIpLinkUrl(null); setIpCopied(false); setIpDesc('') }}
+                    style={{ flex: 1, height: 42, border: '1.5px solid #d9d3c4', background: '#fff', color: '#1B2A4A', borderRadius: 10, font: `600 13px ${FF}`, cursor: 'pointer' }}>
+                    Fechar
+                  </button>
+                  <a href={ipLinkUrl} target="_blank" rel="noreferrer"
+                    style={{ flex: 1, height: 42, border: 'none', background: '#E8542A', color: '#fff', borderRadius: 10, font: `700 13px ${FF}`, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', textDecoration: 'none' }}>
+                    Abrir link
+                  </a>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -1936,10 +2069,15 @@ export default function PerfilAluno() {
                 </div>
               </div>
 
-              {/* ── Faturas manuais ── */}
+              {/* ── Faturas ── */}
               <>
                 {payments.length === 0 && !newPayOpen && !payLoading && (
-                    <div style={{ textAlign: 'right' }}>
+                    <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                      <button type="button" onClick={() => { setIpLinkUrl(null); setIpDesc(''); setIpPlanKey('quarterly'); setShowIpModal(true) }}
+                        style={{ height: 38, padding: '0 16px', border: '1.5px solid #d9d3c4', background: '#fff', color: '#1B2A4A', borderRadius: 9, font: `600 13px ${FF}`, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                        Gerar link InfinitePay
+                      </button>
                       <button type="button" onClick={() => setNewPayOpen(true)}
                         style={{ height: 38, padding: '0 16px', border: 'none', background: '#E8542A', color: '#fff', borderRadius: 9, font: `700 13px ${FF}`, cursor: 'pointer', boxShadow: '0 2px 0 #c4421e' }}>
                         + Nova fatura
@@ -1981,10 +2119,17 @@ export default function PerfilAluno() {
                     <Empty icon="💳" title="Nenhuma fatura registrada" sub="Clique em + Nova fatura para registrar." />
                   ) : payments.length > 0 ? (
                 <div style={{ background: '#fff', border: '1px solid #ece7d9', borderRadius: 14, overflow: 'hidden' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 18px', background: '#fbf8f1', borderBottom: '1px solid #ece7d9' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 18px', background: '#fbf8f1', borderBottom: '1px solid #ece7d9', gap: 8 }}>
                     <span style={{ font: `700 11px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#9a948a' }}>Faturas</span>
-                    <button type="button" onClick={() => setNewPayOpen(true)}
-                      style={{ border: 'none', background: 'none', color: '#E8542A', font: `600 12px ${FF}`, cursor: 'pointer' }}>+ Nova fatura</button>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button type="button" onClick={() => { setIpLinkUrl(null); setIpDesc(''); setIpPlanKey('quarterly'); setShowIpModal(true) }}
+                        style={{ border: '1.5px solid #d9d3c4', background: '#fff', color: '#1B2A4A', font: `600 11.5px ${FF}`, cursor: 'pointer', borderRadius: 7, padding: '0 10px', height: 30, display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                        Link InfinitePay
+                      </button>
+                      <button type="button" onClick={() => setNewPayOpen(true)}
+                        style={{ border: 'none', background: 'none', color: '#E8542A', font: `600 12px ${FF}`, cursor: 'pointer' }}>+ Nova fatura</button>
+                    </div>
                   </div>
                   {payments.map((p, i) => {
                     const s = STATUS_PAY[p.status] ?? STATUS_PAY.pending
@@ -2014,13 +2159,28 @@ export default function PerfilAluno() {
                             </div>
                           )}
                         </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                           <span style={{ font: `700 13px ${FF}`, color: '#1B2A4A' }}>{fmtMoney(p.amount)}</span>
+                          {isPending && p.checkout_url && (
+                            <button type="button"
+                              onClick={() => { navigator.clipboard.writeText(p.checkout_url!); showToast('Link copiado!') }}
+                              title="Copiar link de pagamento"
+                              style={{ height: 28, padding: '0 9px', border: '1.5px solid #d9d3c4', borderRadius: 7, background: '#fff', color: '#1B2A4A', font: `600 11px ${FF}`, cursor: 'pointer', whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                              Copiar link
+                            </button>
+                          )}
                           {isPending && (
                             <button type="button" onClick={() => markAsPaid(p.id)} disabled={markingPaidId === p.id}
                               style={{ height: 28, padding: '0 10px', border: 'none', borderRadius: 7, background: '#e7f3ea', color: '#1B7a4a', font: `700 11px ${FF}`, cursor: 'pointer', opacity: markingPaidId === p.id ? .6 : 1, whiteSpace: 'nowrap' }}>
                               {markingPaidId === p.id ? '...' : 'Marcar pago'}
                             </button>
+                          )}
+                          {p.status === 'active' && p.ip_receipt_url && (
+                            <a href={p.ip_receipt_url} target="_blank" rel="noreferrer"
+                              style={{ height: 28, padding: '0 10px', border: '1.5px solid #d9d3c4', borderRadius: 7, background: '#fff', color: '#1B2A4A', font: `600 11px ${FF}`, cursor: 'pointer', whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', textDecoration: 'none' }}>
+                              Ver recibo
+                            </a>
                           )}
                           <span style={{ display: 'inline-flex', alignItems: 'center', font: `600 11px ${FF}`, color: s.color, background: s.bg, borderRadius: 20, padding: '3px 10px', whiteSpace: 'nowrap' }}>{s.label}</span>
                         </div>
