@@ -136,7 +136,7 @@ export default function AlunoLayout() {
   const isAnamnese          = pathname.includes('/anamnese')
   const isPrimeiraAvaliacao = pathname.includes('/primeira-avaliacao')
   const isNovaAvaliacao     = pathname.includes('/nova-avaliacao')
-  const hideTabBar = pathname.includes('/exec') || pathname.includes('/pagamentos') || pathname.includes('/notificacoes') || pathname.includes('/configuracoes') || isAnamnese || isPrimeiraAvaliacao || isNovaAvaliacao
+  const hideTabBar = pathname.includes('/exec') || pathname.includes('/notificacoes') || pathname.includes('/configuracoes') || isAnamnese || isPrimeiraAvaliacao || isNovaAvaliacao
 
   if (!user || user.role !== 'student') return <Navigate to="/login" replace />
 

@@ -271,7 +271,7 @@ export default function Pagamentos() {
   const plan = PLANS.find(p => p.code === selectedPlan)!
 
   return (
-    <div style={{ background: '#F4EFE3', minHeight: '100%', paddingBottom: 40 }}>
+    <div style={{ background: '#F4EFE3', minHeight: '100%', paddingBottom: 180 }}>
       <div style={{ padding: '18px 18px 0' }}>
         <h1 style={{ font: `800 20px ${FF}`, color: '#1B2A4A', margin: '0 0 4px', letterSpacing: '-.4px' }}>Assinar Kinea</h1>
         <p style={{ font: `400 13px ${FF}`, color: '#7c7869', margin: 0 }}>Escolha o plano ideal para você.</p>
@@ -309,7 +309,7 @@ export default function Pagamentos() {
         </div>
       )}
 
-      <div style={{ position: 'fixed', bottom: 0, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: 390, padding: '12px 18px 24px', background: '#F4EFE3', borderTop: '1px solid #EDE8DC' }}>
+      <div style={{ position: 'fixed', bottom: 64, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: 390, padding: '12px 18px 16px', background: '#F4EFE3', borderTop: '1px solid #EDE8DC' }}>
         <button type="button" onClick={() => void handleCheckout()} disabled={creating}
           style={{ width: '100%', padding: '15px 0', background: creating ? '#c4421e' : '#E8542A', border: 'none', borderRadius: 14, boxShadow: creating ? 'none' : '0 4px 0 #C4421E', font: `700 16px ${FF}`, color: '#fff', cursor: creating ? 'default' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
           {creating
