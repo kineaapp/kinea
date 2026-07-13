@@ -181,14 +181,14 @@ export default function Mensagens() {
     const ext  = file.name.split('.').pop() ?? 'bin'
     const path = `coach/${sid}/${Date.now()}.${ext}`
     const { error } = await supabase.storage.from('chat-attachments').upload(path, file)
-    if (!error) {
-      const { data: pd } = supabase.storage.from('chat-attachments').getPublicUrl(path)
-      await supabase.from('chat_messages').insert({
-        student_id: sid, from_role: 'coach', text: null,
-        attachment_url: pd.publicUrl, attachment_name: file.name,
-        attachment_size: file.size, attachment_kind: kind,
-      })
-    }
+    if (error) { showToast('Erro ao enviar arquivo: ' + error.message); return }
+    const { data: pd } = supabase.storage.from('chat-attachments').getPublicUrl(path)
+    const { error: dbErr } = await supabase.from('chat_messages').insert({
+      student_id: sid, from_role: 'coach', text: '',
+      attachment_url: pd.publicUrl, attachment_name: file.name,
+      attachment_size: file.size, attachment_kind: kind,
+    })
+    if (dbErr) showToast('Erro ao salvar no banco: ' + dbErr.message)
   }
 
   // ── Audio recording ───────────────────────────────────────────────────────────
@@ -217,14 +217,16 @@ export default function Mensagens() {
           addMsg(sid, { type: 'attach', from: 'me', kind: 'audio', url, name, size: dur, time: hh })
           const path = `coach/${sid}/${Date.now()}.webm`
           const { error } = await supabase.storage.from('chat-attachments').upload(path, blob)
-          if (!error) {
+          if (error) { showToast('Erro ao enviar áudio: ' + error.message) }
+          else {
             const { data: pd } = supabase.storage.from('chat-attachments').getPublicUrl(path)
             url = pd.publicUrl
-            await supabase.from('chat_messages').insert({
-              student_id: sid, from_role: 'coach', text: null,
+            const { error: dbErr } = await supabase.from('chat_messages').insert({
+              student_id: sid, from_role: 'coach', text: '',
               attachment_url: url, attachment_name: name,
               attachment_size: blob.size, attachment_kind: 'audio',
             })
+            if (dbErr) showToast('Erro ao salvar no banco: ' + dbErr.message)
           }
         }
         setRecording(false); setRecSecs(0); recSecsRef.current = 0

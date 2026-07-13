@@ -1001,9 +1001,10 @@ export default function PerfilAluno() {
     const { error } = await supabase.storage.from('student-attachments').upload(path, file)
     if (error) { showToast('Erro ao enviar arquivo.'); setAttachUploading(false); return }
     const { data: pd } = supabase.storage.from('student-attachments').getPublicUrl(path)
-    const { data: row } = await supabase.from('student_attachments')
+    const { data: row, error: dbError } = await supabase.from('student_attachments')
       .insert({ student_id: studentId, name: file.name, url: pd.publicUrl, size: file.size, mime_type: file.type })
       .select('id,name,url,size,mime_type,uploaded_at').single()
+    if (dbError) { showToast('Erro ao salvar arquivo no banco.'); setAttachUploading(false); return }
     if (row) setAttachments(prev => [row as AttachmentRow, ...prev])
     setAttachUploading(false)
     showToast('Arquivo enviado.')
