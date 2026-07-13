@@ -93,6 +93,8 @@ export default function NovaAvaliacao() {
     const errs: Record<string, string> = {}
     const p = parseFloat(peso)
     if (!peso.trim() || isNaN(p) || p < 20 || p > 400) errs.peso = 'Informe um peso válido (kg).'
+    const missingPhotos = PHOTO_SLOTS.filter(s => !photos[s.key].file)
+    if (missingPhotos.length > 0) errs.fotos = 'Envie as 4 fotos (frente, lados e costas).'
     if (Object.keys(errs).length) { setErrors(errs); return }
 
     setLoading(true)
@@ -229,8 +231,7 @@ export default function NovaAvaliacao() {
         {/* Fotos de avaliação */}
         <div>
           <p style={{ font: `600 11px ${FF}`, color: '#7C7869', textTransform: 'uppercase', letterSpacing: '.4px', margin: '0 0 4px' }}>
-            Fotos de avaliação{' '}
-            <span style={{ font: `400 10px ${FF}`, textTransform: 'none', letterSpacing: 0, color: '#A39E90' }}>(opcional)</span>
+            Fotos de avaliação *
           </p>
           <p style={{ font: `400 12px ${FF}`, color: '#A39E90', margin: '0 0 14px', lineHeight: 1.4 }}>
             Use roupa de academia. Fotos de corpo inteiro, frente, lado e costas.
@@ -241,12 +242,12 @@ export default function NovaAvaliacao() {
               <div key={slot.key} style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
                 <button
                   type="button"
-                  onClick={() => pickPhoto(slot.key, handlePick)}
+                  onClick={() => { pickPhoto(slot.key, handlePick); setErrors(p => ({ ...p, fotos: '' })) }}
                   style={{
                     width: '100%', aspectRatio: '3/4', padding: 0,
                     borderRadius: 12, cursor: 'pointer', overflow: 'hidden', position: 'relative',
-                    border: photos[slot.key].preview ? 'none' : '1.5px dashed #D6CFBE',
-                    background: photos[slot.key].preview ? 'transparent' : '#fff',
+                    border: photos[slot.key].preview ? 'none' : `1.5px dashed ${errors.fotos ? '#D2402A' : '#D6CFBE'}`,
+                    background: photos[slot.key].preview ? 'transparent' : (errors.fotos ? '#fef5f3' : '#fff'),
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                   }}
                 >
@@ -272,11 +273,11 @@ export default function NovaAvaliacao() {
                     </>
                   ) : (
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
-                      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#C5BFB0" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke={errors.fotos ? '#D2402A' : '#C5BFB0'} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                         <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
                         <circle cx="12" cy="13" r="4" />
                       </svg>
-                      <span style={{ font: `500 10px ${FF}`, color: '#A39E90' }}>Adicionar</span>
+                      <span style={{ font: `500 10px ${FF}`, color: errors.fotos ? '#D2402A' : '#A39E90' }}>Adicionar</span>
                     </div>
                   )}
                 </button>
@@ -287,6 +288,15 @@ export default function NovaAvaliacao() {
             ))}
           </div>
         </div>
+
+        {errors.fotos && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#fdeee9', border: '1px solid #f6cdbf', borderRadius: 10, padding: '11px 13px', marginTop: 4 }}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#E8542A" strokeWidth="2.2" strokeLinecap="round">
+              <circle cx="12" cy="12" r="9" /><path d="M12 7v6" /><path d="M12 16.5v.5" />
+            </svg>
+            <span style={{ font: `500 13px ${FF}`, color: '#c4421e' }}>{errors.fotos}</span>
+          </div>
+        )}
 
         {errors.global && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#fdeee9', border: '1px solid #f6cdbf', borderRadius: 10, padding: '11px 13px' }}>
