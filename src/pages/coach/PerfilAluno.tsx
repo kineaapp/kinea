@@ -855,6 +855,7 @@ export default function PerfilAluno() {
   const [sessions,        setSessions]        = useState<SessionRow[]>([])
   const [sessionsLoading, setSessionsLoading] = useState(false)
   const [resetingPw,      setResetingPw]      = useState(false)
+  const [newStudentPw,    setNewStudentPw]    = useState<string | null>(null)
   const loaded = useRef(new Set<string>())
 
   const fetchAnamnese = useCallback(async () => {
@@ -1153,13 +1154,18 @@ export default function PerfilAluno() {
   }
 
   async function handleResetPassword() {
-    if (!student?.email) { showToast('Aluno não possui e-mail cadastrado.'); return }
     setResetingPw(true)
-    const { error } = await supabase.auth.resetPasswordForEmail(student.email, {
-      redirectTo: window.location.origin + '/login',
+    setNewStudentPw(null)
+    const { data: { session } } = await supabase.auth.getSession()
+    const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/reset-student-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token}` },
+      body: JSON.stringify({ studentId }),
     })
+    const json = await res.json() as { password?: string; error?: string }
     setResetingPw(false)
-    showToast(error ? 'Erro ao enviar e-mail: ' + error.message : 'E-mail de redefinição enviado para ' + student.email)
+    if (!res.ok || json.error) { showToast('Erro: ' + (json.error ?? res.statusText)); return }
+    setNewStudentPw(json.password ?? null)
   }
   useEffect(() => () => clearTimeout(toastRef.current), [])
 
@@ -1533,8 +1539,22 @@ export default function PerfilAluno() {
                 <div style={{ background: '#fff', border: '1px solid #ece7d9', borderRadius: 14, padding: 18 }}>
                   <h2 style={{ font: `700 15px ${FF}`, color: '#1B2A4A', margin: '0 0 6px' }}>Acesso</h2>
                   <p style={{ font: `400 12.5px ${FF}`, color: '#9a948a', margin: '0 0 12px', lineHeight: 1.45 }}>
-                    Envia um e-mail de redefinição de senha para o aluno.
+                    Gera uma nova senha para o aluno e exibe na tela para você enviar.
                   </p>
+                  {newStudentPw && (
+                    <div style={{ background: '#f4efe3', border: '1.5px solid #e0d8c8', borderRadius: 10, padding: '12px 14px', marginBottom: 12 }}>
+                      <div style={{ font: `600 11px ${FF}`, color: '#9a948a', letterSpacing: '.5px', textTransform: 'uppercase', marginBottom: 6 }}>Nova senha gerada</div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <span style={{ font: `700 18px "Courier New",monospace`, color: '#1B2A4A', letterSpacing: '2px', flex: 1 }}>{newStudentPw}</span>
+                        <button
+                          type="button"
+                          onClick={() => { navigator.clipboard.writeText(newStudentPw); showToast('Senha copiada!') }}
+                          style={{ padding: '5px 12px', border: '1.5px solid #d9d3c4', background: '#fff', borderRadius: 8, font: `600 12px ${FF}`, color: '#1B2A4A', cursor: 'pointer' }}
+                        >Copiar</button>
+                      </div>
+                      <div style={{ font: `400 11.5px ${FF}`, color: '#b0a898', marginTop: 6 }}>Envie esta senha ao aluno. Ela já está ativa.</div>
+                    </div>
+                  )}
                   <button
                     type="button"
                     onClick={handleResetPassword}
@@ -1544,7 +1564,7 @@ export default function PerfilAluno() {
                     onMouseLeave={e => { e.currentTarget.style.borderColor = '#d9d3c4'; e.currentTarget.style.color = '#1B2A4A' }}
                   >
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-                    {resetingPw ? 'Enviando…' : 'Resetar senha do aluno'}
+                    {resetingPw ? 'Gerando…' : newStudentPw ? 'Gerar nova senha' : 'Resetar senha do aluno'}
                   </button>
                 </div>
               </div>
