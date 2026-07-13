@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState } from 'react'
 import type { CSSProperties } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../../store/auth'
@@ -27,6 +27,34 @@ function Field({ label, error, children }: { label: string; error?: string; chil
   )
 }
 
+type PhotoKey = 'frente' | 'ladoEsq' | 'ladoDir' | 'costas'
+const PHOTO_SLOTS: { key: PhotoKey; label: string }[] = [
+  { key: 'frente',  label: 'Frente'        },
+  { key: 'ladoEsq', label: 'Lado Esquerdo' },
+  { key: 'ladoDir', label: 'Lado Direito'  },
+  { key: 'costas',  label: 'Costas'        },
+]
+const KEY_TO_COL: Record<PhotoKey, string> = {
+  frente:  'photo_frente_url',
+  ladoEsq: 'photo_lado_esq_url',
+  ladoDir: 'photo_lado_dir_url',
+  costas:  'photo_costas_url',
+}
+
+function pickPhoto(key: PhotoKey, onPick: (key: PhotoKey, preview: string, file: File) => void) {
+  const input = document.createElement('input')
+  input.type = 'file'
+  input.accept = 'image/*'
+  input.onchange = (e) => {
+    const file = (e.target as HTMLInputElement).files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = (ev) => onPick(key, ev.target?.result as string, file)
+    reader.readAsDataURL(file)
+  }
+  input.click()
+}
+
 function formatNextDate(from: Date): string {
   const d = new Date(from)
   d.setDate(d.getDate() + 30)
@@ -36,34 +64,29 @@ function formatNextDate(from: Date): string {
 export default function NovaAvaliacao() {
   const navigate = useNavigate()
   const { user } = useAuthStore()
-  const fileRef = useRef<HTMLInputElement>(null)
 
   const [peso,    setPeso]    = useState('')
   const [cintura, setCintura] = useState('')
   const [quadril, setQuadril] = useState('')
   const [torax,   setTorax]   = useState('')
   const [braco,   setBraco]   = useState('')
-  const [photoFile, setPhotoFile] = useState<File | null>(null)
-  const [photoPreview, setPhotoPreview] = useState('')
+  const [photos,  setPhotos]  = useState<Record<PhotoKey, { preview: string; file: File | null }>>({
+    frente:  { preview: '', file: null },
+    ladoEsq: { preview: '', file: null },
+    ladoDir: { preview: '', file: null },
+    costas:  { preview: '', file: null },
+  })
   const [errors,  setErrors]  = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(false)
   const [nextDate, setNextDate] = useState('')
 
-  function handlePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
-    setPhotoFile(file)
-    const reader = new FileReader()
-    reader.onload = (ev) => setPhotoPreview(ev.target?.result as string)
-    reader.readAsDataURL(file)
-    setErrors(p => ({ ...p, foto: '' }))
+  function handlePick(key: PhotoKey, preview: string, file: File) {
+    setPhotos(p => ({ ...p, [key]: { preview, file } }))
   }
 
-  function removePhoto(e: React.MouseEvent) {
+  function removePhoto(key: PhotoKey, e: React.MouseEvent) {
     e.stopPropagation()
-    setPhotoFile(null)
-    setPhotoPreview('')
-    if (fileRef.current) fileRef.current.value = ''
+    setPhotos(p => ({ ...p, [key]: { preview: '', file: null } }))
   }
 
   async function submit() {
@@ -74,7 +97,6 @@ export default function NovaAvaliacao() {
 
     setLoading(true)
     try {
-      // Fetch the student's numeric DB id
       const { data: studentRow, error: sErr } = await supabase
         .from('students')
         .select('id')
@@ -82,23 +104,8 @@ export default function NovaAvaliacao() {
         .maybeSingle()
       if (sErr || !studentRow) throw new Error('Aluno não encontrado.')
 
-      let photoUrl: string | null = null
-      if (photoFile) {
-        const ext = photoFile.name.split('.').pop() ?? 'jpg'
-        const path = `${user!.id}/${Date.now()}.${ext}`
-        const { error: upErr } = await supabase.storage
-          .from('assessment-photos')
-          .upload(path, photoFile, { upsert: false })
-        if (!upErr) {
-          const { data: urlData } = supabase.storage
-            .from('assessment-photos')
-            .getPublicUrl(path)
-          photoUrl = urlData.publicUrl
-        }
-      }
-
       const today = new Date().toISOString().split('T')[0]
-      const { error: insErr } = await supabase.from('assessments').insert({
+      const { data: assessRow, error: insErr } = await supabase.from('assessments').insert({
         student_id:  studentRow.id,
         assessed_at: today,
         weight_kg:   p,
@@ -106,11 +113,35 @@ export default function NovaAvaliacao() {
         hip_cm:      quadril ? parseFloat(quadril) : null,
         chest_cm:    torax   ? parseFloat(torax)   : null,
         arm_cm:      braco   ? parseFloat(braco)   : null,
-        photo_url:   photoUrl,
-      })
+      }).select().single()
       if (insErr) throw insErr
 
-      // Clear snooze so the modal doesn't reappear
+      // Upload photos
+      const urlUpdates: Record<string, string> = {}
+      for (const slot of PHOTO_SLOTS) {
+        const ph = photos[slot.key]
+        if (ph.file) {
+          const ext  = ph.file.name.split('.').pop()?.toLowerCase() ?? 'jpg'
+          const path = `${studentRow.id}/${assessRow.id}/${slot.key}.${ext}`
+          const { error: upErr } = await supabase.storage
+            .from('assessment-photos').upload(path, ph.file, { upsert: true })
+          if (!upErr) {
+            const { data: pd } = supabase.storage.from('assessment-photos').getPublicUrl(path)
+            urlUpdates[KEY_TO_COL[slot.key]] = pd.publicUrl
+          }
+        }
+      }
+      if (Object.keys(urlUpdates).length > 0) {
+        await supabase.from('assessments').update(urlUpdates).eq('id', assessRow.id)
+      }
+
+      // Advance next_assessment by 30 days
+      const nextAssessmentDate = new Date()
+      nextAssessmentDate.setDate(nextAssessmentDate.getDate() + 30)
+      await supabase.from('students')
+        .update({ next_assessment: nextAssessmentDate.toISOString().split('T')[0] })
+        .eq('id', studentRow.id)
+
       localStorage.removeItem('kinea-assessment-snooze')
       setNextDate(formatNextDate(new Date()))
     } catch {
@@ -156,11 +187,11 @@ export default function NovaAvaliacao() {
       {/* Top bar */}
       <div style={{ background: '#fff', borderBottom: '1px solid #EDE8DC', padding: '16px 18px', flexShrink: 0 }}>
         <div style={{ font: `800 18px ${FF}`, color: '#1B2A4A', letterSpacing: '-.3px' }}>Avaliação Periódica</div>
-        <div style={{ font: `400 12px ${FF}`, color: '#A39E90', marginTop: 2 }}>Registre seu peso e medidas de hoje</div>
+        <div style={{ font: `400 12px ${FF}`, color: '#A39E90', marginTop: 2 }}>Registre seu peso, medidas e fotos de hoje</div>
       </div>
 
       {/* Form */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '24px 18px 120px', display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <div style={{ flex: 1, overflowY: 'auto', padding: '24px 18px 120px', display: 'flex', flexDirection: 'column', gap: 24 }}>
 
         <Field label="Peso atual (kg) *" error={errors.peso}>
           <input
@@ -195,53 +226,66 @@ export default function NovaAvaliacao() {
           </div>
         </div>
 
+        {/* Fotos de avaliação */}
         <div>
           <p style={{ font: `600 11px ${FF}`, color: '#7C7869', textTransform: 'uppercase', letterSpacing: '.4px', margin: '0 0 4px' }}>
-            Foto de progresso{' '}
+            Fotos de avaliação{' '}
             <span style={{ font: `400 10px ${FF}`, textTransform: 'none', letterSpacing: 0, color: '#A39E90' }}>(opcional)</span>
           </p>
-          <p style={{ font: `400 12px ${FF}`, color: '#A39E90', margin: '0 0 12px', lineHeight: 1.4 }}>
-            Uma foto de corpo inteiro ajuda a visualizar seu progresso.
+          <p style={{ font: `400 12px ${FF}`, color: '#A39E90', margin: '0 0 14px', lineHeight: 1.4 }}>
+            Use roupa de academia. Fotos de corpo inteiro, frente, lado e costas.
           </p>
-          <input
-            ref={fileRef} type="file" accept="image/*"
-            onChange={handlePhotoChange} style={{ display: 'none' }}
-          />
-          <button
-            type="button"
-            onClick={() => fileRef.current?.click()}
-            style={{
-              width: '100%', aspectRatio: '16/9', padding: 0,
-              borderRadius: 14, cursor: 'pointer', overflow: 'hidden', position: 'relative',
-              border: photoPreview ? 'none' : '1.5px dashed #D6CFBE',
-              background: photoPreview ? 'transparent' : '#fff',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}
-          >
-            {photoPreview ? (
-              <>
-                <img src={photoPreview} alt="Foto de progresso" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
-                <div onClick={removePhoto} style={{
-                  position: 'absolute', top: 8, right: 8,
-                  width: 28, height: 28, borderRadius: '50%',
-                  background: 'rgba(0,0,0,.55)', backdropFilter: 'blur(2px)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
-                }}>
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round">
-                    <path d="M18 6L6 18M6 6l12 12" />
-                  </svg>
-                </div>
-              </>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
-                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#C5BFB0" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
-                  <circle cx="12" cy="13" r="4" />
-                </svg>
-                <span style={{ font: `500 12px ${FF}`, color: '#A39E90' }}>Adicionar foto</span>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
+            {PHOTO_SLOTS.map(slot => (
+              <div key={slot.key} style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+                <button
+                  type="button"
+                  onClick={() => pickPhoto(slot.key, handlePick)}
+                  style={{
+                    width: '100%', aspectRatio: '3/4', padding: 0,
+                    borderRadius: 12, cursor: 'pointer', overflow: 'hidden', position: 'relative',
+                    border: photos[slot.key].preview ? 'none' : '1.5px dashed #D6CFBE',
+                    background: photos[slot.key].preview ? 'transparent' : '#fff',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}
+                >
+                  {photos[slot.key].preview ? (
+                    <>
+                      <img
+                        src={photos[slot.key].preview} alt={slot.label}
+                        style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                      />
+                      <div
+                        onClick={(e) => removePhoto(slot.key, e)}
+                        style={{
+                          position: 'absolute', top: 5, right: 5,
+                          width: 24, height: 24, borderRadius: '50%',
+                          background: 'rgba(0,0,0,.55)', backdropFilter: 'blur(2px)',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
+                        }}
+                      >
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round">
+                          <path d="M18 6L6 18M6 6l12 12" />
+                        </svg>
+                      </div>
+                    </>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+                      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#C5BFB0" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+                        <circle cx="12" cy="13" r="4" />
+                      </svg>
+                      <span style={{ font: `500 10px ${FF}`, color: '#A39E90' }}>Adicionar</span>
+                    </div>
+                  )}
+                </button>
+                <span style={{ font: `600 11px ${FF}`, color: '#7C7869', textAlign: 'center', letterSpacing: '.2px' }}>
+                  {slot.label}
+                </span>
               </div>
-            )}
-          </button>
+            ))}
+          </div>
         </div>
 
         {errors.global && (
