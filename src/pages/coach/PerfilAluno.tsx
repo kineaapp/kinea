@@ -1512,8 +1512,12 @@ export default function PerfilAluno() {
                 <div style={{ background: '#fff', border: '1px solid #ece7d9', borderRadius: 14, padding: 18 }}>
                   <h2 style={{ font: `700 15px ${FF}`, color: '#1B2A4A', margin: '0 0 12px' }}>Ações rápidas</h2>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    {['⚡ Editar treino', '📅 Agendar avaliação', '📎 Enviar anexo', '💬 Enviar mensagem'].map(label => (
-                      <button key={label} type="button" onClick={() => label === '⚡ Editar treino' ? setTab('treino') : showToast('Em breve!')}
+                    {['⚡ Editar treino', '📎 Enviar anexo', '💬 Enviar mensagem'].map(label => (
+                      <button key={label} type="button" onClick={() => {
+                        if (label === '⚡ Editar treino') setTab('treino')
+                        else if (label === '📎 Enviar anexo') setTab('anexos')
+                        else if (label === '💬 Enviar mensagem') navigate(`/coach/mensagens?student=${studentId}`)
+                      }}
                         style={{ display: 'flex', alignItems: 'center', gap: 11, width: '100%', border: '1.5px solid #ece7d9', background: '#fff', padding: '11px 13px', borderRadius: 10, cursor: 'pointer', font: `600 13.5px ${FF}`, color: '#1B2A4A', textAlign: 'left' }}>
                         {label}
                       </button>
