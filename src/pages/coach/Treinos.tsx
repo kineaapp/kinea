@@ -385,9 +385,20 @@ function ProgramBuilderDrawer({ program, workouts, library, onClose, onUpdate, o
   const [pickerSlot,   setPickerSlot]   = useState<number | null>(null)
   const [createSlot,   setCreateSlot]   = useState<number | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState(false)
+  const [renamingName, setRenamingName] = useState(false)
+  const [draftName, setDraftName] = useState(program.name)
   const savingRef = useRef<Record<number, boolean>>({})
 
   useEffect(() => { setSlots(program.slots) }, [program.id])
+  useEffect(() => { setDraftName(program.name) }, [program.id])
+
+  async function handleRenameProgram() {
+    const name = draftName.trim()
+    setRenamingName(false)
+    if (!name || name === program.name) return
+    await supabase.from('programs').update({ name }).eq('id', program.id)
+    onUpdate({ ...program, name })
+  }
 
   async function assignWorkout(position: number, workout: WorkoutOption) {
     const slot = slots.find(s => s.position === position)!
@@ -430,7 +441,29 @@ function ProgramBuilderDrawer({ program, workouts, library, onClose, onUpdate, o
                 {program.is_template && <span style={{ font: `600 10px ${FF}`, color: '#c9b8f5', background: 'rgba(90,78,160,.35)', borderRadius: 20, padding: '3px 9px' }}>Template</span>}
                 <span style={{ font: `600 10px ${FF}`, color: '#aeb9cc', background: 'rgba(255,255,255,.12)', borderRadius: 20, padding: '3px 9px' }}>{program.days_per_week}×/semana</span>
               </div>
-              <h2 style={{ font: `800 22px ${FF}`, color: '#fff', margin: 0, letterSpacing: '-.4px' }}>{program.name}</h2>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                {renamingName ? (
+                  <input
+                    autoFocus
+                    value={draftName}
+                    onChange={e => setDraftName(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') void handleRenameProgram(); if (e.key === 'Escape') { setRenamingName(false); setDraftName(program.name) } }}
+                    onBlur={() => void handleRenameProgram()}
+                    style={{ flex: 1, font: `800 20px ${FF}`, color: '#fff', background: 'rgba(255,255,255,.12)', border: '1.5px solid rgba(255,255,255,.4)', borderRadius: 8, padding: '4px 10px', outline: 'none', letterSpacing: '-.4px' }}
+                  />
+                ) : (
+                  <h2 style={{ font: `800 22px ${FF}`, color: '#fff', margin: 0, letterSpacing: '-.4px' }}>{program.name}</h2>
+                )}
+                {!renamingName && (
+                  <button type="button" onClick={() => { setRenamingName(true); setDraftName(program.name) }}
+                    style={{ border: 'none', background: 'rgba(255,255,255,.1)', cursor: 'pointer', color: 'rgba(255,255,255,.55)', width: 28, height: 28, borderRadius: 7, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
+                    onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,.2)'; e.currentTarget.style.color = '#fff' }}
+                    onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,.1)'; e.currentTarget.style.color = 'rgba(255,255,255,.55)' }}
+                  >
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                  </button>
+                )}
+              </div>
               <div style={{ font: `400 12.5px ${FF}`, color: '#aeb9cc', marginTop: 5 }}>
                 {slots.filter(s => s.workout).length} de {program.days_per_week} treinos preenchidos
               </div>
@@ -864,6 +897,17 @@ function TreinoDrawer({ treino, library, onClose, onDuplicate, onUpdate, onAddTo
   const dragRef = useRef<number | null>(null)
   const nextK = useRef(Date.now())
   useEffect(() => { setExercises(treino.ex) }, [treino.id])
+  const [renamingName, setRenamingName] = useState(false)
+  const [draftName, setDraftName] = useState(treino.name)
+  useEffect(() => { setDraftName(treino.name) }, [treino.id])
+
+  async function handleRenameTreino() {
+    const name = draftName.trim()
+    setRenamingName(false)
+    if (!name || name === treino.name) return
+    await supabase.from('workouts').update({ name }).eq('id', treino.id)
+    onUpdate({ ...treino, name })
+  }
 
   function handleSaveEdit(k: number, scheme: string, rest: string) {
     const updated = exercises.map(ex => ex._k === k ? { ...ex, scheme, rest } : ex)
@@ -902,7 +946,29 @@ function TreinoDrawer({ treino, library, onClose, onDuplicate, onUpdate, onAddTo
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
           </button>
           <span style={{ font: `600 11px ${FF}`, color: g.color, background: g.bg, borderRadius: 20, padding: '5px 11px' }}>{treino.goal}</span>
-          <h2 style={{ font: `800 22px ${FF}`, color: '#fff', margin: '13px 0 5px', letterSpacing: '-.4px' }}>{treino.name}</h2>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '13px 0 5px' }}>
+            {renamingName ? (
+              <input
+                autoFocus
+                value={draftName}
+                onChange={e => setDraftName(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') void handleRenameTreino(); if (e.key === 'Escape') { setRenamingName(false); setDraftName(treino.name) } }}
+                onBlur={() => void handleRenameTreino()}
+                style={{ flex: 1, font: `800 20px ${FF}`, color: '#fff', background: 'rgba(255,255,255,.12)', border: '1.5px solid rgba(255,255,255,.4)', borderRadius: 8, padding: '4px 10px', outline: 'none', letterSpacing: '-.4px' }}
+              />
+            ) : (
+              <h2 style={{ font: `800 22px ${FF}`, color: '#fff', margin: 0, letterSpacing: '-.4px' }}>{treino.name}</h2>
+            )}
+            {!renamingName && (
+              <button type="button" onClick={() => { setRenamingName(true); setDraftName(treino.name) }}
+                style={{ border: 'none', background: 'rgba(255,255,255,.1)', cursor: 'pointer', color: 'rgba(255,255,255,.55)', width: 28, height: 28, borderRadius: 7, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
+                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,.2)'; e.currentTarget.style.color = '#fff' }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,.1)'; e.currentTarget.style.color = 'rgba(255,255,255,.55)' }}
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+              </button>
+            )}
+          </div>
           <div style={{ font: `500 12px ${FF}`, color: '#aeb9cc' }}>{treino.split} · {exercises.length} exercícios · {treino.duration}</div>
         </div>
         <div style={{ flex: 1, overflowY: 'auto', padding: '18px 24px 24px' }}>

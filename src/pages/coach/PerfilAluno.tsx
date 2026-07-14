@@ -856,6 +856,7 @@ export default function PerfilAluno() {
   const [sessionsLoading, setSessionsLoading] = useState(false)
   const [resetingPw,      setResetingPw]      = useState(false)
   const [newStudentPw,    setNewStudentPw]    = useState<string | null>(null)
+  const [grantingAccess,  setGrantingAccess]  = useState(false)
   const loaded = useRef(new Set<string>())
 
   const fetchAnamnese = useCallback(async () => {
@@ -1167,6 +1168,23 @@ export default function PerfilAluno() {
     if (!res.ok || json.error) { showToast('Erro: ' + (json.error ?? res.statusText)); return }
     setNewStudentPw(json.password ?? null)
   }
+
+  async function handleGrantAccess() {
+    setGrantingAccess(true)
+    setNewStudentPw(null)
+    const { data: { session } } = await supabase.auth.getSession()
+    const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/grant-student-access`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token}` },
+      body: JSON.stringify({ studentId }),
+    })
+    const json = await res.json() as { password?: string; error?: string }
+    setGrantingAccess(false)
+    if (!res.ok || json.error) { showToast('Erro: ' + (json.error ?? res.statusText)); return }
+    setNewStudentPw(json.password ?? null)
+    if (user?.id) fetchStudents(user.id)
+  }
+
   useEffect(() => () => clearTimeout(toastRef.current), [])
 
   async function handleAfterAssign() {
@@ -1542,34 +1560,60 @@ export default function PerfilAluno() {
                 {/* Acesso */}
                 <div style={{ background: '#fff', border: '1px solid #ece7d9', borderRadius: 14, padding: 18 }}>
                   <h2 style={{ font: `700 15px ${FF}`, color: '#1B2A4A', margin: '0 0 6px' }}>Acesso</h2>
-                  <p style={{ font: `400 12.5px ${FF}`, color: '#9a948a', margin: '0 0 12px', lineHeight: 1.45 }}>
-                    Gera uma nova senha para o aluno e exibe na tela para você enviar.
-                  </p>
+
+                  {/* Senha gerada (comum a ambos os casos) */}
                   {newStudentPw && (
                     <div style={{ background: '#f4efe3', border: '1.5px solid #e0d8c8', borderRadius: 10, padding: '12px 14px', marginBottom: 12 }}>
-                      <div style={{ font: `600 11px ${FF}`, color: '#9a948a', letterSpacing: '.5px', textTransform: 'uppercase', marginBottom: 6 }}>Nova senha gerada</div>
+                      <div style={{ font: `600 11px ${FF}`, color: '#9a948a', letterSpacing: '.5px', textTransform: 'uppercase', marginBottom: 6 }}>
+                        {student.studentUuid ? 'Nova senha gerada' : 'Acesso criado'}
+                      </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                         <span style={{ font: `700 18px "Courier New",monospace`, color: '#1B2A4A', letterSpacing: '2px', flex: 1 }}>{newStudentPw}</span>
-                        <button
-                          type="button"
-                          onClick={() => { navigator.clipboard.writeText(newStudentPw); showToast('Senha copiada!') }}
-                          style={{ padding: '5px 12px', border: '1.5px solid #d9d3c4', background: '#fff', borderRadius: 8, font: `600 12px ${FF}`, color: '#1B2A4A', cursor: 'pointer' }}
-                        >Copiar</button>
+                        <button type="button" onClick={() => { navigator.clipboard.writeText(newStudentPw); showToast('Senha copiada!') }}
+                          style={{ padding: '5px 12px', border: '1.5px solid #d9d3c4', background: '#fff', borderRadius: 8, font: `600 12px ${FF}`, color: '#1B2A4A', cursor: 'pointer' }}>
+                          Copiar
+                        </button>
                       </div>
-                      <div style={{ font: `400 11.5px ${FF}`, color: '#b0a898', marginTop: 6 }}>Envie esta senha ao aluno. Ela já está ativa.</div>
+                      <div style={{ font: `400 11.5px ${FF}`, color: '#b0a898', marginTop: 6 }}>
+                        Login: <strong style={{ color: '#1B2A4A' }}>{student.email}</strong><br />
+                        Envie esta senha ao aluno. Ela já está ativa.
+                      </div>
                     </div>
                   )}
-                  <button
-                    type="button"
-                    onClick={handleResetPassword}
-                    disabled={resetingPw}
-                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, width: '100%', height: 40, border: '1.5px solid #d9d3c4', background: '#fff', color: '#1B2A4A', borderRadius: 10, font: `600 13px ${FF}`, cursor: resetingPw ? 'default' : 'pointer', opacity: resetingPw ? .6 : 1 }}
-                    onMouseEnter={e => { if (!resetingPw) { e.currentTarget.style.borderColor = '#E8542A'; e.currentTarget.style.color = '#E8542A' } }}
-                    onMouseLeave={e => { e.currentTarget.style.borderColor = '#d9d3c4'; e.currentTarget.style.color = '#1B2A4A' }}
-                  >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-                    {resetingPw ? 'Gerando…' : newStudentPw ? 'Gerar nova senha' : 'Resetar senha do aluno'}
-                  </button>
+
+                  {!student.studentUuid ? (
+                    /* Sem conta — primeiro acesso */
+                    <>
+                      <p style={{ font: `400 12.5px ${FF}`, color: '#9a948a', margin: '0 0 12px', lineHeight: 1.45 }}>
+                        {student.email
+                          ? 'Aluno sem acesso ao app. Clique para criar a conta e gerar a senha.'
+                          : 'Cadastre o e-mail do aluno antes de liberar o acesso.'}
+                      </p>
+                      <button type="button" onClick={handleGrantAccess} disabled={grantingAccess || !student.email}
+                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, width: '100%', height: 40, border: 'none', borderRadius: 10, font: `700 13px ${FF}`, cursor: (grantingAccess || !student.email) ? 'default' : 'pointer',
+                          background: (grantingAccess || !student.email) ? '#d9d3c4' : '#E8542A',
+                          color: '#fff',
+                          boxShadow: (grantingAccess || !student.email) ? 'none' : '0 2px 0 #c4421e',
+                        }}>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6"/><path d="M22 11h-6"/></svg>
+                        {grantingAccess ? 'Criando acesso…' : 'Dar acesso ao app'}
+                      </button>
+                    </>
+                  ) : (
+                    /* Já tem conta — reset de senha */
+                    <>
+                      <p style={{ font: `400 12.5px ${FF}`, color: '#9a948a', margin: '0 0 12px', lineHeight: 1.45 }}>
+                        Gera uma nova senha para o aluno e exibe na tela para você enviar.
+                      </p>
+                      <button type="button" onClick={handleResetPassword} disabled={resetingPw}
+                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, width: '100%', height: 40, border: '1.5px solid #d9d3c4', background: '#fff', color: '#1B2A4A', borderRadius: 10, font: `600 13px ${FF}`, cursor: resetingPw ? 'default' : 'pointer', opacity: resetingPw ? .6 : 1 }}
+                        onMouseEnter={e => { if (!resetingPw) { e.currentTarget.style.borderColor = '#E8542A'; e.currentTarget.style.color = '#E8542A' } }}
+                        onMouseLeave={e => { e.currentTarget.style.borderColor = '#d9d3c4'; e.currentTarget.style.color = '#1B2A4A' }}>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                        {resetingPw ? 'Gerando…' : newStudentPw ? 'Gerar nova senha' : 'Resetar senha do aluno'}
+                      </button>
+                    </>
+                  )}
                 </div>
               </div>
             </div>
