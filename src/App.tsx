@@ -1,4 +1,6 @@
+import { useState } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
+import IntroScreen from './components/IntroScreen'
 import Layout from './components/layout/Layout'
 import Login from './pages/Login'
 import Dashboard from './pages/coach/Dashboard'
@@ -28,6 +30,10 @@ import Register from './pages/Register'
 
 
 export default function App() {
+  const [intro, setIntro] = useState(true)
+
+  if (intro) return <IntroScreen onDone={() => setIntro(false)} />
+
   return (
     <Routes>
       <Route path="/" element={<Navigate to="/login" replace />} />
