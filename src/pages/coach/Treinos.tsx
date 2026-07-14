@@ -629,10 +629,11 @@ function NewProgramModal({ onClose, onAdd }: {
 }
 
 // ── Biblioteca components (existing, kept intact) ────────────
-function ExRow({ ex, order, tagBg, tagColor, dragOverId, onEdit, onDragStart, onDragEnd, onDragOver, onDragLeave, onDrop }: {
+function ExRow({ ex, order, tagBg, tagColor, dragOverId, onEdit, onDelete, onDragStart, onDragEnd, onDragOver, onDragLeave, onDrop }: {
   ex: { _k: number; name: string; muscle: string; scheme: string; rest: string }
   order: number; tagBg: string; tagColor: string; dragOverId: number | null
   onEdit:      (k: number) => void
+  onDelete:    (k: number) => void
   onDragStart: (e: DragEvent<HTMLDivElement>, k: number) => void
   onDragEnd:   (e: DragEvent<HTMLDivElement>) => void
   onDragOver:  (e: DragEvent<HTMLDivElement>, k: number) => void
@@ -661,6 +662,15 @@ function ExRow({ ex, order, tagBg, tagColor, dragOverId, onEdit, onDragStart, on
         onMouseLeave={e => { e.currentTarget.style.borderColor = '#e0d9c8'; e.currentTarget.style.color = '#9a948a' }}
       >
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+      </button>
+      <button
+        type="button"
+        onClick={e => { e.stopPropagation(); onDelete(ex._k) }}
+        style={{ width: 28, height: 28, border: '1px solid #e0d9c8', background: '#fff', borderRadius: 7, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, color: '#9a948a' }}
+        onMouseEnter={e => { e.currentTarget.style.borderColor = '#c4421e'; e.currentTarget.style.color = '#c4421e'; e.currentTarget.style.background = '#fbe6e1' }}
+        onMouseLeave={e => { e.currentTarget.style.borderColor = '#e0d9c8'; e.currentTarget.style.color = '#9a948a'; e.currentTarget.style.background = '#fff' }}
+      >
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
       </button>
       <div style={{ textAlign: 'right', flexShrink: 0 }}>
         <div style={{ font: `800 13px ${FF}`, color: '#1B2A4A' }}>{ex.scheme}</div>
@@ -904,6 +914,11 @@ function TreinoDrawer({ treino, library, onClose, onDuplicate, onUpdate, onAddTo
             {exercises.map((ex, i) => (
               <ExRow key={ex._k} ex={ex} order={i + 1} tagBg={g.bg} tagColor={g.color} dragOverId={dragOver}
                 onEdit={k => setEditExKey(k)}
+                onDelete={k => {
+                  const updated = exercises.filter(e => e._k !== k)
+                  setExercises(updated)
+                  onUpdate({ ...treino, ex: updated })
+                }}
                 onDragStart={handleDragStart} onDragEnd={handleDragEnd} onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop} />
             ))}
           </div>
