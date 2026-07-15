@@ -226,6 +226,11 @@ export function ProfileAssessmentModal({ studentId, studentName, studentUuid, ex
       saved = { ...saved, ...urlUpdates } as SavedAssessmentRow
     }
 
+    // Mark student as having completed their initial assessment
+    if (studentUuid) {
+      await supabase.from('profiles').update({ assessment_completed: true }).eq('id', studentUuid)
+    }
+
     setSaving(false)
     onSaved(saved)
     onClose()

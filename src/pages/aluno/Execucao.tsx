@@ -9,11 +9,12 @@ const CIRC = 2 * Math.PI * 70
 const STORAGE_KEY = 'kinea_exec_progress'
 
 interface ExerciseData {
-  name:        string
-  muscle:      string
-  sets:        number
-  defaultReps: number
-  restSec:     number
+  name:           string
+  muscle:         string
+  sets:           number
+  defaultReps:    number
+  restSec:        number
+  superset_group: number | null
 }
 
 interface SetResult     { reps: number; weight: number }
@@ -117,6 +118,11 @@ export default function Execucao() {
   const [timerSec,     setTimerSec]     = useState(60)
   const [timerRunning, setTimerRunning] = useState(false)
 
+  // Superset state
+  const [isMidSuperset,       setIsMidSuperset]       = useState(false)
+  const [supersetAIdx,        setSupersetAIdx]        = useState<number | null>(null)
+  const [supersetASetsDone,   setSupersetASetsDone]   = useState<SetResult[]>([])
+
   // feedback
   const [fbIntensity, setFbIntensity] = useState(3)
   const [fbPain,      setFbPain]      = useState(0)
@@ -168,18 +174,19 @@ export default function Execucao() {
 
     const { data: exRows } = await supabase
       .from('exercises')
-      .select('name, muscle_group, sets, reps, rest_sec')
+      .select('name, muscle_group, sets, reps, rest_sec, superset_group')
       .eq('workout_id', workoutId)
       .order('sort_order', { ascending: true })
 
     if (!exRows || exRows.length === 0) { setPhase('workout'); return }
 
     const mapped: ExerciseData[] = (exRows as any[]).map(e => ({
-      name:        e.name,
-      muscle:      e.muscle_group || '—',
-      sets:        e.sets,
-      defaultReps: parseReps(e.reps),
-      restSec:     e.rest_sec ?? 60,
+      name:           e.name,
+      muscle:         e.muscle_group || '—',
+      sets:           e.sets,
+      defaultReps:    parseReps(e.reps),
+      restSec:        e.rest_sec ?? 60,
+      superset_group: e.superset_group ?? null,
     }))
     setExercises(mapped)
 
@@ -245,11 +252,63 @@ export default function Execucao() {
   function handleSerieConc() {
     const wid = workoutIdRef.current
     const ex  = exercises[exIdx]
-    const next: SetResult[]     = [...setsDone, { reps, weight }]
     const newAll: CompletedSet[] = [...allCompleted, { exerciseName: ex.name, reps, weight }]
     setAllCompleted(newAll)
     void saveLog(ex.name, reps, weight)
 
+    // ── Superset: finishing the second exercise (B) ──────────────────────
+    if (isMidSuperset && supersetAIdx !== null) {
+      const exA    = exercises[supersetAIdx]
+      const moreRounds = supersetASetsDone.length < exA.sets
+      if (moreRounds) {
+        // Go back to A for next round
+        const nw = lastWeights[exA.name] ?? 0
+        setExIdx(supersetAIdx)
+        setSetsDone(supersetASetsDone)
+        setReps(exA.defaultReps)
+        setWeight(nw)
+        setTimerSec(ex.restSec)
+        setTimerRunning(true)
+        setIsMidSuperset(false)
+        if (wid) saveProg({ workoutId: wid, exIdx: supersetAIdx, setsDone: supersetASetsDone, reps: exA.defaultReps, weight: nw, allCompleted: newAll, startedAt: startedAtRef.current })
+      } else {
+        // Superset fully done — advance past B
+        setIsMidSuperset(false)
+        setSupersetASetsDone([])
+        setSupersetAIdx(null)
+        const nextIdx = exIdx + 1
+        if (nextIdx < exercises.length) {
+          const nex = exercises[nextIdx]
+          const nw  = lastWeights[nex.name] ?? 0
+          setExIdx(nextIdx); setSetsDone([]); setReps(nex.defaultReps)
+          setWeight(nw); setTimerSec(nex.restSec); setTimerRunning(true)
+          if (wid) saveProg({ workoutId: wid, exIdx: nextIdx, setsDone: [], reps: nex.defaultReps, weight: nw, allCompleted: newAll, startedAt: startedAtRef.current })
+        } else {
+          clearProg(); setTimerRunning(false)
+          setWorkoutDurationSec(Math.floor((Date.now() - startedAtRef.current) / 1000))
+          setPhase('feedback')
+        }
+      }
+      return
+    }
+
+    // ── Superset: finishing the first exercise (A) ───────────────────────
+    const nextEx = exercises[exIdx + 1]
+    const isFirstOfSS = ex.superset_group != null && nextEx?.superset_group === ex.superset_group
+    if (isFirstOfSS) {
+      const newSetsDone = [...setsDone, { reps, weight }]
+      setSupersetAIdx(exIdx)
+      setSupersetASetsDone(newSetsDone)
+      setIsMidSuperset(true)
+      const nw = lastWeights[nextEx.name] ?? 0
+      setExIdx(exIdx + 1); setSetsDone([]); setReps(nextEx.defaultReps)
+      setWeight(nw); setTimerSec(nextEx.restSec)
+      // No rest timer — immediate switch to B
+      return
+    }
+
+    // ── Normal single-exercise flow ──────────────────────────────────────
+    const next: SetResult[] = [...setsDone, { reps, weight }]
     if (next.length >= ex.sets) {
       if (exIdx < exercises.length - 1) {
         const ni  = exIdx + 1
@@ -259,11 +318,9 @@ export default function Execucao() {
         setWeight(nw); setTimerSec(nex.restSec)
         if (wid) saveProg({ workoutId: wid, exIdx: ni, setsDone: [], reps: nex.defaultReps, weight: nw, allCompleted: newAll, startedAt: startedAtRef.current })
       } else {
-        clearProg()
-        setTimerRunning(false)
+        clearProg(); setTimerRunning(false)
         setWorkoutDurationSec(Math.floor((Date.now() - startedAtRef.current) / 1000))
-        setPhase('feedback')
-        return
+        setPhase('feedback'); return
       }
     } else {
       setSetsDone(next)
@@ -613,15 +670,33 @@ export default function Execucao() {
     </div>
   )
 
-  const ex        = exercises[exIdx]
-  const totalExs  = exercises.length
-  const timerMax  = ex.restSec
-  const totalSets = exercises.reduce((a, e) => a + e.sets, 0)
-  const doneSets  = exercises.slice(0, exIdx).reduce((a, e) => a + e.sets, 0) + setsDone.length
-  const progress  = totalSets > 0 ? doneSets / totalSets : 0
-  const timerOff  = (1 - timerSec / timerMax) * CIRC
-  const isLast    = setsDone.length >= ex.sets - 1 && exIdx >= totalExs - 1
-  const prevWeight = lastWeights[ex.name]
+  const ex         = exercises[exIdx]
+  const totalExs   = exercises.length
+  const timerMax   = ex.restSec
+  const totalSets  = exercises.reduce((a, e) => a + e.sets, 0)
+  const doneSets   = isMidSuperset && supersetAIdx !== null
+    ? exercises.slice(0, supersetAIdx).reduce((a, e) => a + e.sets, 0) + supersetASetsDone.length + setsDone.length
+    : exercises.slice(0, exIdx).reduce((a, e) => a + e.sets, 0) + setsDone.length
+  const progress   = totalSets > 0 ? doneSets / totalSets : 0
+  const timerOff   = (1 - timerSec / timerMax) * CIRC
+
+  const isLast = (() => {
+    if (isMidSuperset && supersetAIdx !== null) {
+      const exA = exercises[supersetAIdx]
+      return supersetASetsDone.length >= exA.sets && exIdx >= totalExs - 1
+    }
+    const nextEx = exercises[exIdx + 1]
+    if (ex.superset_group != null && nextEx?.superset_group === ex.superset_group) return false
+    return setsDone.length >= ex.sets - 1 && exIdx >= totalExs - 1
+  })()
+
+  const prevWeight   = lastWeights[ex.name]
+  const supersetPartner = isMidSuperset && supersetAIdx !== null
+    ? exercises[supersetAIdx]
+    : (!isMidSuperset && ex.superset_group != null && exercises[exIdx + 1]?.superset_group === ex.superset_group)
+      ? exercises[exIdx + 1]
+      : null
+  const supersetRound = isMidSuperset ? supersetASetsDone.length : setsDone.length
 
   return (
     <div style={{ background: '#1B2A4A', minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
@@ -633,7 +708,13 @@ export default function Execucao() {
         </button>
         <div style={{ textAlign: 'center' }}>
           <div style={{ font: `600 12px ${FF}`, color: '#8B97AD' }}>{workoutName || 'Treino'}</div>
-          <div style={{ font: `500 11px ${FF}`, color: '#E8542A', marginTop: 2 }}>Exercício {exIdx + 1} de {totalExs}</div>
+          {supersetPartner
+            ? <div style={{ font: `700 11px ${FF}`, color: '#E8542A', marginTop: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}>
+                <span style={{ background: 'rgba(232,84,42,.18)', borderRadius: 10, padding: '1px 7px' }}>SUPERSET</span>
+                <span style={{ color: '#8B97AD', fontWeight: 400 }}>série {supersetRound + 1} de {ex.sets}</span>
+              </div>
+            : <div style={{ font: `500 11px ${FF}`, color: '#E8542A', marginTop: 2 }}>Exercício {exIdx + 1} de {totalExs}</div>
+          }
         </div>
         <div style={{ width: 36 }} />
       </div>
@@ -650,11 +731,19 @@ export default function Execucao() {
 
       <div style={{ padding: '0 22px 16px' }}>
         <div style={{ font: `500 11px ${FF}`, color: '#8B97AD', textTransform: 'uppercase', letterSpacing: '.3px', marginBottom: 6 }}>
-          {ex.muscle.toUpperCase()}
+          {ex.muscle.toUpperCase()}{supersetPartner ? ` · ${isMidSuperset ? 'B' : 'A'}` : ''}
         </div>
         <div style={{ font: `900 28px ${FF}`, color: '#FAEEDA', letterSpacing: '-.7px', marginBottom: 8 }}>
           {ex.name}
         </div>
+        {supersetPartner && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, background: 'rgba(255,255,255,.05)', borderRadius: 10, padding: '8px 12px' }}>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#8B97AD" strokeWidth="2.5" strokeLinecap="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+            <span style={{ font: `500 11px ${FF}`, color: '#8B97AD' }}>
+              {isMidSuperset ? 'Após' : 'Em seguida'}: <span style={{ color: '#FAEEDA', fontWeight: 700 }}>{supersetPartner.name}</span>
+            </span>
+          </div>
+        )}
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <span style={{ background: 'rgba(232,84,42,.2)', borderRadius: 20, padding: '5px 12px', font: `600 11px ${FF}`, color: '#E8542A' }}>
             {ex.sets} séries × {ex.defaultReps} reps
@@ -747,7 +836,11 @@ export default function Execucao() {
       <div style={{ padding: '16px 18px 32px' }}>
         <button onClick={handleSerieConc}
           style={{ width: '100%', padding: 16, background: '#E8542A', border: 'none', borderRadius: 14, font: `700 16px ${FF}`, color: '#fff', cursor: 'pointer', boxShadow: '0 4px 0 #C4421E' }}>
-          {isLast ? 'Concluir Treino' : 'Série concluída'}
+          {isLast
+            ? 'Concluir Treino'
+            : (!isMidSuperset && supersetPartner)
+              ? `Série concluída → ${supersetPartner.name}`
+              : 'Série concluída'}
         </button>
       </div>
     </div>

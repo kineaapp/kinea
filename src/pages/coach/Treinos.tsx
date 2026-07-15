@@ -27,7 +27,7 @@ interface Program {
   applied_count: number
 }
 
-interface Exercise { _k: number; name: string; muscle: string; scheme: string; rest: string }
+interface Exercise { _k: number; name: string; muscle: string; scheme: string; rest: string; superset_group?: number | null }
 interface LibraryExercise { name: string; muscle: string; scheme: string; rest: string }
 interface Treino {
   id: number; name: string; split: string; goal: Goal
@@ -662,9 +662,10 @@ function NewProgramModal({ onClose, onAdd }: {
 }
 
 // ── Biblioteca components (existing, kept intact) ────────────
-function ExRow({ ex, order, tagBg, tagColor, dragOverId, onEdit, onDelete, onDragStart, onDragEnd, onDragOver, onDragLeave, onDrop }: {
-  ex: { _k: number; name: string; muscle: string; scheme: string; rest: string }
+function ExRow({ ex, order, tagBg, tagColor, dragOverId, supersetLetter, onEdit, onDelete, onDragStart, onDragEnd, onDragOver, onDragLeave, onDrop }: {
+  ex: { _k: number; name: string; muscle: string; scheme: string; rest: string; superset_group?: number | null }
   order: number; tagBg: string; tagColor: string; dragOverId: number | null
+  supersetLetter?: 'A' | 'B'
   onEdit:      (k: number) => void
   onDelete:    (k: number) => void
   onDragStart: (e: DragEvent<HTMLDivElement>, k: number) => void
@@ -674,15 +675,26 @@ function ExRow({ ex, order, tagBg, tagColor, dragOverId, onEdit, onDelete, onDra
   onDrop:      (e: DragEvent<HTMLDivElement>, k: number) => void
 }) {
   const isOver = dragOverId === ex._k
+  const isSS = supersetLetter != null
   return (
     <div draggable onDragStart={e => onDragStart(e, ex._k)} onDragEnd={onDragEnd}
       onDragOver={e => onDragOver(e, ex._k)} onDragLeave={onDragLeave} onDrop={e => onDrop(e, ex._k)}
-      style={{ background: isOver ? '#fdf3ee' : '#fff', boxShadow: isOver ? 'inset 0 0 0 2px #E8542A' : 'none', border: '1px solid #ece7d9', borderRadius: 12, padding: '13px 14px', display: 'flex', alignItems: 'center', gap: 12, cursor: 'grab' }}>
+      style={{ background: isOver ? '#fdf3ee' : '#fff', boxShadow: isOver ? 'inset 0 0 0 2px #E8542A' : 'none', borderRadius: 12, padding: '13px 14px', display: 'flex', alignItems: 'center', gap: 12, cursor: 'grab',
+        borderTop:    isSS ? '1px solid rgba(232,84,42,.22)' : '1px solid #ece7d9',
+        borderRight:  isSS ? '1px solid rgba(232,84,42,.22)' : '1px solid #ece7d9',
+        borderBottom: isSS ? '1px solid rgba(232,84,42,.22)' : '1px solid #ece7d9',
+        borderLeft:   isSS ? '3px solid #E8542A'              : '1px solid #ece7d9',
+      }}>
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#c9c1b0" strokeWidth="2" strokeLinecap="round" style={{ flexShrink: 0 }}>
         <circle cx="9" cy="6" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="9" cy="18" r="1"/>
         <circle cx="15" cy="6" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="18" r="1"/>
       </svg>
       <div style={{ width: 28, height: 28, borderRadius: 7, background: tagBg, color: tagColor, display: 'flex', alignItems: 'center', justifyContent: 'center', font: `800 10px ${FF}`, flexShrink: 0 }}>{order}</div>
+      {supersetLetter && (
+        <div style={{ background: '#fdf3ee', border: '1px solid rgba(232,84,42,.4)', borderRadius: 6, padding: '2px 6px', font: `800 8px ${FF}`, color: '#E8542A', flexShrink: 0, letterSpacing: '.5px' }}>
+          SS·{supersetLetter}
+        </div>
+      )}
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ font: `700 13px ${FF}`, color: '#1B2A4A', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ex.name}</div>
         <div style={{ font: `500 11px ${FF}`, color: '#9a948a', marginTop: 2 }}>{ex.muscle}</div>
@@ -896,6 +908,12 @@ function TreinoDrawer({ treino, library, onClose, onDuplicate, onUpdate, onAddTo
   const [editExKey, setEditExKey] = useState<number | null>(null)
   const dragRef = useRef<number | null>(null)
   const nextK = useRef(Date.now())
+  const nextSupersetGroupRef = useRef<number>(
+    (() => {
+      const groups = treino.ex.filter(e => e.superset_group != null).map(e => e.superset_group as number)
+      return groups.length > 0 ? Math.max(...groups) + 1 : 1
+    })()
+  )
   useEffect(() => { setExercises(treino.ex) }, [treino.id])
   const [renamingName, setRenamingName] = useState(false)
   const [draftName, setDraftName] = useState(treino.name)
@@ -915,6 +933,22 @@ function TreinoDrawer({ treino, library, onClose, onDuplicate, onUpdate, onAddTo
     onUpdate({ ...treino, ex: updated })
     setEditExKey(null)
   }
+  function toggleSuperset(kA: number, kB: number) {
+    const exA = exercises.find(e => e._k === kA)
+    const exB = exercises.find(e => e._k === kB)
+    if (!exA || !exB) return
+    const arePaired = exA.superset_group != null && exA.superset_group === exB.superset_group
+    let updated: Exercise[]
+    if (arePaired) {
+      updated = exercises.map(e => (e._k === kA || e._k === kB) ? { ...e, superset_group: null } : e)
+    } else {
+      const group = nextSupersetGroupRef.current++
+      updated = exercises.map(e => (e._k === kA || e._k === kB) ? { ...e, superset_group: group } : e)
+    }
+    setExercises(updated)
+    onUpdate({ ...treino, ex: updated })
+  }
+
   function handleDragStart(e: DragEvent<HTMLDivElement>, k: number) { dragRef.current = k; try { e.dataTransfer.effectAllowed = 'move' } catch {}; e.currentTarget.style.opacity = '0.5' }
   function handleDragEnd(e: DragEvent<HTMLDivElement>) { e.currentTarget.style.opacity = '1'; setDragOver(null); dragRef.current = null }
   function handleDragOver(e: DragEvent<HTMLDivElement>, k: number) { e.preventDefault(); if (dragOver !== k) setDragOver(k) }
@@ -976,17 +1010,56 @@ function TreinoDrawer({ treino, library, onClose, onDuplicate, onUpdate, onAddTo
             <div style={{ font: `700 11px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#9a948a' }}>Exercícios</div>
             <span style={{ font: `400 11px ${FF}`, color: '#b0a99c' }}>arraste para reordenar</span>
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
-            {exercises.map((ex, i) => (
-              <ExRow key={ex._k} ex={ex} order={i + 1} tagBg={g.bg} tagColor={g.color} dragOverId={dragOver}
-                onEdit={k => setEditExKey(k)}
-                onDelete={k => {
-                  const updated = exercises.filter(e => e._k !== k)
-                  setExercises(updated)
-                  onUpdate({ ...treino, ex: updated })
-                }}
-                onDragStart={handleDragStart} onDragEnd={handleDragEnd} onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop} />
-            ))}
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            {exercises.map((ex, i) => {
+              const next = exercises[i + 1]
+              const isSSwithNext = ex.superset_group != null && next?.superset_group === ex.superset_group
+              const isSSwithPrev = i > 0 && ex.superset_group != null && exercises[i - 1]?.superset_group === ex.superset_group
+              const ssLetter: 'A' | 'B' | undefined = isSSwithNext ? 'A' : (isSSwithPrev ? 'B' : undefined)
+              return (
+                <div key={ex._k} style={{ marginBottom: i < exercises.length - 1 ? 0 : 9 }}>
+                  <ExRow ex={ex} order={i + 1} tagBg={g.bg} tagColor={g.color} dragOverId={dragOver}
+                    supersetLetter={ssLetter}
+                    onEdit={k => setEditExKey(k)}
+                    onDelete={k => {
+                      const toDelete = exercises.find(e => e._k === k)
+                      let updated = exercises.filter(e => e._k !== k)
+                      if (toDelete?.superset_group != null) {
+                        const remaining = updated.filter(e => e.superset_group === toDelete.superset_group)
+                        if (remaining.length < 2) updated = updated.map(e => e.superset_group === toDelete.superset_group ? { ...e, superset_group: null } : e)
+                      }
+                      setExercises(updated)
+                      onUpdate({ ...treino, ex: updated })
+                    }}
+                    onDragStart={handleDragStart} onDragEnd={handleDragEnd} onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop} />
+                  {i < exercises.length - 1 && (isSSwithNext ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 10px' }}>
+                      <div style={{ flex: 1, height: 2, background: 'rgba(232,84,42,.2)', borderRadius: 1 }} />
+                      <span style={{ font: `800 9px ${FF}`, color: '#E8542A', background: '#fdf3ee', border: '1.5px solid rgba(232,84,42,.35)', borderRadius: 20, padding: '3px 10px', letterSpacing: '.5px', flexShrink: 0 }}>SUPERSET</span>
+                      <button
+                        onClick={() => toggleSuperset(ex._k, next!._k)}
+                        title="Desfazer superset"
+                        style={{ width: 18, height: 18, border: '1px solid rgba(232,84,42,.4)', background: 'rgba(232,84,42,.08)', borderRadius: '50%', cursor: 'pointer', color: '#E8542A', display: 'flex', alignItems: 'center', justifyContent: 'center', font: `700 13px ${FF}`, padding: 0, flexShrink: 0, lineHeight: 1 }}
+                        onMouseEnter={e => { e.currentTarget.style.background = '#c4421e'; e.currentTarget.style.color = '#fff' }}
+                        onMouseLeave={e => { e.currentTarget.style.background = 'rgba(232,84,42,.08)'; e.currentTarget.style.color = '#E8542A' }}
+                      >×</button>
+                      <div style={{ flex: 1, height: 2, background: 'rgba(232,84,42,.2)', borderRadius: 1 }} />
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 10px' }}>
+                      <div style={{ flex: 1, height: 1, background: '#ece7d9' }} />
+                      <button
+                        onClick={() => toggleSuperset(ex._k, next!._k)}
+                        style={{ font: `600 9px ${FF}`, color: '#c9c1b0', border: '1px dashed #d8d1c0', borderRadius: 20, padding: '3px 9px', background: 'none', cursor: 'pointer', flexShrink: 0 }}
+                        onMouseEnter={e => { e.currentTarget.style.color = '#E8542A'; e.currentTarget.style.borderColor = '#E8542A'; e.currentTarget.style.borderStyle = 'solid' }}
+                        onMouseLeave={e => { e.currentTarget.style.color = '#c9c1b0'; e.currentTarget.style.borderColor = '#d8d1c0'; e.currentTarget.style.borderStyle = 'dashed' }}
+                      >+ superset</button>
+                      <div style={{ flex: 1, height: 1, background: '#ece7d9' }} />
+                    </div>
+                  ))}
+                </div>
+              )
+            })}
           </div>
           <button type="button" onClick={() => setPickerOpen(true)}
             style={{ marginTop: 10, width: '100%', border: '1.5px dashed #d8d1c0', background: 'none', color: '#9a948a', font: `600 12px ${FF}`, cursor: 'pointer', padding: 11, borderRadius: 10 }}
@@ -1305,6 +1378,7 @@ export default function Treinos() {
       ex: [...(w.exercises ?? [])].sort((a: any, b: any) => a.sort_order - b.sort_order).map((e: any) => ({
         _k: e.id, name: e.name, muscle: e.muscle_group ?? '—',
         scheme: `${e.sets} × ${e.reps}`, rest: e.rest_sec ? `${e.rest_sec}s` : '60s',
+        superset_group: e.superset_group ?? null,
       })),
     })))
   }
@@ -1314,7 +1388,7 @@ export default function Treinos() {
     if (!treino.ex.length) return
     await supabase.from('exercises').insert(treino.ex.map((ex, i) => {
       const { sets, reps } = parseScheme(ex.scheme)
-      return { workout_id: treino.id, name: ex.name, muscle_group: ex.muscle, sets, reps, rest_sec: parseRest(ex.rest), sort_order: i }
+      return { workout_id: treino.id, name: ex.name, muscle_group: ex.muscle, sets, reps, rest_sec: parseRest(ex.rest), sort_order: i, superset_group: ex.superset_group ?? null }
     }))
   }
 
@@ -1360,7 +1434,7 @@ export default function Treinos() {
     if (orig.ex.length) {
       await supabase.from('exercises').insert(orig.ex.map((ex, i) => {
         const { sets, reps } = parseScheme(ex.scheme)
-        return { workout_id: (newW as any).id, name: ex.name, muscle_group: ex.muscle, sets, reps, rest_sec: parseRest(ex.rest), sort_order: i }
+        return { workout_id: (newW as any).id, name: ex.name, muscle_group: ex.muscle, sets, reps, rest_sec: parseRest(ex.rest), sort_order: i, superset_group: ex.superset_group ?? null }
       }))
     }
     let baseK = nextK.current
