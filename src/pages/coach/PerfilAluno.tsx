@@ -70,6 +70,10 @@ interface AttachmentRow {
 
 interface CheckInRow { id: number; content: string; created_at: string }
 
+interface ExerciseLogEntry {
+  exercise_name: string; weight_kg: number; reps: number; logged_at: string
+}
+
 interface SessionRow {
   id:           number
   completed_at: string
@@ -91,6 +95,9 @@ function calcSemanas(since: string): number {
 function fmtDate(iso: string) {
   const [y, m, d] = iso.split('T')[0].split('-')
   return `${d}/${m}/${y}`
+}
+function fmtKg(v: number) {
+  return v === Math.floor(v) ? `${v}` : v.toFixed(1).replace('.', ',')
 }
 function fmtMoney(v: number) {
   return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -861,6 +868,8 @@ export default function PerfilAluno() {
   const [checkLoading,    setCheckLoading]    = useState(false)
   const [sessions,        setSessions]        = useState<SessionRow[]>([])
   const [sessionsLoading, setSessionsLoading] = useState(false)
+  const [exerciseLogs,    setExerciseLogs]    = useState<ExerciseLogEntry[]>([])
+  const [logsLoading,     setLogsLoading]     = useState(false)
   const [resetingPw,      setResetingPw]      = useState(false)
   const [newStudentPw,    setNewStudentPw]    = useState<string | null>(null)
   const [grantingAccess,  setGrantingAccess]  = useState(false)
@@ -1066,12 +1075,26 @@ export default function PerfilAluno() {
     setSessionsLoading(false)
   }, [studentId])
 
+  const fetchExerciseLogs = useCallback(async () => {
+    if (!studentId || loaded.current.has('exercise_logs')) return
+    loaded.current.add('exercise_logs')
+    setLogsLoading(true)
+    const { data } = await supabase
+      .from('exercise_logs')
+      .select('exercise_name, weight_kg, reps, logged_at')
+      .eq('student_id', studentId)
+      .order('logged_at', { ascending: true })
+      .limit(1000)
+    setExerciseLogs((data as ExerciseLogEntry[] | null) ?? [])
+    setLogsLoading(false)
+  }, [studentId])
+
   useEffect(() => {
     if (!student) return
     if (tab === 'overview')   { fetchActiveProgram(); fetchCheckins() }
     if (tab === 'anamnese')   fetchAnamnese()
     if (tab === 'treino')     fetchActiveProgram()
-    if (tab === 'feedback')   fetchSessions()
+    if (tab === 'feedback')   { fetchSessions(); fetchExerciseLogs() }
     if (tab === 'avaliacoes') fetchAssessments()
     if (tab === 'pagamentos') fetchPayments()
     if (tab === 'anexos')     fetchAttachments()
@@ -1797,57 +1820,166 @@ export default function PerfilAluno() {
               2: { label: 'Dor moderada',  color: '#c4421e' },
               3: { label: 'Dor intensa',   color: '#c4421e' },
             }
+            // ── Evolução por exercício ──────────────────────────────────────
+            type ExDay = { date: string; weight: number; reps: number }
+            const byExercise = new Map<string, ExDay[]>()
+            for (const log of exerciseLogs) {
+              const date = log.logged_at.split('T')[0]
+              if (!byExercise.has(log.exercise_name)) byExercise.set(log.exercise_name, [])
+              const days = byExercise.get(log.exercise_name)!
+              const existing = days.find(d => d.date === date)
+              if (!existing) {
+                days.push({ date, weight: log.weight_kg, reps: log.reps })
+              } else if (log.weight_kg > existing.weight || (log.weight_kg === existing.weight && log.reps > existing.reps)) {
+                existing.weight = log.weight_kg; existing.reps = log.reps
+              }
+            }
+            const evolutionData = Array.from(byExercise.entries())
+              .map(([name, days]) => ({ name, days: days.sort((a, b) => a.date.localeCompare(b.date)) }))
+              .filter(e => e.days.length >= 2)
+              .sort((a, b) => (b.days.at(-1)?.date ?? '').localeCompare(a.days.at(-1)?.date ?? ''))
+
             return (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
-                  <div>
-                    <h2 style={{ font: `800 20px ${FF}`, color: '#1B2A4A', margin: 0, letterSpacing: '-.4px' }}>Feedback dos treinos</h2>
-                    {!sessionsLoading && sessions.length > 0 && (
-                      <p style={{ font: `400 13px ${FF}`, color: '#7c7869', margin: '3px 0 0' }}>{sessions.length} sessão{sessions.length !== 1 ? 'ões' : ''} registrada{sessions.length !== 1 ? 's' : ''}</p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+                {/* Feedback das sessões */}
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
+                    <div>
+                      <h2 style={{ font: `800 20px ${FF}`, color: '#1B2A4A', margin: 0, letterSpacing: '-.4px' }}>Feedback dos treinos</h2>
+                      {!sessionsLoading && sessions.length > 0 && (
+                        <p style={{ font: `400 13px ${FF}`, color: '#7c7869', margin: '3px 0 0' }}>{sessions.length} sessão{sessions.length !== 1 ? 'ões' : ''} registrada{sessions.length !== 1 ? 's' : ''}</p>
+                      )}
+                    </div>
+                  </div>
+                  {sessionsLoading ? (
+                    <div style={{ font: `400 13px ${FF}`, color: '#9a948a', padding: '20px 0' }}>Carregando…</div>
+                  ) : sessions.length === 0 ? (
+                    <Empty icon="💬" title="Nenhum feedback ainda" sub="Os feedbacks dos treinos concluídos pelo aluno aparecerão aqui." />
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                      {sessions.map(s => {
+                        const intensity = s.intensity != null ? INTENSITY_LABEL[s.intensity] : null
+                        const pain      = s.pain      != null ? PAIN_LABEL[s.pain]           : null
+                        return (
+                          <div key={s.id} style={{ background: '#fff', border: '1px solid #ece7d9', borderRadius: 14, padding: '16px 18px' }}>
+                            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 10 }}>
+                              <div>
+                                <div style={{ font: `700 14px ${FF}`, color: '#1B2A4A' }}>{s.workouts?.name ?? 'Treino'}</div>
+                                <div style={{ font: `400 12px ${FF}`, color: '#9a948a', marginTop: 2 }}>
+                                  {new Date(s.completed_at).toLocaleDateString('pt-BR', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                                </div>
+                              </div>
+                              {intensity && (
+                                <span style={{ flexShrink: 0, font: `600 11px ${FF}`, color: intensity.color, background: intensity.bg, borderRadius: 20, padding: '4px 10px', display: 'flex', alignItems: 'center', gap: 4 }}>
+                                  {intensity.emoji} {intensity.label}
+                                </span>
+                              )}
+                            </div>
+                            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                              {pain && (
+                                <span style={{ font: `600 11px ${FF}`, color: pain.color, background: pain.color === '#1B7a4a' ? '#e7f3ea' : '#fbe6e1', borderRadius: 20, padding: '3px 10px' }}>
+                                  {pain.label}
+                                </span>
+                              )}
+                              {s.notes && (
+                                <span style={{ font: `400 12px ${FF}`, color: '#4a4742', background: '#f4efe3', borderRadius: 8, padding: '4px 10px', flex: 1 }}>
+                                  {s.notes}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* Evolução por exercício */}
+                {(logsLoading || evolutionData.length > 0) && (
+                  <div style={{ background: '#fff', border: '1px solid #ece7d9', borderRadius: 14, padding: '22px 24px' }}>
+                    <h2 style={{ font: `800 18px ${FF}`, color: '#1B2A4A', margin: '0 0 4px', letterSpacing: '-.3px' }}>Evolução por exercício</h2>
+                    <p style={{ font: `400 12px ${FF}`, color: '#9a948a', margin: '0 0 18px' }}>
+                      Melhor série do dia por exercício · {evolutionData.length} exercício{evolutionData.length !== 1 ? 's' : ''} com histórico
+                    </p>
+
+                    {logsLoading ? (
+                      <div style={{ font: `400 13px ${FF}`, color: '#9a948a' }}>Carregando…</div>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+                        {evolutionData.map(ex => {
+                          const first = ex.days[0]
+                          const last  = ex.days[ex.days.length - 1]
+                          const wGain = last.weight - first.weight
+                          const rGain = last.reps   - first.reps
+                          return (
+                            <div key={ex.name}>
+                              {/* Exercise header */}
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                                <span style={{ font: `700 13.5px ${FF}`, color: '#1B2A4A' }}>{ex.name}</span>
+                                <div style={{ display: 'flex', gap: 6 }}>
+                                  {wGain !== 0 && (
+                                    <span style={{ font: `600 11px ${FF}`, color: wGain > 0 ? '#1B7a4a' : '#c4421e', background: wGain > 0 ? '#e7f3ea' : '#fbe6e1', borderRadius: 20, padding: '3px 9px' }}>
+                                      {wGain > 0 ? '+' : ''}{fmtKg(wGain)} kg carga
+                                    </span>
+                                  )}
+                                  {rGain !== 0 && (
+                                    <span style={{ font: `600 11px ${FF}`, color: rGain > 0 ? '#1B7a4a' : '#c4421e', background: rGain > 0 ? '#e7f3ea' : '#fbe6e1', borderRadius: 20, padding: '3px 9px' }}>
+                                      {rGain > 0 ? '+' : ''}{rGain} reps
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* Timeline row */}
+                              <div style={{ display: 'flex', gap: 0, overflowX: 'auto', paddingBottom: 4 }}>
+                                {ex.days.map((d, i) => {
+                                  const prev   = i > 0 ? ex.days[i - 1] : null
+                                  const wDelta = prev != null ? d.weight - prev.weight : null
+                                  const rDelta = prev != null ? d.reps   - prev.reps   : null
+                                  const [dy, dm, dd] = d.date.split('-')
+                                  const dateLabel = `${dd}/${dm}`
+                                  const isLast = i === ex.days.length - 1
+                                  return (
+                                    <div key={d.date} style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+                                      <div style={{ background: '#faf7ee', border: `1.5px solid ${isLast ? '#E8542A' : '#ece7d9'}`, borderRadius: 10, padding: '9px 12px', minWidth: 90, textAlign: 'center' }}>
+                                        <div style={{ font: `500 10px ${FF}`, color: '#b0a99c', marginBottom: 4 }}>{dateLabel}</div>
+                                        <div style={{ font: `800 14px ${FF}`, color: '#1B2A4A' }}>
+                                          {d.weight > 0 ? `${fmtKg(d.weight)} kg` : `${d.reps} reps`}
+                                        </div>
+                                        {d.weight > 0 && (
+                                          <div style={{ font: `500 10px ${FF}`, color: '#7c7869', marginTop: 2 }}>{d.reps} reps</div>
+                                        )}
+                                        {(wDelta !== null || rDelta !== null) && (
+                                          <div style={{ font: `600 9.5px ${FF}`, color: (wDelta ?? rDelta ?? 0) > 0 ? '#1B7a4a' : (wDelta ?? rDelta ?? 0) < 0 ? '#c4421e' : '#9a948a', marginTop: 3 }}>
+                                            {wDelta !== null && wDelta !== 0
+                                              ? `${wDelta > 0 ? '↑' : '↓'} ${fmtKg(Math.abs(wDelta))} kg`
+                                              : rDelta !== null && rDelta !== 0
+                                                ? `${rDelta > 0 ? '↑' : '↓'} ${Math.abs(rDelta)} rep`
+                                                : '= mesmo'}
+                                          </div>
+                                        )}
+                                      </div>
+                                      {!isLast && (
+                                        <div style={{ width: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#d6cfbe" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+                                        </div>
+                                      )}
+                                    </div>
+                                  )
+                                })}
+                              </div>
+                              {evolutionData.indexOf(ex) < evolutionData.length - 1 && (
+                                <div style={{ height: 1, background: '#f0ebe0', margin: '16px 0 0' }} />
+                              )}
+                            </div>
+                          )
+                        })}
+                      </div>
                     )}
                   </div>
-                </div>
-                {sessionsLoading ? (
-                  <div style={{ font: `400 13px ${FF}`, color: '#9a948a', padding: '20px 0' }}>Carregando…</div>
-                ) : sessions.length === 0 ? (
-                  <Empty icon="💬" title="Nenhum feedback ainda" sub="Os feedbacks dos treinos concluídos pelo aluno aparecerão aqui." />
-                ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                    {sessions.map(s => {
-                      const intensity = s.intensity != null ? INTENSITY_LABEL[s.intensity] : null
-                      const pain      = s.pain      != null ? PAIN_LABEL[s.pain]           : null
-                      return (
-                        <div key={s.id} style={{ background: '#fff', border: '1px solid #ece7d9', borderRadius: 14, padding: '16px 18px' }}>
-                          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 10 }}>
-                            <div>
-                              <div style={{ font: `700 14px ${FF}`, color: '#1B2A4A' }}>{s.workouts?.name ?? 'Treino'}</div>
-                              <div style={{ font: `400 12px ${FF}`, color: '#9a948a', marginTop: 2 }}>
-                                {new Date(s.completed_at).toLocaleDateString('pt-BR', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                              </div>
-                            </div>
-                            {intensity && (
-                              <span style={{ flexShrink: 0, font: `600 11px ${FF}`, color: intensity.color, background: intensity.bg, borderRadius: 20, padding: '4px 10px', display: 'flex', alignItems: 'center', gap: 4 }}>
-                                {intensity.emoji} {intensity.label}
-                              </span>
-                            )}
-                          </div>
-                          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                            {pain && (
-                              <span style={{ font: `600 11px ${FF}`, color: pain.color, background: pain.color === '#1B7a4a' ? '#e7f3ea' : '#fbe6e1', borderRadius: 20, padding: '3px 10px' }}>
-                                {pain.label}
-                              </span>
-                            )}
-                            {s.notes && (
-                              <span style={{ font: `400 12px ${FF}`, color: '#4a4742', background: '#f4efe3', borderRadius: 8, padding: '4px 10px', flex: 1 }}>
-                                {s.notes}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
                 )}
+
               </div>
             )
           })()}
