@@ -39,7 +39,7 @@ interface ProgramSlotDetail {
 }
 interface ActiveProgram {
   assignment_id: number; program_id: number; name: string; days_per_week: number
-  slots: ProgramSlotDetail[]
+  slots: ProgramSlotDetail[]; assigned_at: string | null
 }
 interface ProgramOption {
   id: number; name: string; days_per_week: number; is_template: boolean
@@ -872,11 +872,11 @@ export default function PerfilAluno() {
     setAnamneseLoading(true)
     let q = supabase.from('anamneses').select('*').order('created_at', { ascending: false }).limit(1)
     if (student.studentUuid) {
-      q = q.eq('student_id', student.studentUuid)
+      q = q.or(`student_id.eq.${student.studentUuid},students_row_id.eq.${studentId}`)
     } else {
       q = q.eq('students_row_id', studentId)
     }
-    const { data } = await q.single()
+    const { data } = await q.maybeSingle()
     setAnamnese(data ?? null)
     setAnamneseLoading(false)
   }, [student?.studentUuid, studentId])
@@ -898,7 +898,7 @@ export default function PerfilAluno() {
     setProgramLoading(true)
     const { data } = await supabase
       .from('program_assignments')
-      .select(`id, programs(id, name, days_per_week, program_slots(id, position, day_of_week, workouts(id, name, muscle_group, duration_min)))`)
+      .select(`id, assigned_at, programs(id, name, days_per_week, program_slots(id, position, day_of_week, workouts(id, name, muscle_group, duration_min)))`)
       .eq('student_id', studentId)
       .eq('active', true)
       .order('assigned_at', { ascending: false })
@@ -912,6 +912,7 @@ export default function PerfilAluno() {
         name: prog.name,
         days_per_week: prog.days_per_week,
         slots: [...(prog.program_slots ?? [])].sort((a, b) => a.position - b.position),
+        assigned_at: (data as unknown as { assigned_at: string }).assigned_at ?? null,
       })
     } else {
       setActiveProgram(null)
@@ -1074,7 +1075,7 @@ export default function PerfilAluno() {
     if (tab === 'avaliacoes') fetchAssessments()
     if (tab === 'pagamentos') fetchPayments()
     if (tab === 'anexos')     fetchAttachments()
-    if (tab === 'historico')  { fetchCheckins(); fetchAssessments(); fetchPayments() }
+    if (tab === 'historico')  { fetchCheckins(); fetchAssessments(); fetchPayments(); fetchSessions(); fetchActiveProgram() }
   }, [tab, student?.id])
 
   // ── Derived ───────────────────────────────────────────────
@@ -2358,6 +2359,129 @@ export default function PerfilAluno() {
 
           {/* HISTÓRICO */}
           {tab === 'historico' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+            {/* ── Histórico de Treinos ───────────────────────── */}
+            {(() => {
+              function weekStartOf(d: Date): Date {
+                const r = new Date(d); r.setHours(0, 0, 0, 0)
+                const day = r.getDay(); const diff = day === 0 ? -6 : 1 - day
+                r.setDate(r.getDate() + diff); return r
+              }
+              function fmtWeek(d: Date) {
+                const end = new Date(d); end.setDate(d.getDate() + 6)
+                const fmtD = (x: Date) => `${String(x.getDate()).padStart(2, '0')}/${String(x.getMonth() + 1).padStart(2, '0')}`
+                return `${fmtD(d)} – ${fmtD(end)}`
+              }
+
+              // Últimas 8 semanas (+ semana atual)
+              const NOW = new Date()
+              const thisWeek = weekStartOf(NOW)
+              const weeks: Date[] = []
+              for (let i = 0; i < 8; i++) {
+                const w = new Date(thisWeek); w.setDate(thisWeek.getDate() - i * 7); weeks.push(w)
+              }
+
+              // Filtrar semanas a partir de quando o programa foi atribuído
+              const programStart = activeProgram?.assigned_at ? weekStartOf(new Date(activeProgram.assigned_at)) : null
+              const validWeeks = programStart
+                ? weeks.filter(w => w.getTime() >= programStart.getTime())
+                : weeks
+
+              // Agrupar sessões por semana
+              type WeekSession = { id: number; name: string; date: string; intensity: number | null }
+              const sessionsByWeek = new Map<number, WeekSession[]>()
+              sessions.forEach(s => {
+                const ws = weekStartOf(new Date(s.completed_at)).getTime()
+                if (!sessionsByWeek.has(ws)) sessionsByWeek.set(ws, [])
+                sessionsByWeek.get(ws)!.push({
+                  id: s.id,
+                  name: s.workouts?.name ?? 'Treino',
+                  date: new Date(s.completed_at).toLocaleDateString('pt-BR', { weekday: 'short', day: 'numeric', month: 'short' }),
+                  intensity: s.intensity,
+                })
+              })
+
+              const dpw = activeProgram?.days_per_week ?? null
+              const totalDone   = sessions.length
+              const totalSkipped = validWeeks.reduce((acc, w) => {
+                const done = sessionsByWeek.get(w.getTime())?.length ?? 0
+                return acc + Math.max(0, (dpw ?? 0) - done)
+              }, 0)
+
+              const INTENSITY_COLOR: Record<number, { color: string; bg: string; emoji: string }> = {
+                1: { color: '#1B7a4a', bg: '#e7f3ea', emoji: '😴' },
+                2: { color: '#1B7a4a', bg: '#e7f3ea', emoji: '🙂' },
+                3: { color: '#b06a12', bg: '#f7ecd9', emoji: '💪' },
+                4: { color: '#c4421e', bg: '#fbe6e1', emoji: '🔥' },
+                5: { color: '#c4421e', bg: '#fbe6e1', emoji: '😤' },
+              }
+
+              return (
+                <div style={{ background: '#fff', border: '1px solid #ece7d9', borderRadius: 14, padding: '22px 24px' }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 16 }}>
+                    <div>
+                      <h2 style={{ font: `800 18px ${FF}`, color: '#1B2A4A', margin: '0 0 3px', letterSpacing: '-.3px' }}>Histórico de Treinos</h2>
+                      {!sessionsLoading && (
+                        <p style={{ font: `400 12px ${FF}`, color: '#9a948a', margin: 0 }}>
+                          {dpw ? `Programa: ${dpw}×/sem · ` : ''}{totalDone} feito{totalDone !== 1 ? 's' : ''}{dpw ? ` · ${totalSkipped} pulado${totalSkipped !== 1 ? 's' : ''}` : ''}
+                          {programStart ? ` · desde ${String(programStart.getDate()).padStart(2,'0')}/${String(programStart.getMonth()+1).padStart(2,'0')}` : ' · últimas 8 semanas'}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  {(sessionsLoading || programLoading) ? (
+                    <div style={{ font: `400 13px ${FF}`, color: '#9a948a' }}>Carregando...</div>
+                  ) : validWeeks.length === 0 ? (
+                    <div style={{ font: `400 13px ${FF}`, color: '#9a948a', textAlign: 'center', padding: '20px 0' }}>Nenhum dado de treino disponível ainda.</div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                      {validWeeks.map((wk, wi) => {
+                        const wkSessions = sessionsByWeek.get(wk.getTime()) ?? []
+                        const skipped    = dpw != null ? Math.max(0, dpw - wkSessions.length) : 0
+                        const isCurrentWeek = wi === 0
+                        return (
+                          <div key={wk.getTime()} style={{ borderRadius: 10, background: '#faf7ee', padding: '12px 14px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: wkSessions.length > 0 || skipped > 0 ? 10 : 0 }}>
+                              <span style={{ font: `600 11.5px ${FF}`, color: '#7c7869' }}>
+                                {fmtWeek(wk)}{isCurrentWeek ? <span style={{ color: '#E8542A', marginLeft: 6 }}>Esta semana</span> : ''}
+                              </span>
+                              <span style={{ font: `600 11px ${FF}`, color: '#9a948a' }}>
+                                {wkSessions.length}{dpw != null ? `/${dpw}` : ''} treino{wkSessions.length !== 1 ? 's' : ''}
+                              </span>
+                            </div>
+                            {(wkSessions.length > 0 || skipped > 0) && (
+                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                                {wkSessions.map(s => {
+                                  const ic = s.intensity != null ? INTENSITY_COLOR[s.intensity] : null
+                                  return (
+                                    <span key={s.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, font: `600 11.5px ${FF}`, color: '#1B7a4a', background: '#e7f3ea', borderRadius: 20, padding: '5px 10px' }}>
+                                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#1B7a4a" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+                                      <span>{s.name}</span>
+                                      <span style={{ font: `400 11px ${FF}`, color: '#7c7869' }}>· {s.date}</span>
+                                      {ic && <span style={{ font: `600 10px ${FF}`, color: ic.color, background: ic.bg, borderRadius: 12, padding: '1px 6px', marginLeft: 2 }}>{ic.emoji}</span>}
+                                    </span>
+                                  )
+                                })}
+                                {Array.from({ length: skipped }).map((_, i) => (
+                                  <span key={`skip-${i}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, font: `600 11.5px ${FF}`, color: '#9a948a', background: '#f4efe3', borderRadius: 20, padding: '5px 10px', opacity: isCurrentWeek ? 0.6 : 1 }}>
+                                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#9a948a" strokeWidth="2.5" strokeLinecap="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
+                                    {isCurrentWeek ? 'Previsto' : 'Não realizado'}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              )
+            })()}
+
+            {/* ── Linha do tempo ─────────────────────────────── */}
             <div style={{ background: '#fff', border: '1px solid #ece7d9', borderRadius: 14, padding: '22px 24px' }}>
               <h2 style={{ font: `800 18px ${FF}`, color: '#1B2A4A', margin: '0 0 18px', letterSpacing: '-.3px' }}>Linha do tempo</h2>
               {(checkLoading || assessLoading || payLoading) ? (
@@ -2399,6 +2523,7 @@ export default function PerfilAluno() {
                   </div>
                 ))
               })()}
+            </div>
             </div>
           )}
 
