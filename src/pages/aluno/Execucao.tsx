@@ -108,6 +108,7 @@ export default function Execucao() {
   const [workoutName,         setWorkoutName]         = useState(state?.workoutName ?? '')
   const [resumed,             setResumed]             = useState(false)
   const [lastWeights,         setLastWeights]         = useState<Record<string, number>>({})
+  const [lastReps,            setLastReps]            = useState<Record<string, number>>({})
   const [allCompleted,        setAllCompleted]        = useState<CompletedSet[]>([])
   const [workoutDurationSec,  setWorkoutDurationSec]  = useState(0)
 
@@ -194,15 +195,18 @@ export default function Execucao() {
       const names = mapped.map(e => e.name)
       const { data: logs } = await supabase
         .from('exercise_logs')
-        .select('exercise_name, weight_kg')
+        .select('exercise_name, weight_kg, reps')
         .eq('student_id', studentIdRef.current)
         .in('exercise_name', names)
         .order('logged_at', { ascending: false })
       const lw: Record<string, number> = {}
+      const lr: Record<string, number> = {}
       for (const log of (logs ?? []) as any[]) {
         if (!(log.exercise_name in lw)) lw[log.exercise_name] = Number(log.weight_kg)
+        if (!(log.exercise_name in lr) && log.reps != null) lr[log.exercise_name] = Number(log.reps)
       }
       setLastWeights(lw)
+      setLastReps(lr)
 
       const saved = loadSaved(workoutId, mapped.length)
       if (saved) {
@@ -247,6 +251,7 @@ export default function Execucao() {
       reps:          completedReps,
     })
     setLastWeights(prev => ({ ...prev, [exerciseName]: completedWeight }))
+    setLastReps(prev => ({ ...prev, [exerciseName]: completedReps }))
   }
 
   function handleSerieConc() {
@@ -691,6 +696,7 @@ export default function Execucao() {
   })()
 
   const prevWeight   = lastWeights[ex.name]
+  const prevReps     = lastReps[ex.name]
   const supersetPartner = isMidSuperset && supersetAIdx !== null
     ? exercises[supersetAIdx]
     : (!isMidSuperset && ex.superset_group != null && exercises[exIdx + 1]?.superset_group === ex.superset_group)
@@ -748,9 +754,9 @@ export default function Execucao() {
           <span style={{ background: 'rgba(232,84,42,.2)', borderRadius: 20, padding: '5px 12px', font: `600 11px ${FF}`, color: '#E8542A' }}>
             {ex.sets} séries × {ex.defaultReps} reps
           </span>
-          {prevWeight !== undefined && (
+          {(prevWeight !== undefined || prevReps !== undefined) && (
             <span style={{ background: 'rgba(255,255,255,.08)', borderRadius: 20, padding: '5px 12px', font: `600 11px ${FF}`, color: '#8B97AD' }}>
-              Última: {fmtWeight(prevWeight)} kg
+              Última:{prevReps !== undefined ? ` ${prevReps} reps` : ''}{prevWeight !== undefined && prevReps !== undefined ? ' ·' : ''}{prevWeight !== undefined ? ` ${fmtWeight(prevWeight)} kg` : ''}
             </span>
           )}
         </div>
