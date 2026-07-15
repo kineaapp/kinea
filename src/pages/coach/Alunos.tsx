@@ -468,6 +468,7 @@ export default function Alunos() {
           <SortHeader label="Pagamento"   sortAsc="pay"        sortDesc="pay"        current={sort} onSort={setSort} style={{ width: 104 }} />
           <SortHeader label="Engajamento" sortAsc="engagement" sortDesc="engagement" current={sort} onSort={setSort} style={{ width: 120 }} className="k-col-last" />
           <div className="k-col-next" style={{ width: 96, ...colLabel }}>Avaliação</div>
+          <div className="k-col-app" style={{ width: 96, ...colLabel }}>Liberado app</div>
           <div style={{ width: 20 }} />
         </div>
 
@@ -516,6 +517,11 @@ export default function Alunos() {
                     <span style={{ font: `400 12px ${FF}`, color: '#9a948a', whiteSpace: 'nowrap' }}>{sem.label}</span>
                   </div>
                   <div className="k-col-next" style={{ width: 96, font: `500 12.5px ${FF}`, color: '#7c7869' }}>{s.next}</div>
+                  <div className="k-col-app" style={{ width: 96 }}>
+                    <span style={{ font: `600 11px ${FF}`, color: s.studentUuid ? '#1B7a4a' : '#9a948a', background: s.studentUuid ? '#e7f3ea' : '#f1ece0', borderRadius: 20, padding: '4px 11px', whiteSpace: 'nowrap' }}>
+                      {s.studentUuid ? 'Sim' : 'Não'}
+                    </span>
+                  </div>
                   <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#c5bfb0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><path d="M9 18l6-6-6-6"/></svg>
                 </div>
               )

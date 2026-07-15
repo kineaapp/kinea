@@ -67,25 +67,37 @@ interface Props {
   studentId:   number
   studentName: string
   studentUuid: string
+  existing?:   SavedAssessmentRow
   onClose:     () => void
   onSaved:     (row: SavedAssessmentRow) => void
 }
 
-export function ProfileAssessmentModal({ studentId, studentName, studentUuid, onClose, onSaved }: Props) {
-  const [date,      setDate]      = useState(() => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}-${String(n.getDate()).padStart(2,'0')}` })
-  const [weight,    setWeight]    = useState('')
+export function ProfileAssessmentModal({ studentId, studentName, studentUuid, existing, onClose, onSaved }: Props) {
+  const [date,      setDate]      = useState(() => existing ? existing.assessed_at.split('T')[0] : (() => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}-${String(n.getDate()).padStart(2,'0')}` })())
+  const [weight,    setWeight]    = useState(existing?.weight_kg?.toFixed(1).replace('.', ',') ?? '')
   const [sex,       setSex]       = useState<'M' | 'F'>('F')
   const [age,       setAge]       = useState('')
   const [ageFromDb, setAgeFromDb] = useState(false)
   const [dobras,    setDobras]    = useState<Record<SFKey, string>>({ d1:'',d2:'',d3:'',d4:'',d5:'',d6:'',d7:'' })
-  const [circ,      setCirc]      = useState<Record<string, string>>({ chest_cm:'',waist_cm:'',hip_cm:'',arm_cm:'',thigh_cm:'' })
-  const [notes,     setNotes]     = useState('')
-  const [photos,    setPhotos]    = useState<Record<PhotoKey, { file: File | null; preview: string | null }>>({
-    frente:  { file: null, preview: null },
-    ladoEsq: { file: null, preview: null },
-    ladoDir: { file: null, preview: null },
-    costas:  { file: null, preview: null },
+  const [circ,      setCirc]      = useState<Record<string, string>>({
+    chest_cm:  existing?.chest_cm?.toString()  ?? '',
+    waist_cm:  existing?.waist_cm?.toString()  ?? '',
+    hip_cm:    existing?.hip_cm?.toString()    ?? '',
+    arm_cm:    existing?.arm_cm?.toString()    ?? '',
+    thigh_cm:  existing?.thigh_cm?.toString()  ?? '',
   })
+  const [notes,     setNotes]     = useState(existing?.notes ?? '')
+  const [photos,    setPhotos]    = useState<Record<PhotoKey, { file: File | null; preview: string | null; existingUrl: string | null }>>(() => existing ? ({
+    frente:  { file: null, preview: existing.photo_frente_url,   existingUrl: existing.photo_frente_url   },
+    ladoEsq: { file: null, preview: existing.photo_lado_esq_url, existingUrl: existing.photo_lado_esq_url },
+    ladoDir: { file: null, preview: existing.photo_lado_dir_url, existingUrl: existing.photo_lado_dir_url },
+    costas:  { file: null, preview: existing.photo_costas_url,   existingUrl: existing.photo_costas_url   },
+  }) : ({
+    frente:  { file: null, preview: null, existingUrl: null },
+    ladoEsq: { file: null, preview: null, existingUrl: null },
+    ladoDir: { file: null, preview: null, existingUrl: null },
+    costas:  { file: null, preview: null, existingUrl: null },
+  }))
   const [saving,    setSaving]    = useState(false)
   const [err,       setErr]       = useState('')
   const photoInputRef  = useRef<HTMLInputElement>(null)
@@ -138,11 +150,50 @@ export function ProfileAssessmentModal({ studentId, studentName, studentUuid, on
     if (!weight.trim()) { setErr('Informe o peso.'); return }
     if (!date) { setErr('Informe a data da avaliação.'); return }
     setSaving(true)
+    const effectiveBf = bfCalc !== null ? Math.round(bfCalc * 10) / 10 : (existing?.body_fat_pct ?? null)
+
+    if (existing) {
+      const updates: Record<string, unknown> = {
+        assessed_at:  date,
+        weight_kg:    weightN || null,
+        body_fat_pct: effectiveBf,
+        notes:        notes.trim() || null,
+      }
+      MEASURES.forEach(m => {
+        const v = parseFloat(circ[m.key].replace(',', '.'))
+        updates[m.key] = v > 0 ? v : null
+      })
+      const { data, error } = await supabase.from('assessments').update(updates).eq('id', existing.id).select().single()
+      if (error) { setSaving(false); setErr('Erro ao salvar. Tente novamente.'); return }
+      let saved = { ...(data as SavedAssessmentRow) }
+      for (const slot of PHOTO_SLOTS) {
+        const p = photos[slot.key]
+        const colName = KEY_TO_COL[slot.key]
+        if (p.file) {
+          const ext  = p.file.name.split('.').pop()?.toLowerCase() ?? 'jpg'
+          const path = `${studentId}/${existing.id}/${slot.key}.${ext}`
+          const { error: upErr } = await supabase.storage.from('assessment-photos').upload(path, p.file, { upsert: true })
+          if (!upErr) {
+            const { data: pd } = supabase.storage.from('assessment-photos').getPublicUrl(path)
+            await supabase.from('assessments').update({ [colName]: pd.publicUrl }).eq('id', existing.id)
+            saved = { ...saved, [colName]: pd.publicUrl }
+          }
+        } else if (p.preview === null && p.existingUrl !== null) {
+          await supabase.from('assessments').update({ [colName]: null }).eq('id', existing.id)
+          saved = { ...saved, [colName]: null }
+        }
+      }
+      setSaving(false)
+      onSaved(saved)
+      onClose()
+      return
+    }
+
     const insert: Record<string, unknown> = {
       student_id:    studentId,
       assessed_at:   date,
       weight_kg:     weightN || null,
-      body_fat_pct:  bfCalc !== null ? Math.round(bfCalc * 10) / 10 : null,
+      body_fat_pct:  effectiveBf,
     }
     MEASURES.forEach(m => {
       const v = parseFloat(circ[m.key].replace(',', '.'))
@@ -188,7 +239,7 @@ export function ProfileAssessmentModal({ studentId, studentName, studentUuid, on
         <div style={{ padding: '24px 26px 0', flexShrink: 0 }}>
           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 20 }}>
             <div>
-              <h2 style={{ font: `800 20px ${FF}`, color: '#1B2A4A', margin: 0, letterSpacing: '-.4px' }}>Nova avaliação</h2>
+              <h2 style={{ font: `800 20px ${FF}`, color: '#1B2A4A', margin: 0, letterSpacing: '-.4px' }}>{existing ? 'Editar avaliação' : 'Nova avaliação'}</h2>
               <p style={{ font: `400 12.5px ${FF}`, color: '#9a948a', margin: '3px 0 0' }}>
                 {studentName} · Peso obrigatório · dobras e medidas opcionais
               </p>
@@ -302,7 +353,11 @@ export function ProfileAssessmentModal({ studentId, studentName, studentUuid, on
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#b06a12" strokeWidth="2" strokeLinecap="round" style={{ flexShrink: 0 }}>
                 <circle cx="12" cy="12" r="9"/><path d="M12 8v4"/><circle cx="12" cy="16.5" r=".8" fill="#b06a12"/>
               </svg>
-              <span style={{ font: `500 12px ${FF}`, color: '#7c7869' }}>Preencha as 7 dobras e a idade para calcular o % de gordura (opcional).</span>
+              <span style={{ font: `500 12px ${FF}`, color: '#7c7869' }}>
+                {existing?.body_fat_pct != null
+                  ? `% Gordura atual: ${existing.body_fat_pct.toFixed(1)}% · preencha as dobras para recalcular.`
+                  : 'Preencha as 7 dobras e a idade para calcular o % de gordura (opcional).'}
+              </span>
             </div>
           )}
 
@@ -324,7 +379,7 @@ export function ProfileAssessmentModal({ studentId, studentName, studentUuid, on
                 const key = currentSlotRef.current
                 if (!f || !key) return
                 const reader = new FileReader()
-                reader.onload = ev => setPhotos(prev => ({ ...prev, [key]: { file: f, preview: ev.target?.result as string } }))
+                reader.onload = ev => setPhotos(prev => ({ ...prev, [key]: { ...prev[key], file: f, preview: ev.target?.result as string } }))
                 reader.readAsDataURL(f)
                 if (photoInputRef.current) photoInputRef.current.value = ''
               }}
@@ -349,7 +404,7 @@ export function ProfileAssessmentModal({ studentId, studentName, studentUuid, on
                           <img src={p.preview} alt={slot.label} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
                           <button
                             type="button"
-                            onClick={ev => { ev.stopPropagation(); setPhotos(prev => ({ ...prev, [slot.key]: { file: null, preview: null } })) }}
+                            onClick={ev => { ev.stopPropagation(); setPhotos(prev => ({ ...prev, [slot.key]: { ...prev[slot.key], file: null, preview: null } })) }}
                             style={{ position: 'absolute', top: 4, right: 4, width: 22, height: 22, borderRadius: '50%', border: 'none', background: 'rgba(0,0,0,.55)', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}
                           >
                             <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
@@ -385,7 +440,7 @@ export function ProfileAssessmentModal({ studentId, studentName, studentUuid, on
             style={{ width: '100%', height: 48, border: 'none', background: saving ? '#E8542Acc' : '#E8542A', color: '#fff', borderRadius: 10, font: `700 14.5px ${FF}`, cursor: saving ? 'default' : 'pointer', boxShadow: saving ? 'none' : '0 2px 0 #c4421e', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
             {saving
               ? <><span style={{ width: 15, height: 15, border: '2px solid rgba(255,255,255,.4)', borderTopColor: '#fff', borderRadius: '50%', display: 'inline-block', animation: 'kspin .7s linear infinite' }} /> Salvando...</>
-              : 'Salvar avaliação'
+              : (existing ? 'Salvar alterações' : 'Salvar avaliação')
             }
           </button>
         </div>

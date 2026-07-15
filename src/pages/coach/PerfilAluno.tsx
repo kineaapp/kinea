@@ -616,12 +616,14 @@ function AssessmentDetailDrawer({
   uploadingId,
   onClose,
   onPhotoUpload,
+  onEdit,
 }: {
   assessment:     AssessmentRow
   prevAssessment: AssessmentRow | null
   uploadingId:    number | null
   onClose:        () => void
   onPhotoUpload:  (assId: number, col: string, file: File) => void
+  onEdit:         (a: AssessmentRow) => void
 }) {
   const photoRef   = useRef<HTMLInputElement>(null)
   const pendingRef = useRef<string | null>(null)
@@ -770,9 +772,13 @@ function AssessmentDetailDrawer({
         </div>
 
         {/* Footer */}
-        <div style={{ flexShrink: 0, padding: '15px 22px', background: '#fff', borderTop: '1px solid #ece7d9' }}>
-          <button onClick={onClose} style={{ width: '100%', height: 46, border: '1.5px solid #d9d3c4', background: '#fff', color: '#1B2A4A', borderRadius: 10, font: `700 13.5px ${FF}`, cursor: 'pointer' }}>
+        <div style={{ flexShrink: 0, padding: '15px 22px', background: '#fff', borderTop: '1px solid #ece7d9', display: 'flex', gap: 10 }}>
+          <button onClick={onClose} style={{ flex: 1, height: 46, border: '1.5px solid #d9d3c4', background: '#fff', color: '#1B2A4A', borderRadius: 10, font: `700 13.5px ${FF}`, cursor: 'pointer' }}>
             Fechar
+          </button>
+          <button onClick={() => onEdit(assessment)} style={{ flex: 1.5, height: 46, border: 'none', background: '#E8542A', color: '#fff', borderRadius: 10, font: `700 13.5px ${FF}`, cursor: 'pointer', boxShadow: '0 2px 0 #c4421e', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7 }}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+            Editar avaliação
           </button>
         </div>
       </div>
@@ -812,6 +818,7 @@ export default function PerfilAluno() {
   const [showAnamneseForm,  setShowAnamneseForm]  = useState(false)
   const [showAssignModal,   setShowAssignModal]   = useState(false)
   const [openAssessId,      setOpenAssessId]      = useState<number | null>(null)
+  const [editingAssessment, setEditingAssessment] = useState<AssessmentRow | null>(null)
 
   useEffect(() => {
     if (students.length === 0 && user?.id) fetchStudents(user.id)
@@ -2405,6 +2412,7 @@ export default function PerfilAluno() {
           uploadingId={uploadingAssId}
           onClose={() => setOpenAssessId(null)}
           onPhotoUpload={handleDrawerPhotoUpload}
+          onEdit={a => { setOpenAssessId(null); setEditingAssessment(a) }}
         />
       )}
 
@@ -2433,6 +2441,21 @@ export default function PerfilAluno() {
             } else {
               showToast('Avaliação salva com sucesso.')
             }
+          }}
+        />
+      )}
+
+      {editingAssessment && student && (
+        <ProfileAssessmentModal
+          studentId={studentId}
+          studentName={student.name}
+          studentUuid={student.studentUuid}
+          existing={editingAssessment as SavedAssessmentRow}
+          onClose={() => setEditingAssessment(null)}
+          onSaved={(row: SavedAssessmentRow) => {
+            setAssessments(prev => prev.map(a => a.id === row.id ? row as AssessmentRow : a))
+            setEditingAssessment(null)
+            showToast('Avaliação atualizada.')
           }}
         />
       )}
