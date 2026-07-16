@@ -1937,7 +1937,7 @@ export default function PerfilAluno() {
                                   const prev   = i > 0 ? ex.days[i - 1] : null
                                   const wDelta = prev != null ? d.weight - prev.weight : null
                                   const rDelta = prev != null ? d.reps   - prev.reps   : null
-                                  const [dy, dm, dd] = d.date.split('-')
+                                  const [, dm, dd] = d.date.split('-')
                                   const dateLabel = `${dd}/${dm}`
                                   const isLast = i === ex.days.length - 1
                                   return (
