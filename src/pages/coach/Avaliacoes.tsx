@@ -85,6 +85,30 @@ function Toast({ msg }: { msg: string }) {
   )
 }
 
+// ── Photo download helpers ─────────────────────────────────────────────────────
+async function downloadPhoto(url: string, filename: string) {
+  try {
+    const res  = await fetch(url)
+    const blob = await res.blob()
+    const ext  = blob.type.split('/')[1]?.replace('jpeg','jpg') ?? 'jpg'
+    const a    = document.createElement('a')
+    a.href     = URL.createObjectURL(blob)
+    a.download = `${filename}.${ext}`
+    a.click()
+    setTimeout(() => URL.revokeObjectURL(a.href), 10000)
+  } catch {
+    window.open(url, '_blank')
+  }
+}
+
+async function downloadAllPhotos(slots: { label: string; url: string | null }[], studentName: string) {
+  for (const { label, url } of slots) {
+    if (!url) continue
+    await downloadPhoto(url, `${studentName.replace(/\s+/g,'-')}_${label}`)
+    await new Promise(r => setTimeout(r, 300))
+  }
+}
+
 // ── Student Drawer ─────────────────────────────────────────────────────────────
 function StudentDrawer({ student, onClose, onRemind, onRegister }: {
   student: Student
@@ -173,7 +197,23 @@ function StudentDrawer({ student, onClose, onRemind, onRegister }: {
 
           {/* Photos */}
           <div style={{ background: '#fff', border: '1px solid #ece7d9', borderRadius: 14, padding: '16px 18px' }}>
-            <div style={{ font: `600 11px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#9a948a', marginBottom: 13 }}>Fotos corporais</div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 13 }}>
+              <div style={{ font: `600 11px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#9a948a' }}>Fotos corporais</div>
+              {[last.photos?.frente, last.photos?.costas, last.photos?.ladoE, last.photos?.ladoD].some(Boolean) && (
+                <button
+                  onClick={() => downloadAllPhotos([
+                    { label: 'Frente', url: last.photos?.frente ?? null },
+                    { label: 'Costas', url: last.photos?.costas ?? null },
+                    { label: 'LadoE',  url: last.photos?.ladoE  ?? null },
+                    { label: 'LadoD',  url: last.photos?.ladoD  ?? null },
+                  ], student.name)}
+                  style={{ display: 'flex', alignItems: 'center', gap: 5, border: '1.5px solid #d9d3c4', background: '#fff', color: '#1B2A4A', borderRadius: 8, padding: '5px 10px', font: `600 11px ${FF}`, cursor: 'pointer' }}
+                >
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                  Baixar todas
+                </button>
+              )}
+            </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 9 }}>
               {([
                 { label: 'Frente', url: last.photos?.frente ?? null },
@@ -183,7 +223,16 @@ function StudentDrawer({ student, onClose, onRemind, onRegister }: {
               ] as { label: string; url: string | null }[]).map(({ label, url }) => (
                 <div key={label} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
                   {url ? (
-                    <img src={url} alt={label} style={{ width: '100%', aspectRatio: '3/4', objectFit: 'cover', borderRadius: 9, border: '1px solid #e0d9c8' }} />
+                    <div style={{ position: 'relative', width: '100%' }}>
+                      <img src={url} alt={label} style={{ width: '100%', aspectRatio: '3/4', objectFit: 'cover', borderRadius: 9, border: '1px solid #e0d9c8', display: 'block' }} />
+                      <button
+                        onClick={() => downloadPhoto(url, `${student.name.replace(/\s+/g,'-')}_${label}`)}
+                        title={`Baixar ${label}`}
+                        style={{ position: 'absolute', bottom: 5, right: 5, width: 26, height: 26, borderRadius: 7, border: 'none', background: 'rgba(27,42,74,.72)', backdropFilter: 'blur(3px)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+                      >
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                      </button>
+                    </div>
                   ) : (
                     <div style={{ width: '100%', aspectRatio: '3/4', borderRadius: 9, border: '1px solid #e0d9c8', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundImage: 'repeating-linear-gradient(45deg,#e7e0ce 0,#e7e0ce 9px,#ede7d7 9px,#ede7d7 18px)' }}>
                       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#b6ae9c" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
