@@ -9,6 +9,7 @@ const FF = '"Libre Franklin",sans-serif'
 
 // ── Types ────────────────────────────────────────────────────
 type Goal = 'Hipertrofia' | 'Emagrecimento' | 'Força' | 'Condicionamento' | 'Mobilidade'
+interface SlotConfig { name: string; goal: Goal }
 
 interface WorkoutOption {
   id: number; name: string; goal: string
@@ -604,58 +605,172 @@ function ProgramBuilderDrawer({ program, workouts, library, onClose, onUpdate, o
   )
 }
 
-// ── New Program Modal ──────────────────────────────────────────
+// ── New Program Modal (2-step wizard) ─────────────────────────
+const GOAL_SHORT: Record<Goal, string> = {
+  Hipertrofia: 'Hip', Emagrecimento: 'Ema', Força: 'For', Condicionamento: 'Con', Mobilidade: 'Mob',
+}
+
 function NewProgramModal({ onClose, onAdd }: {
   onClose: () => void
-  onAdd:   (name: string, daysPerWeek: number, isTemplate: boolean) => void
+  onAdd:   (name: string, daysPerWeek: number, isTemplate: boolean, slots: SlotConfig[]) => void
 }) {
+  const [step,       setStep]       = useState<1 | 2>(1)
   const [name,       setName]       = useState('')
   const [days,       setDays]       = useState(3)
   const [isTemplate, setIsTemplate] = useState(false)
+  const [slots,      setSlots]      = useState<SlotConfig[]>(() =>
+    Array.from({ length: 3 }, (_, i) => ({ name: `Treino ${BLOCK_LETTERS[i]}`, goal: 'Hipertrofia' as Goal }))
+  )
+  const [err, setErr] = useState('')
+
+  function handleDaysChange(d: number) {
+    setDays(d)
+    setSlots(prev => Array.from({ length: d }, (_, i) => prev[i] ?? { name: `Treino ${BLOCK_LETTERS[i]}`, goal: 'Hipertrofia' as Goal }))
+  }
+
+  function updateSlot(i: number, patch: Partial<SlotConfig>) {
+    setSlots(prev => prev.map((s, idx) => idx === i ? { ...s, ...patch } : s))
+  }
+
+  function goNext() {
+    if (!name.trim()) { setErr('Informe o nome do programa.'); return }
+    setErr('')
+    setStep(2)
+  }
+
+  const inp: React.CSSProperties = { width: '100%', height: 40, border: '1.5px solid #d9d3c4', borderRadius: 9, background: '#fff', padding: '0 12px', font: `400 13.5px ${FF}`, color: '#1B2A4A', outline: 'none', boxSizing: 'border-box' }
+  const focusOn  = (e: React.FocusEvent<HTMLInputElement>) => { e.currentTarget.style.borderColor = '#E8542A'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(232,84,42,.13)' }
+  const focusOff = (e: React.FocusEvent<HTMLInputElement>) => { e.currentTarget.style.borderColor = '#d9d3c4'; e.currentTarget.style.boxShadow = 'none' }
 
   return (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(20,25,40,.5)', zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-      <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 440, background: '#fff', borderRadius: 16, padding: 26, boxShadow: '0 24px 60px rgba(0,0,0,.3)' }}>
-        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 20 }}>
-          <h2 style={{ font: `800 20px ${FF}`, color: '#1B2A4A', margin: 0, letterSpacing: '-.4px' }}>Novo programa</h2>
-          <button onClick={onClose} style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#9a948a', padding: 2 }}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
-          </button>
-        </div>
+      <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 480, background: '#fff', borderRadius: 16, boxShadow: '0 24px 60px rgba(0,0,0,.3)', display: 'flex', flexDirection: 'column', maxHeight: '92vh' }}>
 
-        <label style={{ display: 'block', font: `600 11px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#6b6657', marginBottom: 7 }}>Nome do programa</label>
-        <input type="text" placeholder="Ex: Hipertrofia 3×, Iniciante Full Body…" value={name}
-          onChange={e => setName(e.target.value)}
-          style={{ width: '100%', height: 46, border: '1.5px solid #d9d3c4', borderRadius: 10, background: '#fff', padding: '0 14px', font: `400 14px ${FF}`, color: '#1B2A4A', outline: 'none', marginBottom: 20, boxSizing: 'border-box' }}
-          onFocus={e => { e.currentTarget.style.borderColor = '#E8542A'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(232,84,42,.13)' }}
-          onBlur={e => { e.currentTarget.style.borderColor = '#d9d3c4'; e.currentTarget.style.boxShadow = 'none' }}
-        />
-
-        <label style={{ display: 'block', font: `600 11px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#6b6657', marginBottom: 10 }}>Treinos por semana</label>
-        <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
-          {[2, 3, 4, 5, 6].map(d => (
-            <button key={d} type="button" onClick={() => setDays(d)}
-              style={{ flex: 1, height: 44, border: `1.5px solid ${days === d ? '#E8542A' : '#d9d3c4'}`, background: days === d ? '#E8542A' : '#fff', color: days === d ? '#fff' : '#7c7869', font: `700 15px ${FF}`, borderRadius: 10, cursor: 'pointer' }}>
-              {d}×
+        {/* Header */}
+        <div style={{ padding: '24px 26px 0', flexShrink: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 4 }}>
+            <div>
+              <h2 style={{ font: `800 20px ${FF}`, color: '#1B2A4A', margin: 0, letterSpacing: '-.4px' }}>
+                {step === 1 ? 'Novo programa' : 'Configurar treinos'}
+              </h2>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 5 }}>
+                {([1, 2] as const).map(s => (
+                  <div key={s} style={{ height: 4, width: s === step ? 22 : 12, borderRadius: 2, background: s <= step ? '#E8542A' : '#e0d9c8', transition: 'all .2s' }} />
+                ))}
+                <span style={{ font: `500 11px ${FF}`, color: '#b0a99c', marginLeft: 2 }}>Passo {step} de 2</span>
+              </div>
+            </div>
+            <button onClick={onClose} style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#9a948a', padding: 2, marginTop: 2 }}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
             </button>
-          ))}
+          </div>
         </div>
 
-        <button type="button" onClick={() => setIsTemplate(v => !v)}
-          style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 12, border: `1.5px solid ${isTemplate ? '#5a4ea0' : '#d9d3c4'}`, background: isTemplate ? '#ece9f6' : '#fff', borderRadius: 10, padding: '12px 14px', cursor: 'pointer', marginBottom: 20 }}>
-          <div style={{ width: 20, height: 20, borderRadius: 6, border: `2px solid ${isTemplate ? '#5a4ea0' : '#d2cbbb'}`, background: isTemplate ? '#5a4ea0' : '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3.5" strokeLinecap="round" style={{ opacity: isTemplate ? 1 : 0 }}><path d="M20 6L9 17l-5-5"/></svg>
-          </div>
-          <div style={{ textAlign: 'left' }}>
-            <div style={{ font: `600 13px ${FF}`, color: '#1B2A4A' }}>Salvar como template</div>
-            <div style={{ font: `400 11.5px ${FF}`, color: '#9a948a' }}>Reutilizável para múltiplos alunos</div>
-          </div>
-        </button>
+        {/* Step 1 */}
+        {step === 1 && (
+          <div style={{ padding: '20px 26px 26px', overflowY: 'auto' }}>
+            <label style={{ display: 'block', font: `600 11px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#6b6657', marginBottom: 7 }}>Nome do programa</label>
+            <input autoFocus type="text" placeholder="Ex: Hipertrofia 3×, Iniciante Full Body…" value={name}
+              onChange={e => { setName(e.target.value); setErr('') }}
+              style={{ ...inp, height: 46, font: `400 14px ${FF}`, border: `1.5px solid ${err ? '#c4421e' : '#d9d3c4'}`, marginBottom: err ? 6 : 20 }}
+              onFocus={focusOn} onBlur={focusOff}
+            />
+            {err && <div style={{ font: `500 12px ${FF}`, color: '#c4421e', marginBottom: 14 }}>{err}</div>}
 
-        <button type="button" onClick={() => { if (name.trim()) onAdd(name.trim(), days, isTemplate) }}
-          style={{ width: '100%', height: 48, border: 'none', background: '#E8542A', color: '#fff', borderRadius: 10, font: `700 14.5px ${FF}`, cursor: 'pointer', boxShadow: '0 2px 0 #c4421e' }}>
-          Criar e montar treinos →
-        </button>
+            <label style={{ display: 'block', font: `600 11px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#6b6657', marginBottom: 10 }}>Treinos por semana</label>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
+              {[2, 3, 4, 5, 6].map(d => (
+                <button key={d} type="button" onClick={() => handleDaysChange(d)}
+                  style={{ flex: 1, height: 44, border: `1.5px solid ${days === d ? '#E8542A' : '#d9d3c4'}`, background: days === d ? '#E8542A' : '#fff', color: days === d ? '#fff' : '#7c7869', font: `700 15px ${FF}`, borderRadius: 10, cursor: 'pointer' }}>
+                  {d}×
+                </button>
+              ))}
+            </div>
+
+            <button type="button" onClick={() => setIsTemplate(v => !v)}
+              style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 12, border: `1.5px solid ${isTemplate ? '#5a4ea0' : '#d9d3c4'}`, background: isTemplate ? '#ece9f6' : '#fff', borderRadius: 10, padding: '12px 14px', cursor: 'pointer', marginBottom: 24 }}>
+              <div style={{ width: 20, height: 20, borderRadius: 6, border: `2px solid ${isTemplate ? '#5a4ea0' : '#d2cbbb'}`, background: isTemplate ? '#5a4ea0' : '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3.5" strokeLinecap="round" style={{ opacity: isTemplate ? 1 : 0 }}><path d="M20 6L9 17l-5-5"/></svg>
+              </div>
+              <div style={{ textAlign: 'left' }}>
+                <div style={{ font: `600 13px ${FF}`, color: '#1B2A4A' }}>Salvar como template</div>
+                <div style={{ font: `400 11.5px ${FF}`, color: '#9a948a' }}>Reutilizável para múltiplos alunos</div>
+              </div>
+            </button>
+
+            <button type="button" onClick={goNext}
+              style={{ width: '100%', height: 48, border: 'none', background: '#E8542A', color: '#fff', borderRadius: 10, font: `700 14.5px ${FF}`, cursor: 'pointer', boxShadow: '0 2px 0 #c4421e', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+              Configurar treinos
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
+            </button>
+          </div>
+        )}
+
+        {/* Step 2 */}
+        {step === 2 && (
+          <>
+            <div style={{ padding: '8px 26px 0', flexShrink: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', background: '#f4efe3', borderRadius: 10, marginTop: 14 }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#b06a12" strokeWidth="2" strokeLinecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M3 10h18"/></svg>
+                <span style={{ font: `600 12px ${FF}`, color: '#7c6030' }}>{name}</span>
+                <span style={{ font: `400 12px ${FF}`, color: '#b0a99c', marginLeft: 'auto' }}>{days}×/semana</span>
+              </div>
+              <div style={{ font: `500 12px ${FF}`, color: '#9a948a', marginTop: 12, marginBottom: 6 }}>
+                Nomeie cada treino e escolha o objetivo — você adiciona os exercícios depois.
+              </div>
+            </div>
+
+            <div style={{ flex: 1, overflowY: 'auto', padding: '8px 26px 4px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {slots.map((slot, i) => {
+                const gs = GOAL_STYLE[slot.goal]
+                return (
+                  <div key={i} style={{ background: '#faf7f2', border: '1px solid #e8e2d8', borderRadius: 12, padding: '12px 14px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+                      <div style={{ width: 30, height: 30, borderRadius: 8, background: '#E8542A', display: 'flex', alignItems: 'center', justifyContent: 'center', font: `900 13px ${FF}`, color: '#fff', flexShrink: 0 }}>
+                        {BLOCK_LETTERS[i]}
+                      </div>
+                      <input
+                        type="text"
+                        placeholder={`Ex: Peito e Tríceps`}
+                        value={slot.name}
+                        onChange={e => updateSlot(i, { name: e.target.value })}
+                        style={inp}
+                        onFocus={focusOn}
+                        onBlur={focusOff}
+                      />
+                    </div>
+                    <div style={{ display: 'flex', gap: 5, paddingLeft: 40, flexWrap: 'wrap' }}>
+                      {GOALS.map(g => {
+                        const s = GOAL_STYLE[g]
+                        const active = slot.goal === g
+                        return (
+                          <button key={g} type="button" onClick={() => updateSlot(i, { goal: g })}
+                            style={{ border: `1.5px solid ${active ? s.color : '#ddd7cb'}`, background: active ? s.color : '#fff', color: active ? '#fff' : '#7c7869', font: `700 10.5px ${FF}`, borderRadius: 16, padding: '4px 9px', cursor: 'pointer' }}>
+                            {GOAL_SHORT[g]}
+                          </button>
+                        )
+                      })}
+                      <span style={{ font: `400 11px ${FF}`, color: gs.color, background: gs.bg, borderRadius: 16, padding: '4px 9px', marginLeft: 4 }}>{slot.goal}</span>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+
+            <div style={{ padding: '14px 26px 24px', flexShrink: 0, borderTop: '1px solid #f0ebe0' }}>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button type="button" onClick={() => setStep(1)}
+                  style={{ height: 48, padding: '0 18px', border: '1.5px solid #d9d3c4', background: '#fff', color: '#1B2A4A', borderRadius: 10, font: `600 13.5px ${FF}`, cursor: 'pointer' }}>
+                  ← Voltar
+                </button>
+                <button type="button" onClick={() => onAdd(name.trim(), days, isTemplate, slots)}
+                  style={{ flex: 1, height: 48, border: 'none', background: '#E8542A', color: '#fff', borderRadius: 10, font: `700 14px ${FF}`, cursor: 'pointer', boxShadow: '0 2px 0 #c4421e' }}>
+                  Criar programa com {days} treino{days !== 1 ? 's' : ''}
+                </button>
+              </div>
+            </div>
+          </>
+        )}
       </div>
     </div>
   )
@@ -1316,7 +1431,7 @@ export default function Treinos() {
     })))
   }
 
-  async function handleCreateProgram(name: string, daysPerWeek: number, isTemplate: boolean) {
+  async function handleCreateProgram(name: string, daysPerWeek: number, isTemplate: boolean, slotConfigs: SlotConfig[]) {
     if (!user?.id) return
     const { data: prog, error } = await supabase
       .from('programs')
@@ -1324,15 +1439,35 @@ export default function Treinos() {
       .select()
       .single()
     if (error || !prog) { console.error('[createProgram]', error); showToast('Erro: ' + (error?.message ?? 'resposta vazia')); return }
-    // Create slots
-    const slotRows = Array.from({ length: daysPerWeek }, (_, i) => ({
-      program_id: (prog as any).id, position: i + 1, workout_id: null, day_of_week: null,
+
+    // Create all workouts at once
+    const workoutRows = slotConfigs.map((sc, i) => ({
+      coach_id: user.id,
+      name: sc.name.trim() || `Treino ${BLOCK_LETTERS[i]}`,
+      goal: sc.goal,
+      muscle_group: `${sc.goal} · Treino ${BLOCK_LETTERS[i]}`,
+      duration_min: 45,
+    }))
+    const { data: workoutsData, error: wErr } = await supabase.from('workouts').insert(workoutRows).select()
+    if (wErr || !workoutsData) { showToast('Erro ao criar treinos.'); return }
+
+    // Create slots pointing to each workout
+    const slotRows = (workoutsData as any[]).map((w, i) => ({
+      program_id: (prog as any).id, position: i + 1, workout_id: w.id, day_of_week: null,
     }))
     await supabase.from('program_slots').insert(slotRows)
+
+    // Add new workouts to biblioteca state
+    const newTreinos: Treino[] = (workoutsData as any[]).map((w, i) => ({
+      id: w.id, name: w.name, split: w.muscle_group,
+      goal: slotConfigs[i].goal, duration: '45 min', assigned: 0, ex: [],
+    }))
+    setTreinos(prev => [...newTreinos, ...prev])
+
     setNewProgramOpen(false)
     await fetchPrograms()
     setOpenProgramId((prog as any).id)
-    showToast('Programa criado. Adicione os treinos.')
+    showToast(`Programa criado com ${daysPerWeek} treino${daysPerWeek !== 1 ? 's' : ''}.`)
   }
 
   async function handleApplyProgram(studentIds: number[]) {
@@ -1616,7 +1751,7 @@ export default function Treinos() {
         />
       )}
 
-      {newProgramOpen && <NewProgramModal onClose={() => setNewProgramOpen(false)} onAdd={handleCreateProgram} />}
+      {newProgramOpen && <NewProgramModal onClose={() => setNewProgramOpen(false)} onAdd={(n, d, t, s) => void handleCreateProgram(n, d, t, s)} />}
       {newOpen && (
         <NewTreinoModal
           onClose={() => setNewOpen(false)}
