@@ -873,6 +873,9 @@ export default function PerfilAluno() {
   const [resetingPw,      setResetingPw]      = useState(false)
   const [newStudentPw,    setNewStudentPw]    = useState<string | null>(null)
   const [grantingAccess,  setGrantingAccess]  = useState(false)
+  const [pdfLoading,      setPdfLoading]      = useState(false)
+  const [filterFrom,      setFilterFrom]      = useState('')
+  const [filterTo,        setFilterTo]        = useState('')
   const loaded = useRef(new Set<string>())
 
   const fetchAnamnese = useCallback(async () => {
@@ -1228,6 +1231,186 @@ export default function PerfilAluno() {
     loaded.current.delete('program')
     await fetchActiveProgram()
     showToast('Programa atribuído com sucesso.')
+  }
+
+  async function generateProgressPDF() {
+    if (!student || exerciseLogs.length === 0) return
+    setPdfLoading(true)
+    try {
+      const { jsPDF } = await import('jspdf')
+      const doc = new jsPDF({ unit: 'mm', format: 'a4' })
+      const W = 210, ML = 16, col = W - ML * 2
+
+      const da = (s: string) =>
+        s.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^\x00-\x7F]/g, '')
+
+      let y = ML
+
+      // Header band
+      doc.setFillColor(27, 42, 74)
+      doc.rect(0, 0, W, 26, 'F')
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(14)
+      doc.setTextColor(232, 84, 42)
+      doc.text('KINEA', ML, y + 8)
+      doc.setFontSize(9)
+      doc.setTextColor(250, 238, 218)
+      doc.text('Relatorio de Progressao de Cargas', ML + 23, y + 8)
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(8)
+      doc.setTextColor(139, 151, 173)
+      doc.text(new Date().toLocaleDateString('pt-BR'), W - ML, y + 8, { align: 'right' })
+
+      // Student info
+      y = 34
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(13)
+      doc.setTextColor(27, 42, 74)
+      doc.text(da(student.name), ML, y)
+      y += 6
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(8.5)
+      doc.setTextColor(124, 120, 105)
+      const fmtIso = (iso: string) => { const [yr, mo, dy] = iso.split('-'); return `${dy}/${mo}/${yr}` }
+      const periodLabel = filterFrom || filterTo
+        ? [filterFrom ? `De ${fmtIso(filterFrom)}` : '', filterTo ? `ate ${fmtIso(filterTo)}` : ''].filter(Boolean).join(' ')
+        : 'Todo o periodo'
+      const logsFiltered = exerciseLogs.filter(log => {
+        const date = log.logged_at.split('T')[0]
+        if (filterFrom && date < filterFrom) return false
+        if (filterTo   && date > filterTo)   return false
+        return true
+      })
+      const infoLine = [
+        student.goal ? `Objetivo: ${da(student.goal)}` : '',
+        periodLabel,
+        `${logsFiltered.length} registros`,
+      ].filter(Boolean).join('   -   ')
+      doc.text(infoLine, ML, y)
+      y += 5
+      doc.setDrawColor(236, 231, 217)
+      doc.line(ML, y + 2, W - ML, y + 2)
+      y += 10
+
+      // Build best-set-per-day per exercise
+      type ExDay = { date: string; weight: number; reps: number }
+      const byEx = new Map<string, ExDay[]>()
+      for (const log of logsFiltered) {
+        const date = log.logged_at.split('T')[0]
+        if (!byEx.has(log.exercise_name)) byEx.set(log.exercise_name, [])
+        const days = byEx.get(log.exercise_name)!
+        const hit = days.find(d => d.date === date)
+        if (!hit) {
+          days.push({ date, weight: log.weight_kg, reps: log.reps })
+        } else if (log.weight_kg > hit.weight || (log.weight_kg === hit.weight && log.reps > hit.reps)) {
+          hit.weight = log.weight_kg; hit.reps = log.reps
+        }
+      }
+      const exData = Array.from(byEx.entries())
+        .map(([name, days]) => ({ name, days: days.sort((a, b) => a.date.localeCompare(b.date)) }))
+        .sort((a, b) => a.name.localeCompare(b.name, 'pt'))
+
+      // Column layout: Date | Load | Reps | Delta
+      const ROW = 7
+      const cW = [50, 33, 22, 39]
+      const cX: number[] = []
+      cW.forEach((w, i) => cX.push(i === 0 ? ML : cX[i - 1] + cW[i - 1]))
+
+      for (const ex of exData) {
+        if (y + 11 + ROW + ex.days.length * ROW + 12 > 283) { doc.addPage(); y = ML }
+
+        // Exercise title
+        doc.setFillColor(244, 239, 227)
+        doc.rect(ML, y - 1.5, col, 9, 'F')
+        doc.setFont('helvetica', 'bold')
+        doc.setFontSize(9.5)
+        doc.setTextColor(27, 42, 74)
+        doc.text(da(ex.name), ML + 3, y + 5)
+
+        const first = ex.days[0], last = ex.days[ex.days.length - 1]
+        const wGain = last.weight - first.weight
+        const rGain = last.reps   - first.reps
+        const gainParts: string[] = []
+        if (wGain !== 0) gainParts.push(`${wGain > 0 ? '+' : ''}${fmtKg(wGain)} kg`)
+        if (rGain !== 0) gainParts.push(`${rGain > 0 ? '+' : ''}${rGain} reps`)
+        if (gainParts.length) {
+          const pos = wGain > 0 || (wGain === 0 && rGain > 0)
+          doc.setTextColor(pos ? 27 : 196, pos ? 122 : 66, pos ? 74 : 30)
+          doc.setFontSize(8)
+          doc.text(gainParts.join(' | '), W - ML - 3, y + 5, { align: 'right' })
+        }
+        y += 10
+
+        // Table header
+        doc.setFillColor(27, 42, 74)
+        doc.rect(ML, y - 1, col, ROW + 0.5, 'F')
+        doc.setFont('helvetica', 'bold')
+        doc.setFontSize(7.5)
+        doc.setTextColor(250, 238, 218)
+        const headers = ['Data', 'Carga (kg)', 'Reps', 'Variacao']
+        headers.forEach((h, i) => doc.text(h, cX[i] + 2, y + 4.5))
+        y += ROW + 0.5
+
+        // Data rows
+        ex.days.forEach((d, i) => {
+          if (y + ROW > 283) { doc.addPage(); y = ML }
+          if (i % 2 === 0) {
+            doc.setFillColor(250, 247, 238)
+            doc.rect(ML, y - 1, col, ROW, 'F')
+          }
+          const prev = i > 0 ? ex.days[i - 1] : null
+          const wD = prev != null ? d.weight - prev.weight : null
+          const rD = prev != null ? d.reps   - prev.reps   : null
+          const [yr, mo, dy] = d.date.split('-')
+
+          doc.setFont('helvetica', 'normal')
+          doc.setFontSize(8)
+          doc.setTextColor(74, 71, 66)
+          doc.text(`${dy}/${mo}/${yr}`, cX[0] + 2, y + 4.5)
+          doc.text(d.weight > 0 ? `${fmtKg(d.weight)} kg` : '-', cX[1] + 2, y + 4.5)
+          doc.text(`${d.reps}`, cX[2] + 2, y + 4.5)
+
+          if (i > 0) {
+            let txt = '='
+            let r = 156, g = 148, b = 138
+            if (wD !== null && wD !== 0) {
+              txt = `${wD > 0 ? '(+)' : '(-)'} ${fmtKg(Math.abs(wD))} kg`
+              r = wD > 0 ? 27 : 196; g = wD > 0 ? 122 : 66; b = wD > 0 ? 74 : 30
+            } else if (rD !== null && rD !== 0) {
+              txt = `${rD > 0 ? '(+)' : '(-)'} ${Math.abs(rD)} rep`
+              r = rD > 0 ? 27 : 196; g = rD > 0 ? 122 : 66; b = rD > 0 ? 74 : 30
+            }
+            doc.setTextColor(r, g, b)
+            doc.setFont('helvetica', txt !== '=' ? 'bold' : 'normal')
+            doc.text(txt, cX[3] + 2, y + 4.5)
+          }
+          y += ROW
+        })
+
+        y += 12
+      }
+
+      // Footer on every page
+      const total = doc.getNumberOfPages()
+      for (let pg = 1; pg <= total; pg++) {
+        doc.setPage(pg)
+        doc.setDrawColor(236, 231, 217)
+        doc.line(ML, 288, W - ML, 288)
+        doc.setFont('helvetica', 'normal')
+        doc.setFontSize(7)
+        doc.setTextColor(156, 148, 138)
+        doc.text(
+          `Kinea - Progressao de Cargas - ${da(student.name)} - ${new Date().toLocaleDateString('pt-BR')}`,
+          ML, 293
+        )
+        doc.text(`${pg} / ${total}`, W - ML, 293, { align: 'right' })
+      }
+
+      const fname = `kinea-progressao-${da(student.name).split(' ')[0].toLowerCase()}-${new Date().toISOString().split('T')[0]}.pdf`
+      doc.save(fname)
+    } finally {
+      setPdfLoading(false)
+    }
   }
 
   const TABS: { key: Tab; label: string }[] = [
@@ -1821,9 +2004,15 @@ export default function PerfilAluno() {
               3: { label: 'Dor intensa',   color: '#c4421e' },
             }
             // ── Evolução por exercício ──────────────────────────────────────
+            const logsInRange = exerciseLogs.filter(log => {
+              const date = log.logged_at.split('T')[0]
+              if (filterFrom && date < filterFrom) return false
+              if (filterTo   && date > filterTo)   return false
+              return true
+            })
             type ExDay = { date: string; weight: number; reps: number }
             const byExercise = new Map<string, ExDay[]>()
-            for (const log of exerciseLogs) {
+            for (const log of logsInRange) {
               const date = log.logged_at.split('T')[0]
               if (!byExercise.has(log.exercise_name)) byExercise.set(log.exercise_name, [])
               const days = byExercise.get(log.exercise_name)!
@@ -1850,6 +2039,51 @@ export default function PerfilAluno() {
                       {!sessionsLoading && sessions.length > 0 && (
                         <p style={{ font: `400 13px ${FF}`, color: '#7c7869', margin: '3px 0 0' }}>{sessions.length} sessão{sessions.length !== 1 ? 'ões' : ''} registrada{sessions.length !== 1 ? 's' : ''}</p>
                       )}
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                      {/* Date range filter */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#faf7ee', border: '1.5px solid #e0d9c8', borderRadius: 8, padding: '0 10px', height: 36 }}>
+                        <span style={{ font: `500 11px ${FF}`, color: '#9a948a', whiteSpace: 'nowrap' }}>De</span>
+                        <input
+                          type="date"
+                          value={filterFrom}
+                          onChange={e => setFilterFrom(e.target.value)}
+                          max={filterTo || undefined}
+                          style={{ border: 'none', background: 'transparent', font: `500 12px ${FF}`, color: '#1B2A4A', outline: 'none', cursor: 'pointer', width: 120 }}
+                        />
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#faf7ee', border: '1.5px solid #e0d9c8', borderRadius: 8, padding: '0 10px', height: 36 }}>
+                        <span style={{ font: `500 11px ${FF}`, color: '#9a948a', whiteSpace: 'nowrap' }}>Até</span>
+                        <input
+                          type="date"
+                          value={filterTo}
+                          onChange={e => setFilterTo(e.target.value)}
+                          min={filterFrom || undefined}
+                          style={{ border: 'none', background: 'transparent', font: `500 12px ${FF}`, color: '#1B2A4A', outline: 'none', cursor: 'pointer', width: 120 }}
+                        />
+                      </div>
+                      {(filterFrom || filterTo) && (
+                        <button
+                          onClick={() => { setFilterFrom(''); setFilterTo('') }}
+                          title="Limpar filtro"
+                          style={{ height: 36, width: 36, border: '1.5px solid #e0d9c8', background: '#fff', borderRadius: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
+                        >
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#9a948a" strokeWidth="2.5" strokeLinecap="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
+                        </button>
+                      )}
+                      <button
+                        onClick={() => void generateProgressPDF()}
+                        disabled={pdfLoading || logsLoading || exerciseLogs.length === 0}
+                        title={exerciseLogs.length === 0 ? 'Nenhum histórico de cargas registrado' : 'Exportar relatório de progressão em PDF'}
+                        style={{ height: 36, padding: '0 14px', border: '1.5px solid #d6cfbe', background: exerciseLogs.length === 0 ? '#f4efe3' : '#fff', color: exerciseLogs.length === 0 ? '#b0a99c' : '#1B2A4A', borderRadius: 8, font: `600 12.5px ${FF}`, cursor: pdfLoading || logsLoading || exerciseLogs.length === 0 ? 'default' : 'pointer', display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0, opacity: pdfLoading ? 0.6 : 1 }}
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                          <polyline points="7 10 12 15 17 10"/>
+                          <line x1="12" y1="15" x2="12" y2="3"/>
+                        </svg>
+                        {pdfLoading ? 'Gerando…' : 'Exportar PDF'}
+                      </button>
                     </div>
                   </div>
                   {sessionsLoading ? (
