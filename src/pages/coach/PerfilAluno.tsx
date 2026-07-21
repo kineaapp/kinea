@@ -1314,7 +1314,7 @@ export default function PerfilAluno() {
       const ROW = 7
       const cW = [50, 33, 22, 39]
       const cX: number[] = []
-      cW.forEach((w, i) => cX.push(i === 0 ? ML : cX[i - 1] + cW[i - 1]))
+      cW.forEach((_w, i) => cX.push(i === 0 ? ML : cX[i - 1] + cW[i - 1]))
 
       for (const ex of exData) {
         if (y + 11 + ROW + ex.days.length * ROW + 12 > 283) { doc.addPage(); y = ML }
