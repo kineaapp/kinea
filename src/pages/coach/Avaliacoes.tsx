@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { useStudentsStore } from '../../store/students'
 import { useAuthStore } from '../../store/auth'
+import { useCoachNotificationsStore } from '../../store/coachNotifications'
 import { supabase } from '../../lib/supabase'
 
 const FF = '"Libre Franklin",sans-serif'
@@ -545,7 +546,9 @@ type Tab = 'all' | 'em-dia' | 'pendente'
 export default function Avaliacoes() {
   const { user } = useAuthStore()
   const { students: roster, fetchStudents } = useStudentsStore()
+  const { clearAssessments } = useCoachNotificationsStore()
   useEffect(() => { if (user?.id) fetchStudents(user.id) }, [user?.id])
+  useEffect(() => { clearAssessments() }, [])
 
   useEffect(() => {
     if (!user?.id || roster.length === 0 || assessLoadedRef.current) return

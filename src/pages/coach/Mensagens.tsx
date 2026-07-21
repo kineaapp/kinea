@@ -83,7 +83,7 @@ export default function Mensagens() {
 
   const { user }                            = useAuthStore()
   const { students, fetchStudents, loading: studentsLoading } = useStudentsStore()
-  const { msgs: storeMsgs, unread: storeUnread, loading: msgsLoading, addMsg, markRead, fetchMessages, sendMessage, addIncoming } = useCoachChatStore()
+  const { msgs: storeMsgs, unread: storeUnread, loading: msgsLoading, addMsg, markRead, fetchMessages, sendMessage, addIncoming, setActiveStudent } = useCoachChatStore()
 
   const convs: Conv[] = students.map(s => {
     const studentMsgs = storeMsgs[s.id] ?? []
@@ -138,8 +138,10 @@ export default function Mensagens() {
 
   useEffect(() => {
     if (activeId === null) return
+    setActiveStudent(activeId)
     fetchMessages(activeId)
     markRead(activeId)
+    return () => setActiveStudent(null)
   }, [activeId])
 
   useEffect(() => {

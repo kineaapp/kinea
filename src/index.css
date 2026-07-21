@@ -9,6 +9,7 @@ body { font-family: 'Libre Franklin', sans-serif; }
 @keyframes kspin { to { transform: rotate(360deg); } }
 @keyframes kfade { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 @keyframes kbar { from { width: 6%; } to { width: 100%; } }
+@keyframes kSlideIn { from { opacity: 0; transform: translateX(32px); } to { opacity: 1; transform: none; } }
 
 /* ── Sidebar nav item ─────────────────────────────────────── */
 .k-navitem {

@@ -51,21 +51,24 @@ function rowsToEntries(rows: DbRow[]): MsgEntry[] {
 }
 
 interface CoachChatStore {
-  msgs:    Record<number, MsgEntry[]>
-  unread:  Record<number, number>
-  loading: Record<number, boolean>
-  fetchMessages: (studentId: number) => Promise<void>
-  sendMessage:   (studentId: number, text: string) => Promise<void>
-  addMsg:        (studentId: number, msg: MsgEntry) => void
-  markRead:      (studentId: number) => void
-  seedStudent:   (_studentId: number, _messages: MsgEntry[]) => void
-  addIncoming:   (studentId: number, row: DbRow) => void
+  msgs:            Record<number, MsgEntry[]>
+  unread:          Record<number, number>
+  loading:         Record<number, boolean>
+  activeStudentId: number | null
+  fetchMessages:    (studentId: number) => Promise<void>
+  sendMessage:      (studentId: number, text: string) => Promise<void>
+  addMsg:           (studentId: number, msg: MsgEntry) => void
+  markRead:         (studentId: number) => void
+  seedStudent:      (_studentId: number, _messages: MsgEntry[]) => void
+  addIncoming:      (studentId: number, row: DbRow) => void
+  setActiveStudent: (id: number | null) => void
 }
 
 export const useCoachChatStore = create<CoachChatStore>((set, get) => ({
-  msgs:    {},
-  unread:  {},
-  loading: {},
+  msgs:            {},
+  unread:          {},
+  loading:         {},
+  activeStudentId: null,
 
   fetchMessages: async (studentId) => {
     if (get().loading[studentId] || studentId in get().msgs) return
@@ -107,9 +110,19 @@ export const useCoachChatStore = create<CoachChatStore>((set, get) => ({
     const hh = `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`
     const entries = rowsToEntries([row])
     const msg = entries.find(e => e.type !== 'day') ?? { type: 'msg' as const, from: 'them' as const, text: row.text ?? '', time: hh }
-    set(s => ({
-      msgs:   { ...s.msgs,   [studentId]: [...(s.msgs[studentId] ?? []), msg] },
-      unread: { ...s.unread, [studentId]: (s.unread[studentId] ?? 0) + 1 },
-    }))
+    set(s => {
+      const existingMsgs = s.msgs[studentId]
+      return {
+        // Only append to msgs if the conversation was already loaded; otherwise
+        // fetchMessages will load the full history (including this message) when
+        // the user opens the conversation.
+        msgs: existingMsgs !== undefined
+          ? { ...s.msgs, [studentId]: [...existingMsgs, msg] }
+          : s.msgs,
+        unread: { ...s.unread, [studentId]: (s.unread[studentId] ?? 0) + 1 },
+      }
+    })
   },
+
+  setActiveStudent: (id) => set({ activeStudentId: id }),
 }))

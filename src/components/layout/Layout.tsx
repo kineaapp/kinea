@@ -3,8 +3,11 @@ import { Outlet, useNavigate } from 'react-router-dom'
 import Sidebar from './Sidebar'
 import KineaLogo from '../KineaLogo'
 import { useNotificationBanner } from '../../hooks/useNotifications'
-import { useSettingsStore } from '../../store/settings'
+import { useCoachNotifSubscription } from '../../hooks/useCoachNotifSubscription'
+import { useCoachNotificationsStore } from '../../store/coachNotifications'
+import { useStudentsStore } from '../../store/students'
 import { useAuthStore } from '../../store/auth'
+import { useSettingsStore } from '../../store/settings'
 import { supabase } from '../../lib/supabase'
 
 const FF = '"Libre Franklin",sans-serif'
@@ -68,12 +71,94 @@ function NotifBanner({ onActivate, onDismiss }: { onActivate: () => void; onDism
   )
 }
 
+function NotifToast() {
+  const { toast, dismissToast } = useCoachNotificationsStore()
+  const navigate = useNavigate()
+
+  useEffect(() => {
+    if (!toast) return
+    const t = setTimeout(dismissToast, 5000)
+    return () => clearTimeout(t)
+  }, [toast])
+
+  if (!toast) return null
+
+  function handleClick() {
+    if (toast!.kind === 'msg' && toast!.studentId != null) {
+      navigate(`/coach/mensagens?student=${toast!.studentId}`)
+    } else {
+      navigate('/coach/avaliacoes')
+    }
+    dismissToast()
+  }
+
+  const isMsg = toast.kind === 'msg'
+
+  return (
+    <div
+      onClick={handleClick}
+      style={{
+        position: 'fixed', bottom: 24, right: 24, zIndex: 200,
+        background: '#fff', borderRadius: 14,
+        boxShadow: '0 8px 32px rgba(27,42,74,.22)',
+        border: '1px solid #ece7d9',
+        padding: '14px 16px',
+        display: 'flex', alignItems: 'flex-start', gap: 12,
+        maxWidth: 320, cursor: 'pointer',
+        animation: 'kSlideIn .25s ease',
+      }}
+    >
+      <div style={{
+        width: 38, height: 38, borderRadius: 10, flexShrink: 0,
+        background: isMsg ? '#eef1f6' : '#e7f3ea',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+      }}>
+        {isMsg ? (
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1B2A4A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+          </svg>
+        ) : (
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1B7a4a" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+          </svg>
+        )}
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ font: `700 13px ${FF}`, color: '#1B2A4A', marginBottom: 2 }}>
+          {isMsg ? 'Nova mensagem' : 'Nova avaliação'}
+        </div>
+        <div style={{ font: `400 12px ${FF}`, color: '#7c7869', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          {toast.studentName} {isMsg ? 'enviou uma mensagem' : 'registrou uma avaliação'}
+        </div>
+      </div>
+      <button
+        type="button"
+        onClick={(e) => { e.stopPropagation(); dismissToast() }}
+        aria-label="Fechar"
+        style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#b0a99c', padding: 2, flexShrink: 0 }}
+      >
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+          <path d="M18 6L6 18" /><path d="M6 6l12 12" />
+        </svg>
+      </button>
+    </div>
+  )
+}
+
 export default function Layout() {
   const [drawerOpen, setDrawerOpen] = useState(false)
   const { showBanner, requestPermission, dismiss } = useNotificationBanner()
   const { customLogoDataUrl } = useSettingsStore()
-  const { logout } = useAuthStore()
+  const { user, logout } = useAuthStore()
   const navigate = useNavigate()
+
+  useCoachNotifSubscription()
+
+  // Pre-load students so the global notification subscription can start early
+  const { fetchStudents } = useStudentsStore()
+  useEffect(() => {
+    if (user?.id) fetchStudents(user.id)
+  }, [user?.id])
 
   // Guard: if the Supabase session doesn't match the stored user (e.g. after
   // signing up as a student in the same browser), force re-login immediately
@@ -136,6 +221,8 @@ export default function Layout() {
 
         <Outlet />
       </div>
+
+      <NotifToast />
     </div>
   )
 }

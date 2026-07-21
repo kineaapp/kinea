@@ -6,15 +6,17 @@ import {
 import KineaLogo from '../KineaLogo'
 import { useAuthStore } from '../../store/auth'
 import { useSettingsStore } from '../../store/settings'
+import { useCoachChatStore } from '../../store/coachChat'
+import { useCoachNotificationsStore } from '../../store/coachNotifications'
 
-const NAV = [
+const NAV: { to: string; label: string; Icon: React.ElementType; badge?: 'messages' | 'assessments' }[] = [
   { to: '/coach/dashboard', label: 'Dashboard',    Icon: LayoutDashboard },
   { to: '/coach/alunos',    label: 'Alunos',       Icon: Users },
   { to: '/coach/leads',     label: 'Leads',        Icon: BarChart2 },
   { to: '/coach/treinos',   label: 'Treinos',      Icon: Dumbbell },
   { to: '/coach/pagamentos',label: 'Pagamentos',   Icon: CreditCard },
-  { to: '/coach/avaliacoes',label: 'Avaliações',   Icon: ClipboardCheck },
-  { to: '/coach/mensagens', label: 'Mensagens',    Icon: MessageCircle },
+  { to: '/coach/avaliacoes',label: 'Avaliações',   Icon: ClipboardCheck, badge: 'assessments' },
+  { to: '/coach/mensagens', label: 'Mensagens',    Icon: MessageCircle,  badge: 'messages' },
 ]
 
 interface Props { drawerOpen: boolean; onClose: () => void }
@@ -23,6 +25,10 @@ export default function Sidebar({ drawerOpen, onClose }: Props) {
   const { user, logout } = useAuthStore()
   const { customLogoDataUrl } = useSettingsStore()
   const navigate = useNavigate()
+
+  const unreadRecord = useCoachChatStore(s => s.unread)
+  const totalUnreadMsgs = Object.values(unreadRecord).reduce((a, n) => a + n, 0)
+  const newAssessments = useCoachNotificationsStore(s => s.newAssessments)
 
   const name     = user?.name     ?? ''
   const initials = user?.initials ?? ''
@@ -58,18 +64,38 @@ export default function Sidebar({ drawerOpen, onClose }: Props) {
 
       {/* Nav */}
       <nav style={{ flex: 1, padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: 2, overflowY: 'auto' }}>
-        {NAV.map(({ to, label, Icon }) => (
-          <NavLink
-            key={to}
-            to={to}
-            end={to === '/coach/dashboard'}
-            className={({ isActive }) => `k-navitem${isActive ? ' active' : ''}`}
-            onClick={onClose}
-          >
-            <Icon size={18} strokeWidth={1.9} />
-            <span>{label}</span>
-          </NavLink>
-        ))}
+        {NAV.map(({ to, label, Icon, badge }) => {
+          const count = badge === 'messages' ? totalUnreadMsgs
+            : badge === 'assessments' ? newAssessments
+            : 0
+          return (
+            <NavLink
+              key={to}
+              to={to}
+              end={to === '/coach/dashboard'}
+              className={({ isActive }) => `k-navitem${isActive ? ' active' : ''}`}
+              onClick={onClose}
+            >
+              <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                <Icon size={18} strokeWidth={1.9} />
+                {count > 0 && (
+                  <span style={{
+                    position: 'absolute', top: -6, right: -8,
+                    minWidth: 16, height: 16, borderRadius: 8,
+                    background: '#E8542A', color: '#fff',
+                    font: '700 9.5px "Libre Franklin",sans-serif',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    padding: '0 3px', lineHeight: 1,
+                    border: '1.5px solid #1B2A4A',
+                  }}>
+                    {count > 99 ? '99+' : count}
+                  </span>
+                )}
+              </div>
+              <span>{label}</span>
+            </NavLink>
+          )
+        })}
       </nav>
 
       {/* Bottom */}
