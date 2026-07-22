@@ -33,6 +33,8 @@ interface LibraryExercise { name: string; muscle: string; scheme: string; rest: 
 interface Treino {
   id: number; name: string; split: string; goal: Goal
   duration: string; assigned: number; ex: Exercise[]
+  workout_type?: 'standard' | 'circuito'
+  rounds?: number | null
 }
 
 // ── Constants ─────────────────────────────────────────────────
@@ -1029,7 +1031,10 @@ function TreinoDrawer({ treino, library, onClose, onDuplicate, onUpdate, onAddTo
       return groups.length > 0 ? Math.max(...groups) + 1 : 1
     })()
   )
+  const [localRounds, setLocalRounds] = useState(treino.rounds ?? 3)
+  const [circuitPickerOpen, setCircuitPickerOpen] = useState(false)
   useEffect(() => { setExercises(treino.ex) }, [treino.id])
+  useEffect(() => { setLocalRounds(treino.rounds ?? 3) }, [treino.id])
   const [renamingName, setRenamingName] = useState(false)
   const [draftName, setDraftName] = useState(treino.name)
   useEffect(() => { setDraftName(treino.name) }, [treino.id])
@@ -1040,6 +1045,12 @@ function TreinoDrawer({ treino, library, onClose, onDuplicate, onUpdate, onAddTo
     if (!name || name === treino.name) return
     await supabase.from('workouts').update({ name }).eq('id', treino.id)
     onUpdate({ ...treino, name })
+  }
+
+  async function handleUpdateRounds(r: number) {
+    setLocalRounds(r)
+    await supabase.from('workouts').update({ rounds: r }).eq('id', treino.id)
+    onUpdate({ ...treino, rounds: r })
   }
 
   function handleSaveEdit(k: number, scheme: string, rest: string) {
@@ -1094,7 +1105,10 @@ function TreinoDrawer({ treino, library, onClose, onDuplicate, onUpdate, onAddTo
           <button onClick={onClose} style={{ position: 'absolute', top: 16, right: 16, border: 'none', background: 'rgba(255,255,255,.1)', cursor: 'pointer', color: '#fff', width: 32, height: 32, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
           </button>
-          <span style={{ font: `600 11px ${FF}`, color: g.color, background: g.bg, borderRadius: 20, padding: '5px 11px' }}>{treino.goal}</span>
+          {treino.workout_type === 'circuito'
+            ? <span style={{ font: `700 11px ${FF}`, color: '#b06a12', background: '#f7ecd9', borderRadius: 20, padding: '5px 11px', letterSpacing: '.3px' }}>CIRCUITO</span>
+            : <span style={{ font: `600 11px ${FF}`, color: g.color, background: g.bg, borderRadius: 20, padding: '5px 11px' }}>{treino.goal}</span>
+          }
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '13px 0 5px' }}>
             {renamingName ? (
               <input
@@ -1118,7 +1132,24 @@ function TreinoDrawer({ treino, library, onClose, onDuplicate, onUpdate, onAddTo
               </button>
             )}
           </div>
-          <div style={{ font: `500 12px ${FF}`, color: '#aeb9cc' }}>{treino.split} · {exercises.length} exercícios · {treino.duration}</div>
+          {treino.workout_type === 'circuito' ? (
+            <>
+              <div style={{ font: `500 12px ${FF}`, color: '#aeb9cc', marginBottom: 10 }}>{exercises.length} exercícios</div>
+              <div>
+                <div style={{ font: `600 10px ${FF}`, color: 'rgba(255,255,255,.45)', textTransform: 'uppercase', letterSpacing: '.4px', marginBottom: 7 }}>Rounds</div>
+                <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+                  {[2, 3, 4, 5, 6, 8, 10].map(r => (
+                    <button key={r} type="button" onClick={() => void handleUpdateRounds(r)}
+                      style={{ height: 30, minWidth: 36, padding: '0 8px', border: `1.5px solid ${localRounds === r ? '#E8542A' : 'rgba(255,255,255,.18)'}`, background: localRounds === r ? '#E8542A' : 'rgba(255,255,255,.07)', color: localRounds === r ? '#fff' : 'rgba(255,255,255,.65)', font: `700 11px ${FF}`, borderRadius: 7, cursor: 'pointer' }}>
+                      {r}×
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </>
+          ) : (
+            <div style={{ font: `500 12px ${FF}`, color: '#aeb9cc' }}>{treino.split} · {exercises.length} exercícios · {treino.duration}</div>
+          )}
         </div>
         <div style={{ flex: 1, overflowY: 'auto', padding: '18px 24px 24px' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 11 }}>
@@ -1147,7 +1178,11 @@ function TreinoDrawer({ treino, library, onClose, onDuplicate, onUpdate, onAddTo
                       onUpdate({ ...treino, ex: updated })
                     }}
                     onDragStart={handleDragStart} onDragEnd={handleDragEnd} onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop} />
-                  {i < exercises.length - 1 && (isSSwithNext ? (
+                  {i < exercises.length - 1 && (treino.workout_type === 'circuito' ? (
+                    <div style={{ display: 'flex', alignItems: 'center', padding: '3px 10px' }}>
+                      <div style={{ flex: 1, height: 1, background: '#e8d9be' }} />
+                    </div>
+                  ) : isSSwithNext ? (
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 10px' }}>
                       <div style={{ flex: 1, height: 2, background: 'rgba(232,84,42,.2)', borderRadius: 1 }} />
                       <span style={{ font: `800 9px ${FF}`, color: '#E8542A', background: '#fdf3ee', border: '1.5px solid rgba(232,84,42,.35)', borderRadius: 20, padding: '3px 10px', letterSpacing: '.5px', flexShrink: 0 }}>SUPERSET</span>
@@ -1176,7 +1211,7 @@ function TreinoDrawer({ treino, library, onClose, onDuplicate, onUpdate, onAddTo
               )
             })}
           </div>
-          <button type="button" onClick={() => setPickerOpen(true)}
+          <button type="button" onClick={() => treino.workout_type === 'circuito' ? setCircuitPickerOpen(true) : setPickerOpen(true)}
             style={{ marginTop: 10, width: '100%', border: '1.5px dashed #d8d1c0', background: 'none', color: '#9a948a', font: `600 12px ${FF}`, cursor: 'pointer', padding: 11, borderRadius: 10 }}
             onMouseEnter={e => { e.currentTarget.style.borderColor = '#E8542A'; e.currentTarget.style.color = '#E8542A' }}
             onMouseLeave={e => { e.currentTarget.style.borderColor = '#d8d1c0'; e.currentTarget.style.color = '#9a948a' }}>
@@ -1211,9 +1246,24 @@ function TreinoDrawer({ treino, library, onClose, onDuplicate, onUpdate, onAddTo
       </div>
       {pickerOpen && <ExercisePickerModal library={library} onSelect={handlePickEx} onCreateNew={() => { setPickerOpen(false); setExModalOpen(true) }} onClose={() => setPickerOpen(false)} />}
       {exModalOpen && <NewExerciseModal onClose={() => setExModalOpen(false)} onAdd={handleAddEx} />}
+      {circuitPickerOpen && (
+        <CircuitAddExModal
+          library={library}
+          onAdd={ex => { handlePickEx(ex); setCircuitPickerOpen(false) }}
+          onClose={() => setCircuitPickerOpen(false)}
+        />
+      )}
       {editExKey !== null && (() => {
         const ex = exercises.find(e => e._k === editExKey)
         if (!ex) return null
+        if (treino.workout_type === 'circuito') {
+          return <CircuitEditRepsModal
+            ex={ex}
+            initReps={ex.scheme}
+            onClose={() => setEditExKey(null)}
+            onSave={reps => handleSaveEdit(editExKey, reps, '0s')}
+          />
+        }
         const parsed = ex.scheme.match(/^(\d+)\s*[×x]\s*(.+)$/)
         return <EditExerciseModal
           ex={ex}
@@ -1228,118 +1278,344 @@ function TreinoDrawer({ treino, library, onClose, onDuplicate, onUpdate, onAddTo
   )
 }
 
+// ── Circuit Edit Reps Modal ───────────────────────────────────
+function CircuitEditRepsModal({ ex, initReps, onClose, onSave }: {
+  ex: { name: string; muscle: string }
+  initReps: string
+  onClose: () => void
+  onSave: (reps: string) => void
+}) {
+  const [reps, setReps] = useState(initReps)
+  const inp: React.CSSProperties = { width: '100%', height: 48, border: '1.5px solid #d9d3c4', borderRadius: 10, background: '#fff', padding: '0 14px', font: `700 17px ${FF}`, color: '#1B2A4A', outline: 'none', textAlign: 'center', boxSizing: 'border-box' }
+  const focusOn  = (e: React.FocusEvent<HTMLInputElement>) => { e.currentTarget.style.borderColor = '#E8542A'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(232,84,42,.13)' }
+  const focusOff = (e: React.FocusEvent<HTMLInputElement>) => { e.currentTarget.style.borderColor = '#d9d3c4'; e.currentTarget.style.boxShadow = 'none' }
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(20,25,40,.55)', zIndex: 90, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+      <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 340, background: '#fff', borderRadius: 16, padding: 24, boxShadow: '0 24px 60px rgba(0,0,0,.35)' }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 16 }}>
+          <div>
+            <h2 style={{ font: `800 17px ${FF}`, color: '#1B2A4A', margin: 0 }}>{ex.name}</h2>
+            <div style={{ font: `500 12px ${FF}`, color: '#9a948a', marginTop: 3 }}>{ex.muscle}</div>
+          </div>
+          <button onClick={onClose} style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#9a948a' }}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
+          </button>
+        </div>
+        <label style={{ display: 'block', font: `600 11px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#6b6657', marginBottom: 6 }}>Reps / Duração por round</label>
+        <input autoFocus type="text" value={reps} onChange={e => setReps(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter') onSave(reps.trim() || '15') }}
+          style={{ ...inp, marginBottom: 16 }}
+          onFocus={focusOn} onBlur={focusOff}
+        />
+        <button onClick={() => onSave(reps.trim() || '15')} style={{ width: '100%', height: 46, border: 'none', background: '#E8542A', color: '#fff', borderRadius: 10, font: `700 14px ${FF}`, cursor: 'pointer', boxShadow: '0 2px 0 #c4421e' }}>Salvar</button>
+      </div>
+    </div>
+  )
+}
+
+// ── Circuit Add Exercise Modal ────────────────────────────────
+function CircuitAddExModal({ library, onAdd, onClose }: {
+  library: LibraryExercise[]
+  onAdd: (ex: Omit<Exercise, '_k'>) => void
+  onClose: () => void
+}) {
+  const [step,        setStep]        = useState<'pick' | 'reps'>('pick')
+  const [picked,      setPicked]      = useState<LibraryExercise | null>(null)
+  const [customName,  setCustomName]  = useState('')
+  const [reps,        setReps]        = useState('15')
+  const [query,       setQuery]       = useState('')
+  const q = query.trim().toLowerCase()
+  const filtered = q ? library.filter(ex => ex.name.toLowerCase().includes(q) || ex.muscle.toLowerCase().includes(q)) : library
+
+  function confirm() {
+    const name   = picked?.name   ?? customName.trim()
+    const muscle = picked?.muscle ?? '—'
+    if (!name) return
+    onAdd({ name, muscle, scheme: reps.trim() || '15', rest: '0s' })
+  }
+
+  if (step === 'reps') {
+    const name   = picked?.name   ?? customName
+    const muscle = picked?.muscle ?? '—'
+    return (
+      <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(20,25,40,.6)', zIndex: 85, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+        <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 360, background: '#fff', borderRadius: 16, padding: 24, boxShadow: '0 24px 60px rgba(0,0,0,.35)' }}>
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ font: `800 16px ${FF}`, color: '#1B2A4A' }}>{name}</div>
+            <div style={{ font: `500 12px ${FF}`, color: '#9a948a', marginTop: 2 }}>{muscle}</div>
+          </div>
+          <label style={{ display: 'block', font: `600 11px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#6b6657', marginBottom: 7 }}>Reps / Duração por round</label>
+          <input autoFocus type="text" placeholder="Ex: 15 ou 30s" value={reps} onChange={e => setReps(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') confirm() }}
+            style={{ width: '100%', height: 48, border: '1.5px solid #d9d3c4', borderRadius: 10, background: '#fff', padding: '0 14px', font: `700 18px ${FF}`, color: '#1B2A4A', outline: 'none', textAlign: 'center', boxSizing: 'border-box', marginBottom: 16 }}
+            onFocus={e => { e.currentTarget.style.borderColor = '#E8542A'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(232,84,42,.13)' }}
+            onBlur={e => { e.currentTarget.style.borderColor = '#d9d3c4'; e.currentTarget.style.boxShadow = 'none' }}
+          />
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={() => setStep('pick')} style={{ flex: 1, height: 44, border: '1.5px solid #d9d3c4', background: '#fff', color: '#1B2A4A', borderRadius: 10, font: `600 13px ${FF}`, cursor: 'pointer' }}>← Voltar</button>
+            <button onClick={confirm} style={{ flex: 2, height: 44, border: 'none', background: '#E8542A', color: '#fff', borderRadius: 10, font: `700 13.5px ${FF}`, cursor: 'pointer', boxShadow: '0 2px 0 #c4421e' }}>Adicionar</button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(20,25,40,.6)', zIndex: 85, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+      <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 480, background: '#fff', borderRadius: 16, boxShadow: '0 24px 60px rgba(0,0,0,.35)', display: 'flex', flexDirection: 'column', maxHeight: '82vh' }}>
+        <div style={{ padding: '22px 22px 14px', flexShrink: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+            <h2 style={{ font: `800 18px ${FF}`, color: '#1B2A4A', margin: 0 }}>Adicionar ao circuito</h2>
+            <button onClick={onClose} style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#9a948a' }}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
+            </button>
+          </div>
+          <div style={{ position: 'relative' }}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#9a948a" strokeWidth="2" strokeLinecap="round" style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)' }}><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.3-4.3"/></svg>
+            <input autoFocus type="text" value={query} onChange={e => setQuery(e.target.value)} placeholder="Buscar exercício…"
+              style={{ width: '100%', height: 38, border: '1.5px solid #e0d9c8', borderRadius: 9, background: '#faf7ee', padding: '0 12px 0 32px', font: `400 13px ${FF}`, color: '#1B2A4A', outline: 'none', boxSizing: 'border-box' }}
+              onFocus={e => { e.currentTarget.style.borderColor = '#E8542A' }}
+              onBlur={e => { e.currentTarget.style.borderColor = '#e0d9c8' }}
+            />
+          </div>
+        </div>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '0 14px' }}>
+          {filtered.length === 0
+            ? <div style={{ padding: '24px 0', textAlign: 'center', font: `400 13px ${FF}`, color: '#a89f8e' }}>Nenhum exercício encontrado.</div>
+            : <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                {filtered.map((ex, i) => (
+                  <button key={i} type="button" onClick={() => { setPicked(ex); setStep('reps') }}
+                    style={{ display: 'flex', alignItems: 'center', gap: 10, border: '1.5px solid #ece7d9', background: '#fff', borderRadius: 10, padding: '10px 12px', cursor: 'pointer', textAlign: 'left', width: '100%' }}
+                    onMouseEnter={e => { e.currentTarget.style.borderColor = '#E8542A'; e.currentTarget.style.background = '#fdf3ee' }}
+                    onMouseLeave={e => { e.currentTarget.style.borderColor = '#ece7d9'; e.currentTarget.style.background = '#fff' }}
+                  >
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ font: `700 13px ${FF}`, color: '#1B2A4A', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ex.name}</div>
+                      <div style={{ font: `500 11px ${FF}`, color: '#9a948a' }}>{ex.muscle}</div>
+                    </div>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#E8542A" strokeWidth="2.5" strokeLinecap="round"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
+                  </button>
+                ))}
+              </div>
+          }
+        </div>
+        <div style={{ padding: '12px 14px 16px', flexShrink: 0, borderTop: '1px solid #f4efe3' }}>
+          <div style={{ font: `600 11px ${FF}`, color: '#9a948a', textTransform: 'uppercase', letterSpacing: '.4px', marginBottom: 7 }}>Ou adicione manualmente</div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <input type="text" placeholder="Nome do exercício" value={customName} onChange={e => setCustomName(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter' && customName.trim()) { setPicked(null); setStep('reps') } }}
+              style={{ flex: 1, height: 38, border: '1.5px solid #e0d9c8', borderRadius: 9, background: '#fff', padding: '0 11px', font: `400 13px ${FF}`, color: '#1B2A4A', outline: 'none', boxSizing: 'border-box' }}
+              onFocus={e => { e.currentTarget.style.borderColor = '#E8542A' }}
+              onBlur={e => { e.currentTarget.style.borderColor = '#e0d9c8' }}
+            />
+            <button disabled={!customName.trim()} onClick={() => { if (customName.trim()) { setPicked(null); setStep('reps') } }}
+              style={{ height: 38, padding: '0 14px', border: 'none', background: customName.trim() ? '#E8542A' : '#e0d9c8', color: '#fff', borderRadius: 9, font: `700 12.5px ${FF}`, cursor: customName.trim() ? 'pointer' : 'default' }}>
+              Próximo
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── New Treino Modal ───────────────────────────────────────────
 const BLOCK_LETTERS = 'ABCDEF'
 function blockLabel(n: number) { return BLOCK_LETTERS.slice(0, n) }
 
-function NewTreinoModal({ onClose, onAdd, onAddBlock }: {
-  onClose:    () => void
-  onAdd:      (name: string, goal: Goal) => void
-  onAddBlock: (goal: Goal, size: number) => void
+function NewTreinoModal({ onClose, onAdd, onAddBlock, onAddCircuito, library }: {
+  onClose:       () => void
+  onAdd:         (name: string, goal: Goal) => void
+  onAddBlock:    (goal: Goal, size: number) => void
+  onAddCircuito: (name: string, goal: Goal, exs: Omit<Exercise,'_k'>[], rounds: number) => void
+  library:       LibraryExercise[]
 }) {
-  const [name,      setName]      = useState('')
-  const [goal,      setGoal]      = useState<Goal>('Hipertrofia')
-  const [mode,      setMode]      = useState<'individual' | 'bloco'>('individual')
-  const [blockSize, setBlockSize] = useState(3)
-  const [err,       setErr]       = useState('')
+  const [name,             setName]             = useState('')
+  const [goal,             setGoal]             = useState<Goal>('Condicionamento')
+  const [mode,             setMode]             = useState<'individual' | 'bloco' | 'circuito'>('individual')
+  const [blockSize,        setBlockSize]        = useState(3)
+  const [rounds,           setRounds]           = useState(3)
+  const [circuitExs,       setCircuitExs]       = useState<Omit<Exercise,'_k'>[]>([])
+  const [circuitPickerOpen,setCircuitPickerOpen] = useState(false)
+  const [err,              setErr]              = useState('')
+  const nextK = useRef(Date.now())
 
   function handleSave() {
     if (mode === 'individual') {
       if (!name.trim()) { setErr('Informe o nome.'); return }
       onAdd(name.trim(), goal)
-    } else {
+    } else if (mode === 'bloco') {
       onAddBlock(goal, blockSize)
+    } else {
+      if (!name.trim()) { setErr('Informe o nome do circuito.'); return }
+      onAddCircuito(name.trim(), goal, circuitExs, rounds)
     }
   }
 
+  const ROUND_OPTIONS = [2, 3, 4, 5, 6, 8, 10]
+
   return (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(20,25,40,.5)', zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-      <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 440, background: '#fff', borderRadius: 16, padding: 26, boxShadow: '0 24px 60px rgba(0,0,0,.3)' }}>
+      <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 460, background: '#fff', borderRadius: 16, boxShadow: '0 24px 60px rgba(0,0,0,.3)', display: 'flex', flexDirection: 'column', maxHeight: '92vh' }}>
 
-        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 20 }}>
-          <h2 style={{ font: `800 20px ${FF}`, color: '#1B2A4A', margin: 0, letterSpacing: '-.4px' }}>Novo treino</h2>
-          <button onClick={onClose} style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#9a948a', padding: 2 }}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
-          </button>
-        </div>
-
-        {/* Mode toggle */}
-        <div style={{ display: 'flex', background: '#f4efe3', borderRadius: 10, padding: 4, marginBottom: 20 }}>
-          {(['individual', 'bloco'] as const).map(m => (
-            <button key={m} type="button" onClick={() => { setMode(m); setErr('') }}
-              style={{ flex: 1, height: 36, border: 'none', borderRadius: 8, cursor: 'pointer', font: `700 13px ${FF}`, transition: 'all .15s',
-                background: mode === m ? '#fff' : 'transparent',
-                color: mode === m ? '#1B2A4A' : '#9a948a',
-                boxShadow: mode === m ? '0 1px 4px rgba(27,42,74,.1)' : 'none',
-              }}>
-              {m === 'individual' ? 'Treino único' : 'Bloco (A B C…)'}
+        <div style={{ padding: '24px 26px 0', flexShrink: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 18 }}>
+            <h2 style={{ font: `800 20px ${FF}`, color: '#1B2A4A', margin: 0, letterSpacing: '-.4px' }}>Novo treino</h2>
+            <button onClick={onClose} style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#9a948a', padding: 2 }}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
             </button>
-          ))}
+          </div>
+
+          {/* Mode toggle */}
+          <div style={{ display: 'flex', background: '#f4efe3', borderRadius: 10, padding: 4, marginBottom: 20, gap: 2 }}>
+            {(['individual', 'bloco', 'circuito'] as const).map(m => (
+              <button key={m} type="button" onClick={() => { setMode(m); setErr('') }}
+                style={{ flex: 1, height: 36, border: 'none', borderRadius: 8, cursor: 'pointer', font: `700 12px ${FF}`, transition: 'all .15s',
+                  background: mode === m ? '#fff' : 'transparent',
+                  color: mode === m ? '#1B2A4A' : '#9a948a',
+                  boxShadow: mode === m ? '0 1px 4px rgba(27,42,74,.1)' : 'none',
+                }}>
+                {m === 'individual' ? 'Único' : m === 'bloco' ? 'Bloco A B C' : 'Circuito'}
+              </button>
+            ))}
+          </div>
+
+          {/* Name field (individual & circuito) */}
+          {mode !== 'bloco' && (
+            <>
+              <label style={{ display: 'block', font: `600 11px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#6b6657', marginBottom: 7 }}>
+                {mode === 'circuito' ? 'Nome do circuito' : 'Nome do treino'}
+              </label>
+              <input
+                autoFocus
+                type="text"
+                placeholder={mode === 'circuito' ? 'Ex: Circuito HIIT, Circuito Full Body…' : 'Ex: Treino A — Peito e Tríceps'}
+                value={name}
+                onChange={e => { setName(e.target.value); setErr('') }}
+                style={{ width: '100%', height: 46, border: `1.5px solid ${err ? '#c4421e' : '#d9d3c4'}`, borderRadius: 10, background: '#fff', padding: '0 14px', font: `400 14px ${FF}`, color: '#1B2A4A', outline: 'none', marginBottom: err ? 6 : 18, boxSizing: 'border-box' as const }}
+                onFocus={e => { e.currentTarget.style.borderColor = '#E8542A'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(232,84,42,.13)' }}
+                onBlur={e => { e.currentTarget.style.borderColor = err ? '#c4421e' : '#d9d3c4'; e.currentTarget.style.boxShadow = 'none' }}
+              />
+              {err && <div style={{ font: `500 12px ${FF}`, color: '#c4421e', marginBottom: 12 }}>{err}</div>}
+            </>
+          )}
+
+          {/* Bloco: size selector */}
+          {mode === 'bloco' && (
+            <>
+              <label style={{ display: 'block', font: `600 11px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#6b6657', marginBottom: 10 }}>Tamanho do bloco</label>
+              <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+                {[2, 3, 4, 5, 6].map(n => (
+                  <button key={n} type="button" onClick={() => setBlockSize(n)}
+                    style={{ flex: 1, height: 56, border: `1.5px solid ${blockSize === n ? '#E8542A' : '#d9d3c4'}`, background: blockSize === n ? '#fdf3ee' : '#fff', borderRadius: 10, cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2 }}>
+                    <span style={{ font: `800 13px ${FF}`, color: blockSize === n ? '#E8542A' : '#1B2A4A' }}>{blockLabel(blockSize === n ? n : n)}</span>
+                    <span style={{ font: `500 10px ${FF}`, color: blockSize === n ? '#E8542A' : '#b0a99c' }}>{n} treinos</span>
+                  </button>
+                ))}
+              </div>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 18 }}>
+                {Array.from({ length: blockSize }, (_, i) => (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#f4efe3', border: '1px solid #e0d9c8', borderRadius: 8, padding: '5px 10px' }}>
+                    <div style={{ width: 22, height: 22, borderRadius: 6, background: '#E8542A', display: 'flex', alignItems: 'center', justifyContent: 'center', font: `900 10px ${FF}`, color: '#fff', flexShrink: 0 }}>
+                      {BLOCK_LETTERS[i]}
+                    </div>
+                    <span style={{ font: `500 11px ${FF}`, color: '#7c7869' }}>Treino {BLOCK_LETTERS[i]}</span>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+
+          {/* Goal (not shown for circuito — use Condicionamento) */}
+          {mode !== 'circuito' && (
+            <>
+              <label style={{ display: 'block', font: `600 11px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#6b6657', marginBottom: 8 }}>Objetivo</label>
+              <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap', marginBottom: 4 }}>
+                {GOALS.map(g => {
+                  const s = GOAL_STYLE[g]
+                  return (
+                    <button key={g} type="button" onClick={() => setGoal(g)}
+                      style={{ border: `1.5px solid ${goal === g ? s.color : '#e0d9c8'}`, background: goal === g ? s.color : '#fff', color: goal === g ? '#fff' : '#7c7869', font: `600 12.5px ${FF}`, borderRadius: 20, padding: '8px 14px', cursor: 'pointer' }}>
+                      {g}
+                    </button>
+                  )
+                })}
+              </div>
+            </>
+          )}
+
+          {/* Circuito: exercise list header */}
+          {mode === 'circuito' && (
+            <div style={{ font: `700 11px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#9a948a', marginBottom: 8 }}>
+              Exercícios <span style={{ color: '#c9c1b0', fontWeight: 500, textTransform: 'none', letterSpacing: 0, fontSize: 10 }}>— cada um por round</span>
+            </div>
+          )}
         </div>
 
-        {/* Individual: name */}
-        {mode === 'individual' && (
-          <>
-            <label style={{ display: 'block', font: `600 11px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#6b6657', marginBottom: 7 }}>Nome do treino</label>
-            <input
-              autoFocus
-              type="text"
-              placeholder="Ex: Treino A — Peito e Tríceps"
-              value={name}
-              onChange={e => { setName(e.target.value); setErr('') }}
-              style={{ width: '100%', height: 46, border: `1.5px solid ${err ? '#c4421e' : '#d9d3c4'}`, borderRadius: 10, background: '#fff', padding: '0 14px', font: `400 14px ${FF}`, color: '#1B2A4A', outline: 'none', marginBottom: err ? 6 : 20, boxSizing: 'border-box' as const }}
-              onFocus={e => { e.currentTarget.style.borderColor = '#E8542A'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(232,84,42,.13)' }}
-              onBlur={e => { e.currentTarget.style.borderColor = err ? '#c4421e' : '#d9d3c4'; e.currentTarget.style.boxShadow = 'none' }}
-            />
-            {err && <div style={{ font: `500 12px ${FF}`, color: '#c4421e', marginBottom: 14 }}>{err}</div>}
-          </>
-        )}
-
-        {/* Bloco: size selector + preview */}
-        {mode === 'bloco' && (
-          <>
-            <label style={{ display: 'block', font: `600 11px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#6b6657', marginBottom: 10 }}>Tamanho do bloco</label>
-            <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-              {[2, 3, 4, 5, 6].map(n => (
-                <button key={n} type="button" onClick={() => setBlockSize(n)}
-                  style={{ flex: 1, height: 56, border: `1.5px solid ${blockSize === n ? '#E8542A' : '#d9d3c4'}`, background: blockSize === n ? '#fdf3ee' : '#fff', borderRadius: 10, cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2 }}>
-                  <span style={{ font: `800 13px ${FF}`, color: blockSize === n ? '#E8542A' : '#1B2A4A' }}>{blockLabel(n)}</span>
-                  <span style={{ font: `500 10px ${FF}`, color: blockSize === n ? '#E8542A' : '#b0a99c' }}>{n} treinos</span>
-                </button>
-              ))}
-            </div>
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 20 }}>
-              {Array.from({ length: blockSize }, (_, i) => (
-                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#f4efe3', border: '1px solid #e0d9c8', borderRadius: 8, padding: '5px 10px' }}>
-                  <div style={{ width: 22, height: 22, borderRadius: 6, background: '#E8542A', display: 'flex', alignItems: 'center', justifyContent: 'center', font: `900 10px ${FF}`, color: '#fff', flexShrink: 0 }}>
-                    {BLOCK_LETTERS[i]}
+        {/* Circuito: scrollable exercise list */}
+        {mode === 'circuito' && (
+          <div style={{ flex: 1, overflowY: 'auto', padding: '0 26px', minHeight: 0 }}>
+            {circuitExs.length === 0 && (
+              <div style={{ padding: '12px 0', font: `400 13px ${FF}`, color: '#a89f8e', textAlign: 'center' }}>Nenhum exercício adicionado.</div>
+            )}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+              {circuitExs.map((ex, i) => (
+                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#f7ecd9', border: '1px solid #e8d9be', borderRadius: 11, padding: '10px 12px' }}>
+                  <div style={{ width: 26, height: 26, borderRadius: 7, background: '#b06a12', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', font: `800 10px ${FF}`, flexShrink: 0 }}>{i + 1}</div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ font: `700 13px ${FF}`, color: '#1B2A4A', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ex.name}</div>
+                    <div style={{ font: `500 11px ${FF}`, color: '#9a948a' }}>{ex.muscle}</div>
                   </div>
-                  <span style={{ font: `500 11px ${FF}`, color: '#7c7869' }}>Treino {BLOCK_LETTERS[i]}</span>
+                  <div style={{ font: `800 14px ${FF}`, color: '#b06a12', flexShrink: 0 }}>{ex.scheme}</div>
+                  <button type="button" onClick={() => setCircuitExs(p => p.filter((_, idx) => idx !== i))}
+                    style={{ width: 28, height: 28, border: 'none', background: 'none', cursor: 'pointer', color: '#b0a99c', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, borderRadius: 6 }}
+                    onMouseEnter={e => { e.currentTarget.style.color = '#c4421e'; e.currentTarget.style.background = '#fbe6e1' }}
+                    onMouseLeave={e => { e.currentTarget.style.color = '#b0a99c'; e.currentTarget.style.background = 'none' }}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+                  </button>
                 </div>
               ))}
             </div>
-          </>
+            <button type="button" onClick={() => setCircuitPickerOpen(true)}
+              style={{ width: '100%', border: '1.5px dashed #d8d1c0', background: 'none', color: '#9a948a', borderRadius: 10, padding: '10px 0', font: `600 12.5px ${FF}`, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, margin: '10px 0 4px' }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = '#E8542A'; e.currentTarget.style.color = '#E8542A' }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = '#d8d1c0'; e.currentTarget.style.color = '#9a948a' }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+              Adicionar exercício
+            </button>
+          </div>
         )}
 
-        {/* Goal */}
-        <label style={{ display: 'block', font: `600 11px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#6b6657', marginBottom: 8 }}>Objetivo</label>
-        <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap', marginBottom: 22 }}>
-          {GOALS.map(g => {
-            const s = GOAL_STYLE[g]
-            return (
-              <button key={g} type="button" onClick={() => setGoal(g)}
-                style={{ border: `1.5px solid ${goal === g ? s.color : '#e0d9c8'}`, background: goal === g ? s.color : '#fff', color: goal === g ? '#fff' : '#7c7869', font: `600 12.5px ${FF}`, borderRadius: 20, padding: '8px 14px', cursor: 'pointer' }}>
-                {g}
-              </button>
-            )
-          })}
+        {/* Footer */}
+        <div style={{ padding: mode === 'circuito' ? '14px 26px 22px' : '18px 26px 24px', flexShrink: 0, borderTop: mode === 'circuito' ? '1px solid #f4efe3' : 'none' }}>
+          {/* Rounds selector (circuit only) */}
+          {mode === 'circuito' && (
+            <div style={{ marginBottom: 16 }}>
+              <label style={{ display: 'block', font: `600 11px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#6b6657', marginBottom: 8 }}>Rounds</label>
+              <div style={{ display: 'flex', gap: 6 }}>
+                {ROUND_OPTIONS.map(r => (
+                  <button key={r} type="button" onClick={() => setRounds(r)}
+                    style={{ flex: 1, height: 40, border: `1.5px solid ${rounds === r ? '#E8542A' : '#d9d3c4'}`, background: rounds === r ? '#E8542A' : '#fff', color: rounds === r ? '#fff' : '#7c7869', font: `700 13px ${FF}`, borderRadius: 9, cursor: 'pointer' }}>
+                    {r}×
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          <button type="button" onClick={handleSave}
+            style={{ width: '100%', height: 48, border: 'none', background: '#E8542A', color: '#fff', borderRadius: 10, font: `700 14.5px ${FF}`, cursor: 'pointer', boxShadow: '0 2px 0 #c4421e' }}>
+            {mode === 'individual' ? 'Criar treino' : mode === 'bloco' ? `Criar bloco ${blockLabel(blockSize)}` : `Criar circuito · ${rounds} rounds`}
+          </button>
         </div>
-
-        <button type="button" onClick={handleSave}
-          style={{ width: '100%', height: 48, border: 'none', background: '#E8542A', color: '#fff', borderRadius: 10, font: `700 14.5px ${FF}`, cursor: 'pointer', boxShadow: '0 2px 0 #c4421e' }}>
-          {mode === 'individual' ? 'Criar treino' : `Criar bloco ${blockLabel(blockSize)}`}
-        </button>
       </div>
+
+      {circuitPickerOpen && (
+        <CircuitAddExModal
+          library={library}
+          onAdd={ex => { setCircuitExs(p => [...p, ex]); setCircuitPickerOpen(false) }}
+          onClose={() => setCircuitPickerOpen(false)}
+        />
+      )}
     </div>
   )
 }
@@ -1505,23 +1781,33 @@ export default function Treinos() {
       .eq('coach_id', user.id)
       .order('created_at', { ascending: false })
     if (!data) return
-    setTreinos((data as any[]).map(w => ({
-      id: w.id, name: w.name, split: w.muscle_group ?? '',
-      goal: (w.goal as Goal) ?? 'Hipertrofia',
-      duration: w.duration_min ? `${w.duration_min} min` : '— min',
-      assigned: 0,
-      ex: [...(w.exercises ?? [])].sort((a: any, b: any) => a.sort_order - b.sort_order).map((e: any) => ({
-        _k: e.id, name: e.name, muscle: e.muscle_group ?? '—',
-        scheme: `${e.sets} × ${e.reps}`, rest: e.rest_sec ? `${e.rest_sec}s` : '60s',
-        superset_group: e.superset_group ?? null,
-      })),
-    })))
+    setTreinos((data as any[]).map(w => {
+      const isCircuit = w.workout_type === 'circuito'
+      return {
+        id: w.id, name: w.name, split: w.muscle_group ?? '',
+        goal: (w.goal as Goal) ?? 'Hipertrofia',
+        duration: w.duration_min ? `${w.duration_min} min` : '— min',
+        assigned: 0,
+        workout_type: (w.workout_type as 'standard' | 'circuito') ?? 'standard',
+        rounds: w.rounds ?? null,
+        ex: [...(w.exercises ?? [])].sort((a: any, b: any) => a.sort_order - b.sort_order).map((e: any) => ({
+          _k: e.id, name: e.name, muscle: e.muscle_group ?? '—',
+          scheme: isCircuit ? (e.reps ?? '15') : `${e.sets} × ${e.reps}`,
+          rest: isCircuit ? '0s' : (e.rest_sec ? `${e.rest_sec}s` : '60s'),
+          superset_group: e.superset_group ?? null,
+        })),
+      }
+    }))
   }
 
   async function syncExercises(treino: Treino) {
     await supabase.from('exercises').delete().eq('workout_id', treino.id)
     if (!treino.ex.length) return
+    const isCircuit = treino.workout_type === 'circuito'
     await supabase.from('exercises').insert(treino.ex.map((ex, i) => {
+      if (isCircuit) {
+        return { workout_id: treino.id, name: ex.name, muscle_group: ex.muscle, sets: 1, reps: ex.scheme, rest_sec: 0, sort_order: i, superset_group: null }
+      }
       const { sets, reps } = parseScheme(ex.scheme)
       return { workout_id: treino.id, name: ex.name, muscle_group: ex.muscle, sets, reps, rest_sec: parseRest(ex.rest), sort_order: i, superset_group: ex.superset_group ?? null }
     }))
@@ -1557,6 +1843,31 @@ export default function Treinos() {
     setNewOpen(false)
     setOpenId(newTreinos[0].id)
     showToast(`Bloco ${blockLabel(size)} criado. Adicione os exercícios.`)
+  }
+
+  async function handleAddCircuito(name: string, goal: Goal, exs: Omit<Exercise,'_k'>[], rounds: number) {
+    if (!name.trim() || !user?.id) return
+    const { data, error } = await supabase
+      .from('workouts')
+      .insert({ coach_id: user.id, name: name.trim(), goal, muscle_group: 'Circuito', duration_min: 30, workout_type: 'circuito', rounds })
+      .select().single()
+    if (error || !data) { showToast('Erro ao criar circuito.'); return }
+    if (exs.length > 0) {
+      await supabase.from('exercises').insert(exs.map((ex, i) => ({
+        workout_id: (data as any).id, name: ex.name, muscle_group: ex.muscle,
+        sets: 1, reps: ex.scheme, rest_sec: 0, sort_order: i,
+      })))
+    }
+    let baseK = nextK.current
+    const t: Treino = {
+      id: (data as any).id, name: (data as any).name, split: 'Circuito',
+      goal, duration: '30 min', assigned: 0,
+      workout_type: 'circuito', rounds,
+      ex: exs.map(ex => ({ ...ex, _k: baseK++ })),
+    }
+    nextK.current = baseK
+    setTreinos(prev => [t, ...prev]); setNewOpen(false); setOpenId((data as any).id)
+    showToast(`Circuito criado · ${rounds} rounds.`)
   }
 
   async function handleDuplicate(id: number) {
@@ -1685,22 +1996,31 @@ export default function Treinos() {
               const g = GOAL_STYLE[t.goal] ?? { color: '#1B2A4A', bg: '#eef1f6' }
               return (
                 <div key={t.id} onClick={() => setOpenId(t.id)}
-                  style={{ background: '#fff', border: '1px solid #ece7d9', borderRadius: 16, padding: 18, cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 12, transition: 'box-shadow .15s, transform .15s' }}
+                  style={{ background: '#fff', border: `1px solid ${t.workout_type === 'circuito' ? '#e8d9be' : '#ece7d9'}`, borderRadius: 16, padding: 18, cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 12, transition: 'box-shadow .15s, transform .15s' }}
                   onMouseEnter={e => { e.currentTarget.style.boxShadow = '0 8px 22px rgba(27,42,74,.14)'; e.currentTarget.style.transform = 'translateY(-2px)' }}
                   onMouseLeave={e => { e.currentTarget.style.boxShadow = 'none'; e.currentTarget.style.transform = 'none' }}>
                   <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
-                    <div style={{ width: 44, height: 44, borderRadius: 12, background: g.bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={g.color} strokeWidth="2" strokeLinecap="round"><path d="M6.5 6.5l11 11"/><path d="M21 21l-1-1"/><path d="M3 3l1 1"/><path d="M18 22l4-4"/><path d="M2 6l4-4"/></svg>
+                    <div style={{ width: 44, height: 44, borderRadius: 12, background: t.workout_type === 'circuito' ? '#f7ecd9' : g.bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      {t.workout_type === 'circuito'
+                        ? <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#b06a12" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="1 4 1 10 7 10"/><polyline points="23 20 23 14 17 14"/><path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"/></svg>
+                        : <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={g.color} strokeWidth="2" strokeLinecap="round"><path d="M6.5 6.5l11 11"/><path d="M21 21l-1-1"/><path d="M3 3l1 1"/><path d="M18 22l4-4"/><path d="M2 6l4-4"/></svg>
+                      }
                     </div>
-                    <span style={{ font: `600 11px ${FF}`, color: g.color, background: g.bg, borderRadius: 20, padding: '5px 11px' }}>{t.goal}</span>
+                    {t.workout_type === 'circuito'
+                      ? <span style={{ font: `700 11px ${FF}`, color: '#b06a12', background: '#f7ecd9', borderRadius: 20, padding: '5px 11px', letterSpacing: '.2px' }}>CIRCUITO</span>
+                      : <span style={{ font: `600 11px ${FF}`, color: g.color, background: g.bg, borderRadius: 20, padding: '5px 11px' }}>{t.goal}</span>
+                    }
                   </div>
                   <div>
                     <div style={{ font: `800 15px ${FF}`, color: '#1B2A4A', letterSpacing: '-.3px' }}>{t.name}</div>
                     <div style={{ font: `400 12px ${FF}`, color: '#9a948a', marginTop: 3 }}>{t.split}</div>
                   </div>
-                  <div style={{ display: 'flex', gap: 14, borderTop: '1px solid #f4efe3', paddingTop: 11 }}>
+                  <div style={{ display: 'flex', gap: 14, borderTop: `1px solid ${t.workout_type === 'circuito' ? '#f0e6d2' : '#f4efe3'}`, paddingTop: 11 }}>
                     <span style={{ font: `600 12px ${FF}`, color: '#6b6657' }}>{t.ex.length} ex.</span>
-                    <span style={{ font: `600 12px ${FF}`, color: '#6b6657' }}>{t.duration}</span>
+                    {t.workout_type === 'circuito'
+                      ? <span style={{ font: `600 12px ${FF}`, color: '#b06a12' }}>{t.rounds ?? 3} rounds</span>
+                      : <span style={{ font: `600 12px ${FF}`, color: '#6b6657' }}>{t.duration}</span>
+                    }
                   </div>
                 </div>
               )
@@ -1757,6 +2077,8 @@ export default function Treinos() {
           onClose={() => setNewOpen(false)}
           onAdd={handleAddTreino}
           onAddBlock={handleAddBlock}
+          onAddCircuito={handleAddCircuito}
+          library={library}
         />
       )}
 

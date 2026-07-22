@@ -124,6 +124,15 @@ export default function Execucao() {
   const [supersetAIdx,        setSupersetAIdx]        = useState<number | null>(null)
   const [supersetASetsDone,   setSupersetASetsDone]   = useState<SetResult[]>([])
 
+  // Circuit state
+  const [isCircuit,        setIsCircuit]        = useState(false)
+  const [totalRounds,      setTotalRounds]      = useState(3)
+  const [currentRound,     setCurrentRound]     = useState(1)
+  const [circuitExIdx,     setCircuitExIdx]     = useState(0)
+  const [roundRestActive,  setRoundRestActive]  = useState(false)
+  const [roundRestSec,     setRoundRestSec]     = useState(90)
+  const [roundRestRunning, setRoundRestRunning] = useState(false)
+
   // upcoming panel
   const [showUpcoming, setShowUpcoming] = useState(false)
 
@@ -167,6 +176,13 @@ export default function Execucao() {
 
     if (!workoutId) { setPhase('workout'); return }
     workoutIdRef.current = workoutId
+
+    const { data: wMeta } = await supabase
+      .from('workouts').select('workout_type, rounds').eq('id', workoutId).single()
+    if ((wMeta as any)?.workout_type === 'circuito') {
+      setIsCircuit(true)
+      setTotalRounds((wMeta as any).rounds ?? 3)
+    }
 
     // Bloqueia se já realizou hoje
     if (studentIdRef.current) {
@@ -248,6 +264,23 @@ export default function Execucao() {
     }, 1000)
     return () => clearInterval(id)
   }, [timerRunning, exIdx, exercises])
+
+  useEffect(() => {
+    if (!roundRestRunning) return
+    const id = setInterval(() => {
+      setRoundRestSec(s => { if (s <= 1) { setRoundRestRunning(false); return 0 }; return s - 1 })
+    }, 1000)
+    return () => clearInterval(id)
+  }, [roundRestRunning])
+
+  useEffect(() => {
+    if (roundRestSec === 0 && roundRestActive) {
+      setRoundRestActive(false)
+      setCurrentRound(r => r + 1)
+      setCircuitExIdx(0)
+      setRoundRestSec(90)
+    }
+  }, [roundRestSec, roundRestActive])
 
   async function saveLog(exerciseName: string, completedReps: number, completedWeight: number): Promise<number | null> {
     if (!studentIdRef.current) return null
@@ -373,6 +406,26 @@ export default function Execucao() {
     setTimerRunning(true)
   }
 
+  async function handleCircuitExConc() {
+    const ex = exercises[circuitExIdx]
+    await saveLog(ex.name, ex.defaultReps, 0)
+    const newAll: CompletedSet[] = [...allCompleted, { exerciseName: ex.name, reps: ex.defaultReps, weight: 0 }]
+    setAllCompleted(newAll)
+    if (circuitExIdx < exercises.length - 1) { setCircuitExIdx(i => i + 1); return }
+    if (currentRound < totalRounds) {
+      setRoundRestActive(true); setRoundRestSec(90); setRoundRestRunning(true)
+    } else {
+      clearProg(); setRoundRestRunning(false)
+      setWorkoutDurationSec(Math.floor((Date.now() - startedAtRef.current) / 1000))
+      setPhase('feedback')
+    }
+  }
+
+  function skipRoundRest() {
+    setRoundRestRunning(false); setRoundRestActive(false)
+    setCurrentRound(r => r + 1); setCircuitExIdx(0); setRoundRestSec(90)
+  }
+
   async function handleFeedbackSubmit() {
     if (studentIdRef.current && workoutIdRef.current) {
       setFbSaving(true)
@@ -437,7 +490,11 @@ export default function Execucao() {
     ctx.fillStyle = 'rgba(255,255,255,0.08)'
     roundRect(ctx, 50, statsY, W - 100, 190, 30); ctx.fill()
 
-    const cols = [
+    const cols = isCircuit ? [
+      { label: 'Duração',    value: fmtDuration(workoutDurationSec) },
+      { label: 'Rounds',     value: `${totalRounds}` },
+      { label: 'Exercícios', value: `${exercises.length}` },
+    ] : [
       { label: 'Duração',     value: fmtDuration(workoutDurationSec) },
       { label: 'Séries',      value: `${totalSets}` },
       { label: 'Carga total', value: totalLoad > 0 ? `${Math.round(totalLoad).toLocaleString('pt-BR')}kg` : '—' },
@@ -633,11 +690,15 @@ export default function Execucao() {
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 26 }}>
-            {[
+            {(isCircuit ? [
+              { label: 'Duração',    value: fmtDuration(workoutDurationSec) },
+              { label: 'Rounds',     value: `${totalRounds}` },
+              { label: 'Exercícios', value: `${exercises.length}` },
+            ] : [
               { label: 'Duração',     value: fmtDuration(workoutDurationSec) },
               { label: 'Séries',      value: `${totalSetsCount}` },
               { label: 'Carga total', value: totalLoad > 0 ? `${Math.round(totalLoad).toLocaleString('pt-BR')} kg` : '—' },
-            ].map(s => (
+            ]).map(s => (
               <div key={s.label} style={{ background: 'rgba(255,255,255,.07)', borderRadius: 14, padding: '14px 10px', textAlign: 'center' }}>
                 <div style={{ font: `900 ${s.label === 'Carga total' && totalLoad >= 10000 ? '16px' : '22px'} ${FF}`, color: '#FAEEDA' }}>{s.value}</div>
                 <div style={{ font: `400 10px ${FF}`, color: '#8B97AD', marginTop: 3 }}>{s.label}</div>
@@ -645,16 +706,33 @@ export default function Execucao() {
             ))}
           </div>
 
-          <div style={{ font: `700 11px ${FF}`, color: '#8B97AD', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 10 }}>Por exercício</div>
+          <div style={{ font: `700 11px ${FF}`, color: '#8B97AD', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 10 }}>
+            {isCircuit ? 'Exercícios do circuito' : 'Por exercício'}
+          </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 28 }}>
-            {exSummary.map(e => (
-              <div key={e.name} style={{ background: 'rgba(255,255,255,.06)', borderRadius: 12, padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span style={{ font: `600 13px ${FF}`, color: '#FAEEDA', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.name}</span>
-                <span style={{ font: `700 12px ${FF}`, color: '#E8542A', flexShrink: 0, marginLeft: 12 }}>
-                  {e.sets} série{e.sets !== 1 ? 's' : ''}
-                </span>
-              </div>
-            ))}
+            {isCircuit
+              ? exercises.map((e, i) => (
+                  <div key={e.name} style={{ background: 'rgba(255,255,255,.06)', borderRadius: 12, padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0 }}>
+                      <div style={{ width: 24, height: 24, borderRadius: 6, background: 'rgba(232,84,42,.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <span style={{ font: `700 10px ${FF}`, color: '#E8542A' }}>{i + 1}</span>
+                      </div>
+                      <span style={{ font: `600 13px ${FF}`, color: '#FAEEDA', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.name}</span>
+                    </div>
+                    <span style={{ font: `700 12px ${FF}`, color: '#E8542A', flexShrink: 0, marginLeft: 12 }}>
+                      {e.defaultReps} reps × {totalRounds}
+                    </span>
+                  </div>
+                ))
+              : exSummary.map(e => (
+                  <div key={e.name} style={{ background: 'rgba(255,255,255,.06)', borderRadius: 12, padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span style={{ font: `600 13px ${FF}`, color: '#FAEEDA', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.name}</span>
+                    <span style={{ font: `700 12px ${FF}`, color: '#E8542A', flexShrink: 0, marginLeft: 12 }}>
+                      {e.sets} série{e.sets !== 1 ? 's' : ''}
+                    </span>
+                  </div>
+                ))
+            }
           </div>
         </div>
 
@@ -694,6 +772,202 @@ export default function Execucao() {
                   style={{ height: 44, background: 'transparent', border: 'none', borderRadius: 12, font: `500 13px ${FF}`, color: '#8B97AD', cursor: 'pointer' }}>
                   Cancelar
                 </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  // ── circuit execution ─────────────────────────────────────────────────────────
+  if (isCircuit && phase === 'workout' && exercises.length > 0) {
+    const circEx        = exercises[circuitExIdx]
+    const isLastExRound = circuitExIdx >= exercises.length - 1
+    const isLastRound   = currentRound >= totalRounds
+    const circProgress  = ((currentRound - 1) * exercises.length + circuitExIdx) / (totalRounds * exercises.length)
+    const restMax       = 90
+    const restOff       = (1 - roundRestSec / restMax) * CIRC
+
+    if (roundRestActive) {
+      return (
+        <div style={{ background: '#1B2A4A', minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ padding: '16px 18px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <button onClick={() => navigate('/aluno/treinos')}
+              style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(255,255,255,.1)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <ChevronLeft size={20} color="#FAEEDA" strokeWidth={2} />
+            </button>
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ font: `600 12px ${FF}`, color: '#8B97AD' }}>{workoutName || 'Circuito'}</div>
+              <div style={{ font: `700 11px ${FF}`, color: '#4CAF8A', marginTop: 2 }}>
+                Round {currentRound} de {totalRounds} concluído!
+              </div>
+            </div>
+            <div style={{ width: 36 }} />
+          </div>
+
+          <div style={{ margin: '0 18px 0', background: 'rgba(255,255,255,.1)', height: 4, borderRadius: 4 }}>
+            <div style={{ height: '100%', width: `${(currentRound / totalRounds) * 100}%`, background: '#4CAF8A', borderRadius: 4, transition: 'width 400ms ease' }} />
+          </div>
+
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '0 24px' }}>
+            <div style={{ width: 72, height: 72, borderRadius: 20, background: 'rgba(76,175,138,.15)', border: '1.5px solid rgba(76,175,138,.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 20 }}>
+              <Check size={34} color="#4CAF8A" />
+            </div>
+            <div style={{ font: `900 24px ${FF}`, color: '#FAEEDA', letterSpacing: '-.5px', marginBottom: 6 }}>
+              Round {currentRound} concluído!
+            </div>
+            <div style={{ font: `400 13px ${FF}`, color: '#8B97AD', marginBottom: 36, textAlign: 'center', lineHeight: 1.55 }}>
+              {currentRound < totalRounds
+                ? `Prepare-se para o Round ${currentRound + 1} de ${totalRounds}`
+                : 'Último round — descanse e finalize!'}
+            </div>
+
+            <svg width={160} height={160} viewBox="0 0 160 160"
+              onClick={skipRoundRest} style={{ cursor: 'pointer', marginBottom: 10 }}>
+              <circle cx={80} cy={80} r={70} fill="none" stroke="rgba(255,255,255,.08)" strokeWidth={8} />
+              <circle cx={80} cy={80} r={70} fill="none" stroke="#4CAF8A" strokeWidth={8}
+                strokeDasharray={CIRC} strokeDashoffset={restOff} strokeLinecap="round"
+                transform="rotate(-90 80 80)"
+                style={{ transition: roundRestRunning ? 'stroke-dashoffset .9s linear' : 'none' }}
+              />
+              <text x={80} y={72} textAnchor="middle" fill="#FAEEDA" style={{ font: `900 42px ${FF}` }}>
+                {String(roundRestSec).padStart(2, '0')}
+              </text>
+              <text x={80} y={100} textAnchor="middle" fill="#8B97AD" style={{ font: `500 12px ${FF}` }}>
+                {roundRestRunning ? 'descanso' : 'toque para avançar'}
+              </text>
+            </svg>
+            <span style={{ font: `400 11px ${FF}`, color: '#8B97AD' }}>toque no timer para pular</span>
+          </div>
+
+          <div style={{ padding: '12px 18px 40px' }}>
+            <button onClick={skipRoundRest}
+              style={{ width: '100%', padding: 16, background: 'rgba(255,255,255,.1)', border: 'none', borderRadius: 14, font: `700 15px ${FF}`, color: '#FAEEDA', cursor: 'pointer' }}>
+              Começar Round {currentRound + 1} →
+            </button>
+          </div>
+        </div>
+      )
+    }
+
+    return (
+      <div style={{ background: '#1B2A4A', minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+
+        <div style={{ padding: '16px 18px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <button onClick={() => navigate('/aluno/treinos')}
+            style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(255,255,255,.1)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <ChevronLeft size={20} color="#FAEEDA" strokeWidth={2} />
+          </button>
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ font: `600 12px ${FF}`, color: '#8B97AD' }}>{workoutName || 'Circuito'}</div>
+            <div style={{ font: `700 12px ${FF}`, color: '#E8542A', marginTop: 2 }}>
+              Round {currentRound} de {totalRounds}
+            </div>
+          </div>
+          <button onClick={() => setShowUpcoming(true)} title="Ver exercícios"
+            style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(255,255,255,.1)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#FAEEDA" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/>
+              <line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>
+            </svg>
+          </button>
+        </div>
+
+        <div style={{ margin: '0 18px 22px', background: 'rgba(255,255,255,.1)', height: 4, borderRadius: 4 }}>
+          <div style={{ height: '100%', width: `${circProgress * 100}%`, background: '#E8542A', borderRadius: 4, transition: 'width 400ms ease' }} />
+        </div>
+
+        <div style={{ padding: '0 22px 12px' }}>
+          <div style={{ font: `500 11px ${FF}`, color: '#8B97AD', textTransform: 'uppercase', letterSpacing: '.3px', marginBottom: 7 }}>
+            {circEx.muscle.toUpperCase()} · {circuitExIdx + 1} DE {exercises.length}
+          </div>
+          <div style={{ font: `900 30px ${FF}`, color: '#FAEEDA', letterSpacing: '-.7px' }}>
+            {circEx.name}
+          </div>
+        </div>
+
+        {/* Target reps — big circle */}
+        <div style={{ display: 'flex', justifyContent: 'center', padding: '14px 0 22px' }}>
+          <div style={{ width: 164, height: 164, borderRadius: '50%', background: 'rgba(232,84,42,.1)', border: '2.5px solid rgba(232,84,42,.32)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+            <span style={{ font: `900 54px ${FF}`, color: '#E8542A', lineHeight: 1 }}>{circEx.defaultReps}</span>
+            <span style={{ font: `500 13px ${FF}`, color: '#8B97AD', marginTop: 7 }}>reps</span>
+          </div>
+        </div>
+
+        {/* Exercise strip */}
+        <div style={{ padding: '0 18px 18px' }}>
+          <div style={{ display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 2 }}>
+            {exercises.map((e, i) => {
+              const done    = i < circuitExIdx
+              const current = i === circuitExIdx
+              return (
+                <div key={i} style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}>
+                  <div style={{ width: 38, height: 38, borderRadius: 10, background: done ? '#4CAF8A' : current ? 'rgba(232,84,42,.2)' : 'rgba(255,255,255,.08)', border: current ? '1.5px solid #E8542A' : 'none', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    {done
+                      ? <Check size={16} color="#fff" strokeWidth={2.5} />
+                      : <span style={{ font: `700 12px ${FF}`, color: current ? '#E8542A' : '#8B97AD' }}>{i + 1}</span>
+                    }
+                  </div>
+                  <span style={{ font: `500 9px ${FF}`, color: current ? '#FAEEDA' : done ? '#4CAF8A' : '#8B97AD', maxWidth: 50, textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}>
+                    {e.name.split(' ')[0]}
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+
+        <div style={{ flex: 1 }} />
+
+        <div style={{ padding: '8px 18px 40px' }}>
+          <button onClick={() => void handleCircuitExConc()}
+            style={{ width: '100%', padding: 18, background: '#E8542A', border: 'none', borderRadius: 14, font: `700 16px ${FF}`, color: '#fff', cursor: 'pointer', boxShadow: '0 4px 0 #C4421E' }}>
+            {isLastExRound && isLastRound
+              ? 'Concluir Circuito'
+              : isLastExRound
+                ? `Concluir Round ${currentRound} →`
+                : 'Próximo exercício →'
+            }
+          </button>
+        </div>
+
+        {showUpcoming && (
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.55)', display: 'flex', alignItems: 'flex-end', zIndex: 100 }}
+            onClick={() => setShowUpcoming(false)}>
+            <div style={{ background: '#1e3056', borderRadius: '20px 20px 0 0', padding: '24px 20px 40px', width: '100%', maxHeight: '72vh', display: 'flex', flexDirection: 'column' }}
+              onClick={e => e.stopPropagation()}>
+              <div style={{ width: 36, height: 4, background: 'rgba(255,255,255,.2)', borderRadius: 2, margin: '0 auto 20px' }} />
+              <div style={{ font: `700 15px ${FF}`, color: '#FAEEDA', marginBottom: 4 }}>Exercícios do circuito</div>
+              <div style={{ font: `400 12px ${FF}`, color: '#8B97AD', marginBottom: 16 }}>
+                Round {currentRound} de {totalRounds} · {circuitExIdx + 1} de {exercises.length}
+              </div>
+              <div style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {exercises.map((e, i) => {
+                  const done    = i < circuitExIdx
+                  const current = i === circuitExIdx
+                  return (
+                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, background: current ? 'rgba(232,84,42,.12)' : done ? 'rgba(255,255,255,.04)' : 'rgba(255,255,255,.07)', border: `1.5px solid ${current ? 'rgba(232,84,42,.35)' : 'transparent'}`, borderRadius: 12, padding: '12px 14px', opacity: done ? 0.5 : 1 }}>
+                      <div style={{ width: 28, height: 28, borderRadius: 8, flexShrink: 0, background: done ? '#4CAF8A' : current ? 'rgba(232,84,42,.25)' : 'rgba(255,255,255,.1)', border: current ? '1.5px solid #E8542A' : 'none', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        {done
+                          ? <Check size={14} color="#fff" strokeWidth={2.5} />
+                          : <span style={{ font: `700 11px ${FF}`, color: current ? '#E8542A' : '#8B97AD' }}>{i + 1}</span>
+                        }
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ font: `600 13px ${FF}`, color: current ? '#FAEEDA' : done ? '#8B97AD' : '#FAEEDA', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {e.name}
+                        </div>
+                        <div style={{ font: `400 11px ${FF}`, color: '#8B97AD', marginTop: 2 }}>
+                          {e.muscle} · {e.defaultReps} reps
+                        </div>
+                      </div>
+                      {current && (
+                        <span style={{ font: `600 10px ${FF}`, color: '#E8542A', background: 'rgba(232,84,42,.18)', borderRadius: 8, padding: '3px 8px', flexShrink: 0 }}>ATUAL</span>
+                      )}
+                    </div>
+                  )
+                })}
               </div>
             </div>
           </div>
