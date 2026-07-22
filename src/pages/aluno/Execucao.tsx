@@ -17,7 +17,7 @@ interface ExerciseData {
   superset_group: number | null
 }
 
-interface SetResult     { reps: number; weight: number }
+interface SetResult     { reps: number; weight: number; logId?: number }
 interface CompletedSet  { exerciseName: string; reps: number; weight: number }
 
 interface SavedProgress {
@@ -123,6 +123,11 @@ export default function Execucao() {
   const [isMidSuperset,       setIsMidSuperset]       = useState(false)
   const [supersetAIdx,        setSupersetAIdx]        = useState<number | null>(null)
   const [supersetASetsDone,   setSupersetASetsDone]   = useState<SetResult[]>([])
+
+  // edit set
+  const [editSetIdx,  setEditSetIdx]  = useState<number | null>(null)
+  const [editReps,    setEditReps]    = useState(0)
+  const [editWeight,  setEditWeight]  = useState(0)
 
   // feedback
   const [fbIntensity, setFbIntensity] = useState(3)
@@ -241,25 +246,55 @@ export default function Execucao() {
     return () => clearInterval(id)
   }, [timerRunning, exIdx, exercises])
 
-  async function saveLog(exerciseName: string, completedReps: number, completedWeight: number) {
-    if (!studentIdRef.current) return
-    await supabase.from('exercise_logs').insert({
+  async function saveLog(exerciseName: string, completedReps: number, completedWeight: number): Promise<number | null> {
+    if (!studentIdRef.current) return null
+    const { data } = await supabase.from('exercise_logs').insert({
       student_id:    studentIdRef.current,
       workout_id:    workoutIdRef.current,
       exercise_name: exerciseName,
       weight_kg:     completedWeight,
       reps:          completedReps,
-    })
+    }).select('id').single()
     setLastWeights(prev => ({ ...prev, [exerciseName]: completedWeight }))
     setLastReps(prev => ({ ...prev, [exerciseName]: completedReps }))
+    return (data as any)?.id ?? null
   }
 
-  function handleSerieConc() {
-    const wid = workoutIdRef.current
-    const ex  = exercises[exIdx]
+  function openEditSet(i: number) {
+    setEditSetIdx(i)
+    setEditReps(setsDone[i].reps)
+    setEditWeight(setsDone[i].weight)
+  }
+
+  async function handleEditSetSave() {
+    if (editSetIdx === null) return
+    const sr      = setsDone[editSetIdx]
+    const updated = setsDone.map((s, i) => i === editSetIdx ? { ...s, reps: editReps, weight: editWeight } : s)
+    setSetsDone(updated)
+
+    let count = 0
+    const newAll = allCompleted.map(s => {
+      if (s.exerciseName === ex.name) {
+        if (count === editSetIdx) { count++; return { ...s, reps: editReps, weight: editWeight } }
+        count++
+      }
+      return s
+    })
+    setAllCompleted(newAll)
+
+    if (sr.logId) {
+      await supabase.from('exercise_logs').update({ reps: editReps, weight_kg: editWeight }).eq('id', sr.logId)
+    }
+    setEditSetIdx(null)
+  }
+
+  async function handleSerieConc() {
+    const wid   = workoutIdRef.current
+    const ex    = exercises[exIdx]
+    const logId = await saveLog(ex.name, reps, weight)
+    const newSet: SetResult = { reps, weight, logId: logId ?? undefined }
     const newAll: CompletedSet[] = [...allCompleted, { exerciseName: ex.name, reps, weight }]
     setAllCompleted(newAll)
-    void saveLog(ex.name, reps, weight)
 
     // ── Superset: finishing the second exercise (B) ──────────────────────
     if (isMidSuperset && supersetAIdx !== null) {
@@ -301,7 +336,7 @@ export default function Execucao() {
     const nextEx = exercises[exIdx + 1]
     const isFirstOfSS = ex.superset_group != null && nextEx?.superset_group === ex.superset_group
     if (isFirstOfSS) {
-      const newSetsDone = [...setsDone, { reps, weight }]
+      const newSetsDone = [...setsDone, newSet]
       setSupersetAIdx(exIdx)
       setSupersetASetsDone(newSetsDone)
       setIsMidSuperset(true)
@@ -313,7 +348,7 @@ export default function Execucao() {
     }
 
     // ── Normal single-exercise flow ──────────────────────────────────────
-    const next: SetResult[] = [...setsDone, { reps, weight }]
+    const next: SetResult[] = [...setsDone, newSet]
     if (next.length >= ex.sets) {
       if (exIdx < exercises.length - 1) {
         const ni  = exIdx + 1
@@ -783,7 +818,8 @@ export default function Execucao() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {Array.from({ length: ex.sets }).map((_, i) => {
             if (i < setsDone.length) return (
-              <div key={i} style={{ background: 'rgba(255,255,255,.06)', borderRadius: 12, padding: '11px 14px', display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div key={i} onClick={() => openEditSet(i)}
+                style={{ background: 'rgba(255,255,255,.06)', borderRadius: 12, padding: '11px 14px', display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', userSelect: 'none' }}>
                 <div style={{ width: 22, height: 22, background: '#4CAF8A', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                   <Check size={13} color="#fff" strokeWidth={2.5} />
                 </div>
@@ -791,6 +827,10 @@ export default function Execucao() {
                 <span style={{ font: `700 12px ${FF}`, color: '#4CAF8A' }}>
                   {setsDone[i].reps} reps{setsDone[i].weight > 0 ? ` · ${fmtWeight(setsDone[i].weight)} kg` : ''}
                 </span>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#4CAF8A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.55, flexShrink: 0 }}>
+                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                </svg>
               </div>
             )
             if (i === setsDone.length) return (
@@ -840,7 +880,7 @@ export default function Execucao() {
       </div>
 
       <div style={{ padding: '16px 18px 32px' }}>
-        <button onClick={handleSerieConc}
+        <button onClick={() => void handleSerieConc()}
           style={{ width: '100%', padding: 16, background: '#E8542A', border: 'none', borderRadius: 14, font: `700 16px ${FF}`, color: '#fff', cursor: 'pointer', boxShadow: '0 4px 0 #C4421E' }}>
           {isLast
             ? 'Concluir Treino'
@@ -849,6 +889,62 @@ export default function Execucao() {
               : 'Série concluída'}
         </button>
       </div>
+
+      {editSetIdx !== null && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.55)', display: 'flex', alignItems: 'flex-end', zIndex: 100 }}
+          onClick={() => setEditSetIdx(null)}>
+          <div style={{ background: '#1e3056', borderRadius: '20px 20px 0 0', padding: '28px 20px 44px', width: '100%' }}
+            onClick={e => e.stopPropagation()}>
+            <div style={{ width: 36, height: 4, background: 'rgba(255,255,255,.2)', borderRadius: 2, margin: '0 auto 22px' }} />
+            <div style={{ font: `700 16px ${FF}`, color: '#FAEEDA', marginBottom: 20 }}>
+              Editar série {editSetIdx + 1}
+            </div>
+
+            <div style={{ display: 'flex', gap: 12, marginBottom: 28 }}>
+              <div style={{ flex: 1, background: 'rgba(255,255,255,.07)', borderRadius: 12, padding: '14px 12px' }}>
+                <div style={{ font: `500 10px ${FF}`, color: '#8B97AD', textTransform: 'uppercase', letterSpacing: '.4px', marginBottom: 10 }}>Repetições</div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <button onClick={() => setEditReps(r => Math.max(1, r - 1))}
+                    style={{ width: 34, height: 34, background: 'rgba(255,255,255,.1)', border: 'none', borderRadius: 8, cursor: 'pointer', color: '#FAEEDA', font: `700 20px ${FF}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>−</button>
+                  <span style={{ font: `800 24px ${FF}`, color: '#FAEEDA' }}>{editReps}</span>
+                  <button onClick={() => setEditReps(r => r + 1)}
+                    style={{ width: 34, height: 34, background: 'rgba(255,255,255,.1)', border: 'none', borderRadius: 8, cursor: 'pointer', color: '#FAEEDA', font: `700 20px ${FF}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>
+                </div>
+              </div>
+
+              <div style={{ flex: 1, background: 'rgba(255,255,255,.07)', borderRadius: 12, padding: '14px 12px' }}>
+                <div style={{ font: `500 10px ${FF}`, color: '#8B97AD', textTransform: 'uppercase', letterSpacing: '.4px', marginBottom: 10 }}>Carga (kg)</div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    min="0"
+                    step="0.5"
+                    value={editWeight === 0 ? '' : editWeight}
+                    onChange={e => {
+                      const v = parseFloat(e.target.value.replace(',', '.'))
+                      setEditWeight(isNaN(v) ? 0 : Math.max(0, v))
+                    }}
+                    placeholder="0"
+                    style={{ width: '100%', background: 'transparent', border: 'none', outline: 'none', font: `800 24px ${FF}`, color: '#FAEEDA', textAlign: 'center', WebkitAppearance: 'none', MozAppearance: 'textfield' } as React.CSSProperties}
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <button onClick={() => void handleEditSetSave()}
+                style={{ height: 52, background: '#E8542A', border: 'none', borderRadius: 14, font: `700 15px ${FF}`, color: '#fff', cursor: 'pointer', boxShadow: '0 4px 0 #C4421E' }}>
+                Salvar
+              </button>
+              <button onClick={() => setEditSetIdx(null)}
+                style={{ height: 44, background: 'transparent', border: 'none', borderRadius: 12, font: `500 13px ${FF}`, color: '#8B97AD', cursor: 'pointer' }}>
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
