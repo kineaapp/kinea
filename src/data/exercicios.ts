@@ -69,6 +69,7 @@ export const EXERCISE_LIBRARY: ExercicioBase[] = [
   { name: 'Remada baixa (cabo, triângulo)',                   muscle: 'Costas' },
   { name: 'Remada baixa (cabo, barra reta)',                  muscle: 'Costas' },
   { name: 'Remada máquina (articulada)',                      muscle: 'Costas' },
+  { name: 'Remada com miniband',                              muscle: 'Costas' },
   { name: 'Pulldown com braços retos (pulley)',               muscle: 'Costas' },
   { name: 'Levantamento terra',                               muscle: 'Costas/Lombar/Posterior' },
   { name: 'Levantamento terra romeno',                        muscle: 'Lombar/Posterior' },
@@ -115,6 +116,7 @@ export const EXERCISE_LIBRARY: ExercicioBase[] = [
   { name: 'Abdução de quadril no cabo',                       muscle: 'Abdutor' },
   { name: 'Abdução de quadril na polia baixa',                muscle: 'Abdutor' },
   { name: 'Abdução de quadril em pé (máquina ou caneleira)',  muscle: 'Abdutor' },
+  { name: 'Caminhada lateral com miniband',                   muscle: 'Abdutor' },
 
   // Posterior
   { name: 'Levantamento terra stiff',                         muscle: 'Posterior' },
@@ -130,6 +132,8 @@ export const EXERCISE_LIBRARY: ExercicioBase[] = [
   { name: 'Elevação pélvica (hip thrust)',                    muscle: 'Posterior/Glúteo' },
   { name: 'Elevação pélvica unilateral',                      muscle: 'Posterior/Glúteo' },
   { name: 'Glúteo no cabo (coice/kickback)',                  muscle: 'Glúteo/Posterior' },
+  { name: 'Elevação pélvica com miniband no joelho',          muscle: 'Glúteo' },
+  { name: 'Ponte de glúteos unilateral',                      muscle: 'Glúteo' },
 
   // Panturrilha
   { name: 'Panturrilha em pé (máquina)',                      muscle: 'Panturrilha' },
