@@ -124,6 +124,9 @@ export default function Execucao() {
   const [supersetAIdx,        setSupersetAIdx]        = useState<number | null>(null)
   const [supersetASetsDone,   setSupersetASetsDone]   = useState<SetResult[]>([])
 
+  // upcoming panel
+  const [showUpcoming, setShowUpcoming] = useState(false)
+
   // edit set
   const [editSetIdx,  setEditSetIdx]  = useState<number | null>(null)
   const [editReps,    setEditReps]    = useState(0)
@@ -757,7 +760,14 @@ export default function Execucao() {
             : <div style={{ font: `500 11px ${FF}`, color: '#E8542A', marginTop: 2 }}>Exercício {exIdx + 1} de {totalExs}</div>
           }
         </div>
-        <div style={{ width: 36 }} />
+        <button onClick={() => setShowUpcoming(true)}
+          title="Ver próximos exercícios"
+          style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(255,255,255,.1)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#FAEEDA" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/>
+            <line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>
+          </svg>
+        </button>
       </div>
 
       <div style={{ margin: '0 18px 20px', background: 'rgba(255,255,255,.1)', height: 4, borderRadius: 4 }}>
@@ -889,6 +899,62 @@ export default function Execucao() {
               : 'Série concluída'}
         </button>
       </div>
+
+      {showUpcoming && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.55)', display: 'flex', alignItems: 'flex-end', zIndex: 100 }}
+          onClick={() => setShowUpcoming(false)}>
+          <div style={{ background: '#1e3056', borderRadius: '20px 20px 0 0', padding: '24px 20px 40px', width: '100%', maxHeight: '75vh', display: 'flex', flexDirection: 'column' }}
+            onClick={e => e.stopPropagation()}>
+            <div style={{ width: 36, height: 4, background: 'rgba(255,255,255,.2)', borderRadius: 2, margin: '0 auto 20px' }} />
+            <div style={{ font: `700 15px ${FF}`, color: '#FAEEDA', marginBottom: 16 }}>
+              Exercícios do treino
+              <span style={{ font: `400 12px ${FF}`, color: '#8B97AD', marginLeft: 8 }}>
+                {exIdx + 1} de {exercises.length}
+              </span>
+            </div>
+            <div style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {exercises.map((e, i) => {
+                const isDone    = i < exIdx || (i === exIdx && setsDone.length >= e.sets)
+                const isCurrent = i === exIdx && setsDone.length < e.sets
+                return (
+                  <div key={i} style={{
+                    display: 'flex', alignItems: 'center', gap: 12,
+                    background: isCurrent ? 'rgba(232,84,42,.12)' : isDone ? 'rgba(255,255,255,.04)' : 'rgba(255,255,255,.07)',
+                    border: `1.5px solid ${isCurrent ? 'rgba(232,84,42,.35)' : 'transparent'}`,
+                    borderRadius: 12, padding: '12px 14px',
+                    opacity: isDone ? 0.5 : 1,
+                  }}>
+                    <div style={{
+                      width: 28, height: 28, borderRadius: 8, flexShrink: 0,
+                      background: isDone ? '#4CAF8A' : isCurrent ? 'rgba(232,84,42,.25)' : 'rgba(255,255,255,.1)',
+                      border: isCurrent ? '1.5px solid #E8542A' : 'none',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}>
+                      {isDone
+                        ? <Check size={14} color="#fff" strokeWidth={2.5} />
+                        : <span style={{ font: `700 11px ${FF}`, color: isCurrent ? '#E8542A' : '#8B97AD' }}>{i + 1}</span>
+                      }
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ font: `600 13px ${FF}`, color: isCurrent ? '#FAEEDA' : isDone ? '#8B97AD' : '#FAEEDA', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {e.name}
+                      </div>
+                      <div style={{ font: `400 11px ${FF}`, color: '#8B97AD', marginTop: 2 }}>
+                        {e.muscle} · {e.sets}×{e.defaultReps} reps
+                      </div>
+                    </div>
+                    {isCurrent && (
+                      <span style={{ font: `600 10px ${FF}`, color: '#E8542A', background: 'rgba(232,84,42,.18)', borderRadius: 8, padding: '3px 8px', flexShrink: 0 }}>
+                        ATUAL
+                      </span>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        </div>
+      )}
 
       {editSetIdx !== null && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.55)', display: 'flex', alignItems: 'flex-end', zIndex: 100 }}
