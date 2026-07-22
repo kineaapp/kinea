@@ -1438,8 +1438,6 @@ function NewTreinoModal({ onClose, onAdd, onAddBlock, onAddCircuito, library }: 
   const [circuitExs,       setCircuitExs]       = useState<Omit<Exercise,'_k'>[]>([])
   const [circuitPickerOpen,setCircuitPickerOpen] = useState(false)
   const [err,              setErr]              = useState('')
-  const nextK = useRef(Date.now())
-
   function handleSave() {
     if (mode === 'individual') {
       if (!name.trim()) { setErr('Informe o nome.'); return }
