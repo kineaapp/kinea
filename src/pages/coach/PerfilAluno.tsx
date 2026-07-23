@@ -70,6 +70,17 @@ interface AttachmentRow {
 
 interface CheckInRow { id: number; content: string; created_at: string }
 
+interface WeeklyFeedbackRow {
+  id:         number
+  week_start: string
+  workouts:   number
+  sleep:      number
+  nutrition:  number
+  mood:       number
+  notes:      string | null
+  created_at: string
+}
+
 interface ExerciseLogEntry {
   exercise_name: string; weight_kg: number; reps: number; logged_at: string
 }
@@ -868,6 +879,8 @@ export default function PerfilAluno() {
   const [checkLoading,    setCheckLoading]    = useState(false)
   const [sessions,        setSessions]        = useState<SessionRow[]>([])
   const [sessionsLoading, setSessionsLoading] = useState(false)
+  const [weeklyFeedbacks,  setWeeklyFeedbacks]  = useState<WeeklyFeedbackRow[]>([])
+  const [weeklyLoading,    setWeeklyLoading]    = useState(false)
   const [exerciseLogs,    setExerciseLogs]    = useState<ExerciseLogEntry[]>([])
   const [logsLoading,     setLogsLoading]     = useState(false)
   const [resetingPw,      setResetingPw]      = useState(false)
@@ -1064,6 +1077,20 @@ export default function PerfilAluno() {
     setCheckLoading(false)
   }, [studentId])
 
+  const fetchWeeklyFeedbacks = useCallback(async () => {
+    if (!studentId || loaded.current.has('weeklyFeedbacks')) return
+    loaded.current.add('weeklyFeedbacks')
+    setWeeklyLoading(true)
+    const { data } = await supabase
+      .from('weekly_feedbacks')
+      .select('id,week_start,workouts,sleep,nutrition,mood,notes,created_at')
+      .eq('student_id', studentId)
+      .order('week_start', { ascending: false })
+      .limit(16)
+    setWeeklyFeedbacks((data as WeeklyFeedbackRow[] | null) ?? [])
+    setWeeklyLoading(false)
+  }, [studentId])
+
   const fetchSessions = useCallback(async () => {
     if (!studentId || loaded.current.has('sessions')) return
     loaded.current.add('sessions')
@@ -1097,12 +1124,33 @@ export default function PerfilAluno() {
     if (tab === 'overview')   { fetchActiveProgram(); fetchCheckins() }
     if (tab === 'anamnese')   fetchAnamnese()
     if (tab === 'treino')     fetchActiveProgram()
-    if (tab === 'feedback')   { fetchSessions(); fetchExerciseLogs() }
+    if (tab === 'feedback')   { fetchSessions(); fetchExerciseLogs(); fetchWeeklyFeedbacks() }
     if (tab === 'avaliacoes') fetchAssessments()
     if (tab === 'pagamentos') fetchPayments()
     if (tab === 'anexos')     fetchAttachments()
     if (tab === 'historico')  { fetchCheckins(); fetchAssessments(); fetchPayments(); fetchSessions(); fetchActiveProgram() }
   }, [tab, student?.id])
+
+  // Realtime: recebe novos check-ins semanais do aluno em tempo real
+  useEffect(() => {
+    if (!studentId) return
+    const ch = supabase
+      .channel(`weekly_feedbacks_coach_${studentId}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'weekly_feedbacks',
+        filter: `student_id=eq.${studentId}`,
+      }, payload => {
+        const row = payload.new as WeeklyFeedbackRow
+        setWeeklyFeedbacks(prev => {
+          const filtered = prev.filter(f => f.id !== row.id)
+          return [row, ...filtered].sort((a, b) => b.week_start.localeCompare(a.week_start))
+        })
+      })
+      .subscribe()
+    return () => { void supabase.removeChannel(ch) }
+  }, [studentId])
 
   // ── Derived ───────────────────────────────────────────────
   const pal  = avatarPalette(studentId % 5)
@@ -2028,8 +2076,77 @@ export default function PerfilAluno() {
               .filter(e => e.days.length >= 2)
               .sort((a, b) => (b.days.at(-1)?.date ?? '').localeCompare(a.days.at(-1)?.date ?? ''))
 
+            const scoreColor = (v: number) =>
+              v >= 4 ? '#1B7a4a' : v >= 3 ? '#b06a12' : '#c4421e'
+            const scoreBg = (v: number) =>
+              v >= 4 ? '#e7f3ea' : v >= 3 ? '#f7ecd9' : '#fbe6e1'
+            const scoreEmoji = (v: number, type: 'sleep' | 'nutrition' | 'mood') => {
+              const maps = {
+                sleep:     ['😴','😕','😐','😊','🌟'],
+                nutrition: ['🍔','😕','😐','👍','🥗'],
+                mood:      ['😞','😕','😐','😊','💪'],
+              }
+              return maps[type][v - 1] ?? '—'
+            }
+
             return (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+
+                {/* CHECK-INS SEMANAIS */}
+                <div>
+                  <h2 style={{ font: `800 20px ${FF}`, color: '#1B2A4A', margin: '0 0 14px', letterSpacing: '-.4px' }}>Check-ins semanais</h2>
+                  {weeklyLoading ? (
+                    <div style={{ font: `400 13px ${FF}`, color: '#9a948a', padding: '20px 0' }}>Carregando…</div>
+                  ) : weeklyFeedbacks.length === 0 ? (
+                    <Empty icon="📋" title="Nenhum check-in ainda" sub="Os check-ins semanais do aluno aparecerão aqui em tempo real." />
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                      {weeklyFeedbacks.map(fb => {
+                        const start = new Date(fb.week_start + 'T12:00:00')
+                        const end   = new Date(start)
+                        end.setDate(start.getDate() + 6)
+                        const weekLabel =
+                          `${start.toLocaleDateString('pt-BR', { day: 'numeric', month: 'short' })} – ` +
+                          `${end.toLocaleDateString('pt-BR', { day: 'numeric', month: 'short', year: 'numeric' })}`
+                        return (
+                          <div key={fb.id} style={{ background: '#fff', border: '1px solid #ece7d9', borderRadius: 14, padding: '14px 16px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                              <span style={{ font: `600 12px ${FF}`, color: '#7c7869', textTransform: 'uppercase', letterSpacing: '.4px' }}>
+                                {weekLabel}
+                              </span>
+                              <span style={{ font: `400 11px ${FF}`, color: '#b0a99c' }}>
+                                {fmtDate(fb.created_at)}
+                              </span>
+                            </div>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginBottom: fb.notes ? 10 : 0 }}>
+                              <div style={{ background: '#f7f4ee', borderRadius: 10, padding: '10px 8px', textAlign: 'center' }}>
+                                <div style={{ font: `800 20px ${FF}`, color: '#1B2A4A', lineHeight: 1 }}>{fb.workouts}</div>
+                                <div style={{ font: `400 10px ${FF}`, color: '#9a948a', marginTop: 3 }}>treinos</div>
+                              </div>
+                              <div style={{ background: scoreBg(fb.sleep), borderRadius: 10, padding: '10px 8px', textAlign: 'center' }}>
+                                <div style={{ fontSize: 20, lineHeight: 1 }}>{scoreEmoji(fb.sleep, 'sleep')}</div>
+                                <div style={{ font: `600 9px ${FF}`, color: scoreColor(fb.sleep), marginTop: 3 }}>sono</div>
+                              </div>
+                              <div style={{ background: scoreBg(fb.nutrition), borderRadius: 10, padding: '10px 8px', textAlign: 'center' }}>
+                                <div style={{ fontSize: 20, lineHeight: 1 }}>{scoreEmoji(fb.nutrition, 'nutrition')}</div>
+                                <div style={{ font: `600 9px ${FF}`, color: scoreColor(fb.nutrition), marginTop: 3 }}>dieta</div>
+                              </div>
+                              <div style={{ background: scoreBg(fb.mood), borderRadius: 10, padding: '10px 8px', textAlign: 'center' }}>
+                                <div style={{ fontSize: 20, lineHeight: 1 }}>{scoreEmoji(fb.mood, 'mood')}</div>
+                                <div style={{ font: `600 9px ${FF}`, color: scoreColor(fb.mood), marginTop: 3 }}>humor</div>
+                              </div>
+                            </div>
+                            {fb.notes && (
+                              <div style={{ background: '#faf7ee', borderRadius: 8, padding: '8px 10px', borderLeft: '3px solid #E8542A', font: `400 12px ${FF}`, color: '#1B2A4A', lineHeight: 1.55 }}>
+                                {fb.notes}
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
 
                 {/* Feedback das sessões */}
                 <div>

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { MessageCircle } from 'lucide-react'
 import { useAuthStore } from '../../store/auth'
 import { supabase } from '../../lib/supabase'
+import { getWeekStart } from './FeedbackSemanal'
 
 const GOAL_STYLE: Record<string, { color: string; bg: string }> = {
   Hipertrofia:     { color: '#c4421e', bg: '#fbe6e1' },
@@ -37,9 +38,29 @@ export default function Home() {
   const [editError,   setEditError]   = useState('')
   const [saved,       setSaved]       = useState(false)
 
-  const [todayWorkout, setTodayWorkout] = useState<{ id: number; name: string; goal: string; muscle_group: string; exercise_count: number } | null>(null)
+  const [todayWorkout,     setTodayWorkout]     = useState<{ id: number; name: string; goal: string; muscle_group: string; exercise_count: number } | null>(null)
+  const [pendingFeedback,  setPendingFeedback]  = useState(false)
+  const isSunday = new Date().getDay() === 0
 
-  useEffect(() => { if (user?.id) void loadTodayWorkout() }, [user?.id])
+  useEffect(() => {
+    if (user?.id) {
+      void loadTodayWorkout()
+      void checkWeeklyFeedback()
+    }
+  }, [user?.id])
+
+  async function checkWeeklyFeedback() {
+    const { data: sr } = await supabase
+      .from('students').select('id').eq('student_id', user!.id).single()
+    if (!sr) return
+    const { data } = await supabase
+      .from('weekly_feedbacks')
+      .select('id')
+      .eq('student_id', (sr as any).id)
+      .eq('week_start', getWeekStart())
+      .maybeSingle()
+    if (!data) setPendingFeedback(true)
+  }
 
   async function loadTodayWorkout() {
     const { data: studentRow } = await supabase
@@ -199,6 +220,39 @@ export default function Home() {
               </div>
             )}
           </div>
+        </div>
+      )}
+
+      {/* Banner check-in semanal */}
+      {pendingFeedback && (
+        <div style={{ padding: '12px 18px 0' }}>
+          <button
+            onClick={() => navigate('/aluno/feedback-semanal')}
+            style={{
+              width: '100%', borderRadius: 16, border: 'none', cursor: 'pointer',
+              background: isSunday ? '#E8542A' : '#1B2A4A',
+              padding: '14px 16px',
+              display: 'flex', alignItems: 'center', gap: 14,
+              textAlign: 'left',
+              boxShadow: isSunday ? '0 4px 0 #C4421E' : '0 4px 14px rgba(27,42,74,.25)',
+            }}>
+            <div style={{ width: 42, height: 42, borderRadius: 12, background: 'rgba(255,255,255,.14)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <span style={{ fontSize: 21 }}>📋</span>
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ font: `700 13px ${FF}`, color: '#FAEEDA', marginBottom: 3 }}>
+                {isSunday ? 'Check-in semanal disponível 🎯' : 'Check-in semanal pendente'}
+              </div>
+              <div style={{ font: `400 11.5px ${FF}`, color: isSunday ? 'rgba(250,238,218,.8)' : '#8B97AD', lineHeight: 1.4 }}>
+                {isSunday
+                  ? 'É domingo! Responda e seu coach acompanha sua evolução.'
+                  : 'Compartilhe como foi sua semana com o coach.'}
+              </div>
+            </div>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#FAEEDA" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: .6, flexShrink: 0 }}>
+              <path d="M9 18l6-6-6-6"/>
+            </svg>
+          </button>
         </div>
       )}
 

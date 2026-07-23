@@ -26,6 +26,7 @@ import NovaAvaliacao from './pages/aluno/NovaAvaliacao'
 import AlunoNotificacoes from './pages/aluno/Notificacoes'
 import AlunoConfiguracoes from './pages/aluno/Configuracoes'
 import AlunoArquivos from './pages/aluno/Arquivos'
+import FeedbackSemanal from './pages/aluno/FeedbackSemanal'
 import Register from './pages/Register'
 
 
@@ -66,6 +67,7 @@ export default function App() {
         <Route path="notificacoes"        element={<AlunoNotificacoes />} />
         <Route path="configuracoes"       element={<AlunoConfiguracoes />} />
         <Route path="arquivos"            element={<AlunoArquivos />} />
+        <Route path="feedback-semanal"    element={<FeedbackSemanal />} />
       </Route>
       <Route path="*" element={<Navigate to="/login" replace />} />
     </Routes>

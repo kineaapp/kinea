@@ -133,6 +133,9 @@ export default function Execucao() {
   const [roundRestSec,     setRoundRestSec]     = useState(90)
   const [roundRestRunning, setRoundRestRunning] = useState(false)
 
+  // per-exercise sets history (for navigation)
+  const [exerciseSetsDone, setExerciseSetsDone] = useState<Record<number, SetResult[]>>({})
+
   // upcoming panel
   const [showUpcoming, setShowUpcoming] = useState(false)
 
@@ -386,6 +389,7 @@ export default function Execucao() {
     // ── Normal single-exercise flow ──────────────────────────────────────
     const next: SetResult[] = [...setsDone, newSet]
     if (next.length >= ex.sets) {
+      setExerciseSetsDone(prev => ({ ...prev, [exIdx]: next }))
       if (exIdx < exercises.length - 1) {
         const ni  = exIdx + 1
         const nex = exercises[ni]
@@ -424,6 +428,23 @@ export default function Execucao() {
   function skipRoundRest() {
     setRoundRestRunning(false); setRoundRestActive(false)
     setCurrentRound(r => r + 1); setCircuitExIdx(0); setRoundRestSec(90)
+  }
+
+  function goToExercise(newIdx: number) {
+    if (newIdx < 0 || newIdx >= exercises.length) return
+    const restored = exerciseSetsDone[newIdx] ?? []
+    setExerciseSetsDone(prev => ({ ...prev, [exIdx]: setsDone }))
+    const nex = exercises[newIdx]
+    const nw  = lastWeights[nex.name] ?? 0
+    const nr  = restored.length > 0 ? restored[restored.length - 1].reps : nex.defaultReps
+    setExIdx(newIdx)
+    setSetsDone(restored)
+    setReps(nr)
+    setWeight(nw)
+    setTimerSec(nex.restSec)
+    setTimerRunning(false)
+    const wid = workoutIdRef.current
+    if (wid) saveProg({ workoutId: wid, exIdx: newIdx, setsDone: restored, reps: nr, weight: nw, allCompleted, startedAt: startedAtRef.current })
   }
 
   async function handleFeedbackSubmit() {
@@ -930,6 +951,22 @@ export default function Execucao() {
                 : 'Próximo exercício →'
             }
           </button>
+          {(circuitExIdx > 0 || circuitExIdx < exercises.length - 1) && (
+            <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+              {circuitExIdx > 0 && (
+                <button onClick={() => setCircuitExIdx(i => i - 1)}
+                  style={{ flex: 1, height: 42, background: 'rgba(255,255,255,.08)', border: 'none', borderRadius: 12, font: `600 13px ${FF}`, color: '#8B97AD', cursor: 'pointer' }}>
+                  ← Anterior
+                </button>
+              )}
+              {circuitExIdx < exercises.length - 1 && (
+                <button onClick={() => setCircuitExIdx(i => i + 1)}
+                  style={{ flex: 1, height: 42, background: 'rgba(255,255,255,.08)', border: 'none', borderRadius: 12, font: `600 13px ${FF}`, color: '#8B97AD', cursor: 'pointer' }}>
+                  Próximo →
+                </button>
+              )}
+            </div>
+          )}
         </div>
 
         {showUpcoming && (
@@ -1172,6 +1209,22 @@ export default function Execucao() {
               ? `Série concluída → ${supersetPartner.name}`
               : 'Série concluída'}
         </button>
+        {!isMidSuperset && (exIdx > 0 || exIdx < totalExs - 1) && (
+          <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+            {exIdx > 0 && (
+              <button onClick={() => goToExercise(exIdx - 1)}
+                style={{ flex: 1, height: 42, background: 'rgba(255,255,255,.08)', border: 'none', borderRadius: 12, font: `600 13px ${FF}`, color: '#8B97AD', cursor: 'pointer' }}>
+                ← Anterior
+              </button>
+            )}
+            {exIdx < totalExs - 1 && (
+              <button onClick={() => goToExercise(exIdx + 1)}
+                style={{ flex: 1, height: 42, background: 'rgba(255,255,255,.08)', border: 'none', borderRadius: 12, font: `600 13px ${FF}`, color: '#8B97AD', cursor: 'pointer' }}>
+                Próximo →
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {showUpcoming && (
