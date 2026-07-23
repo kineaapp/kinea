@@ -115,9 +115,8 @@ function fmtMoney(v: number) {
 }
 const DAY_NAMES = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb']
 const STATUS_PAY: Record<string, { label: string; color: string; bg: string }> = {
-  active:  { label: 'Pago',     color: '#1B7a4a', bg: '#e7f3ea' },
-  pending: { label: 'Pendente', color: '#b06a12', bg: '#f7ecd9' },
-  overdue: { label: 'Atrasado', color: '#c4421e', bg: '#fbe6e1' },
+  active:  { label: 'Em dia',    color: '#1B7a4a', bg: '#e7f3ea' },
+  overdue: { label: 'Em atraso', color: '#c4421e', bg: '#fbe6e1' },
 }
 
 
@@ -837,6 +836,8 @@ export default function PerfilAluno() {
   const [showAssignModal,   setShowAssignModal]   = useState(false)
   const [openAssessId,      setOpenAssessId]      = useState<number | null>(null)
   const [editingAssessment, setEditingAssessment] = useState<AssessmentRow | null>(null)
+  const [showScheduleNext,  setShowScheduleNext]  = useState(false)
+  const [scheduleNextDate,  setScheduleNextDate]  = useState('')
 
   useEffect(() => {
     if (students.length === 0 && user?.id) fetchStudents(user.id)
@@ -973,7 +974,7 @@ export default function PerfilAluno() {
     setNewPaySaving(true)
     const amount = parseFloat(newPayAmount.replace(',', '.'))
     const { data } = await supabase.from('payments')
-      .insert({ student_id: studentId, description: newPayDesc || 'Mensalidade', amount, due_date: newPayDue, status: 'pending' })
+      .insert({ student_id: studentId, description: newPayDesc || 'Mensalidade', amount, due_date: newPayDue, status: 'overdue' })
       .select('id,amount,status,due_date,paid_at,description').single()
     if (data) setPayments(prev => [data as PaymentRow, ...prev])
     setNewPayOpen(false); setNewPayDesc(''); setNewPayAmount(''); setNewPayDue('')
@@ -1154,7 +1155,7 @@ export default function PerfilAluno() {
 
   // ── Derived ───────────────────────────────────────────────
   const pal  = avatarPalette(studentId % 5)
-  const pay  = student ? payInfo(student.pay)  : payInfo('pending')
+  const pay  = student ? payInfo(student.pay)  : payInfo('overdue')
   const sem  = student ? semInfo(student.sem)  : semInfo('green')
   const semanas      = student ? calcSemanas(student.since) : 0
   const lastAssess   = assessments.length > 0 ? assessments[assessments.length - 1] : null
@@ -1807,11 +1808,72 @@ export default function PerfilAluno() {
                 {/* Resumo */}
                 <div style={{ background: '#fff', border: '1px solid #ece7d9', borderRadius: 14, padding: 18 }}>
                   <h2 style={{ font: `700 15px ${FF}`, color: '#1B2A4A', margin: '0 0 12px' }}>Resumo</h2>
+
+                  {/* Próxima avaliação — editável */}
+                  <div style={{ padding: '8px 0', borderBottom: '1px solid #f1ece0' }}>
+                    {!showScheduleNext ? (
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <span style={{ font: `400 13px ${FF}`, color: '#7c7869' }}>Próxima avaliação</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span style={{ font: `600 13px ${FF}`, color: '#1B2A4A' }}>
+                            {/^\d{4}-\d{2}-\d{2}/.test(student.next) ? fmtDate(student.next) : student.next}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const iso = /^\d{4}-\d{2}-\d{2}/.test(student.next) ? student.next.split('T')[0] : ''
+                              setScheduleNextDate(iso)
+                              setShowScheduleNext(true)
+                            }}
+                            title="Agendar"
+                            style={{ border: 'none', background: '#f4efe3', borderRadius: 7, cursor: 'pointer', color: '#E8542A', display: 'flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, flexShrink: 0 }}
+                          >
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                              <rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>
+                            </svg>
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        <span style={{ font: `600 11px ${FF}`, color: '#6b6657', textTransform: 'uppercase', letterSpacing: '.4px' }}>Agendar próxima avaliação</span>
+                        <input
+                          type="date"
+                          value={scheduleNextDate}
+                          onChange={e => setScheduleNextDate(e.target.value)}
+                          style={{ width: '100%', height: 40, border: '1.5px solid #E8542A', borderRadius: 9, padding: '0 12px', font: `500 13px ${FF}`, color: '#1B2A4A', outline: 'none', background: '#fff', boxSizing: 'border-box' }}
+                        />
+                        <div style={{ display: 'flex', gap: 7 }}>
+                          <button
+                            type="button"
+                            onClick={() => setShowScheduleNext(false)}
+                            style={{ flex: 1, height: 36, border: '1.5px solid #d9d3c4', background: '#fff', color: '#1B2A4A', borderRadius: 8, font: `600 12.5px ${FF}`, cursor: 'pointer' }}
+                          >
+                            Cancelar
+                          </button>
+                          <button
+                            type="button"
+                            disabled={!scheduleNextDate}
+                            onClick={async () => {
+                              if (!scheduleNextDate) return
+                              await updateNextAssessment(studentId, scheduleNextDate)
+                              setShowScheduleNext(false)
+                              const [y, m, d] = scheduleNextDate.split('-')
+                              showToast(`Próxima avaliação agendada para ${d}/${m}/${y}.`)
+                            }}
+                            style={{ flex: 2, height: 36, border: 'none', background: scheduleNextDate ? '#E8542A' : '#d9d3c4', color: '#fff', borderRadius: 8, font: `700 12.5px ${FF}`, cursor: scheduleNextDate ? 'pointer' : 'default', boxShadow: scheduleNextDate ? '0 2px 0 #c4421e' : 'none' }}
+                          >
+                            Salvar
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
                   {[
-                    { label: 'Próxima avaliação', val: student.next, valColor: '#1B2A4A' },
-                    { label: 'Pagamento',          val: pay.label,   valColor: pay.color  },
-                    { label: 'Plano',              val: student.plan === 'Sem plano' ? 'Não definido' : student.plan, valColor: student.plan === 'Sem plano' ? '#9a948a' : '#1B2A4A' },
-                    { label: 'Avaliações',         val: assessments.length > 0 ? `${assessments.length}` : '—', valColor: '#1B2A4A' },
+                    { label: 'Pagamento', val: pay.label,   valColor: pay.color  },
+                    { label: 'Plano',     val: student.plan === 'Sem plano' ? 'Não definido' : student.plan, valColor: student.plan === 'Sem plano' ? '#9a948a' : '#1B2A4A' },
+                    { label: 'Avaliações', val: assessments.length > 0 ? `${assessments.length}` : '—', valColor: '#1B2A4A' },
                   ].map(({ label, val, valColor }, i, arr) => (
                     <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: i < arr.length - 1 ? '1px solid #f1ece0' : 'none' }}>
                       <span style={{ font: `400 13px ${FF}`, color: '#7c7869' }}>{label}</span>
@@ -2721,8 +2783,8 @@ export default function PerfilAluno() {
                     </div>
                   </div>
                   {payments.map((p, i) => {
-                    const s = STATUS_PAY[p.status] ?? STATUS_PAY.pending
-                    const isPending = p.status === 'pending' || p.status === 'overdue'
+                    const s = STATUS_PAY[p.status] ?? STATUS_PAY.overdue
+                    const isPending = p.status === 'overdue'
                     return (
                       <div key={p.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '13px 18px', borderTop: i === 0 ? 'none' : '1px solid #f1ece0' }}>
                         <div>

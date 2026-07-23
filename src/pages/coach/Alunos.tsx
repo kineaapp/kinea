@@ -20,7 +20,7 @@ const SORT_OPTIONS: { key: SortKey; label: string }[] = [
   { key: 'since-asc',  label: 'Cadastro: mais antigos' },
 ]
 
-const PAY_ORDER: Record<PayStatus, number> = { overdue: 0, pending: 1, active: 2 }
+const PAY_ORDER: Record<PayStatus, number> = { overdue: 0, active: 1 }
 const SEM_ORDER: Record<SemColor, number>  = { red: 0, yellow: 1, green: 2 }
 const MON: Record<string, number> = {
   jan:1, fev:2, mar:3, abr:4, mai:5, jun:6,
@@ -148,101 +148,6 @@ function Toast({ msg }: { msg: string }) {
   )
 }
 
-// ── Quick view drawer ───────────────────────────────────────
-function QuickView({ student: s, onClose, onOpenProfile, onMessage, onDelete }: {
-  student: Student; onClose: () => void; onOpenProfile: (id: number) => void; onMessage: (id: number) => void; onDelete: () => void
-}) {
-  const pal  = avatarPalette(s.id)
-  const pay  = payInfo(s.pay)
-  const sem  = semInfo(s.sem)
-  const [confirmDelete, setConfirmDelete] = useState(false)
-
-  return (
-    <>
-      <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(20,25,40,.45)', zIndex: 55 }} />
-      <div
-        className="k-quick"
-        onClick={e => e.stopPropagation()}
-        style={{ position: 'fixed', top: 0, right: 0, bottom: 0, width: 380, maxWidth: '88vw', background: '#F4EFE3', zIndex: 56, boxShadow: '-12px 0 40px rgba(0,0,0,.22)', display: 'flex', flexDirection: 'column', overflowY: 'auto' }}
-      >
-        {/* Navy header */}
-        <div style={{ background: '#1B2A4A', padding: '24px 22px 22px', position: 'relative' }}>
-          <button type="button" onClick={onClose} style={{ position: 'absolute', top: 16, right: 16, border: 'none', background: 'rgba(255,255,255,.1)', cursor: 'pointer', color: '#fff', width: 32, height: 32, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
-          </button>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-            <div style={{ width: 58, height: 58, borderRadius: '50%', background: pal[0], color: pal[1], display: 'flex', alignItems: 'center', justifyContent: 'center', font: `700 21px ${FF}`, flexShrink: 0 }}>
-              {getInitials(s.name)}
-            </div>
-            <div style={{ minWidth: 0 }}>
-              <div style={{ font: `800 20px ${FF}`, color: '#fff', letterSpacing: '-.4px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.name}</div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginTop: 4 }}>
-                <span style={{ width: 9, height: 9, borderRadius: '50%', background: sem.color }} />
-                <span style={{ font: `500 12.5px ${FF}`, color: '#aeb9cc' }}>{sem.label}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Body */}
-        <div style={{ padding: '20px 22px', display: 'flex', flexDirection: 'column', gap: 14 }}>
-          {/* Stat tiles */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-            {[
-              { label: 'Objetivo',        value: s.goal },
-              { label: 'Plano',           value: s.plan },
-            ].map(({ label, value }) => (
-              <div key={label} style={{ background: '#fff', border: '1px solid #ece7d9', borderRadius: 12, padding: 14 }}>
-                <div style={{ font: `600 11px ${FF}`, color: '#9a948a', marginBottom: 6 }}>{label}</div>
-                <div style={{ font: `700 14px ${FF}`, color: '#1B2A4A' }}>{value}</div>
-              </div>
-            ))}
-            <div style={{ background: '#fff', border: '1px solid #ece7d9', borderRadius: 12, padding: 14 }}>
-              <div style={{ font: `600 11px ${FF}`, color: '#9a948a', marginBottom: 6 }}>Pagamento</div>
-              <div style={{ display: 'inline-flex', alignItems: 'center', font: `700 12px ${FF}`, color: pay.color, background: pay.bg, borderRadius: 20, padding: '3px 10px' }}>{pay.label}</div>
-            </div>
-            <div style={{ background: '#fff', border: '1px solid #ece7d9', borderRadius: 12, padding: 14 }}>
-              <div style={{ font: `600 11px ${FF}`, color: '#9a948a', marginBottom: 6 }}>Próx. avaliação</div>
-              <div style={{ font: `700 14px ${FF}`, color: '#1B2A4A' }}>{s.next}</div>
-            </div>
-          </div>
-
-          {/* Quick actions */}
-          <div style={{ background: '#fff', border: '1px solid #ece7d9', borderRadius: 12, padding: 8 }}>
-            {[
-              { icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#E8542A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6.5 6.5l11 11"/><path d="M21 21l-1-1"/><path d="M3 3l1 1"/><path d="M18 22l4-4"/><path d="M2 6l4-4"/></svg>, label: 'Montar treino' },
-              { icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#E8542A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7a8.5 8.5 0 0 1-.9-3.8A8.38 8.38 0 0 1 12.5 3a8.38 8.38 0 0 1 8.5 8.5z"/></svg>, label: 'Enviar mensagem' },
-            ].map(({ icon, label }) => (
-              <button key={label} type="button" onClick={() => label === 'Montar treino' ? onOpenProfile(s.id) : onMessage(s.id)} style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%', border: 'none', background: 'none', padding: '11px 12px', borderRadius: 9, cursor: 'pointer', font: `600 14px ${FF}`, color: '#1B2A4A', textAlign: 'left' }}>
-                {icon}{label}
-              </button>
-            ))}
-          </div>
-
-          <button
-            type="button"
-            onClick={() => onOpenProfile(s.id)}
-            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: 48, border: 'none', background: '#E8542A', color: '#fff', borderRadius: 11, font: `700 14.5px ${FF}`, cursor: 'pointer', boxShadow: '0 2px 0 #c4421e' }}
-          >
-            Abrir perfil completo →
-          </button>
-
-          {!confirmDelete
-            ? <button type="button" onClick={() => setConfirmDelete(true)} style={{ width: '100%', border: 'none', background: 'none', color: '#c4421e', font: `600 13px ${FF}`, padding: '10px 0 2px', cursor: 'pointer' }}>
-                Excluir aluno
-              </button>
-            : <div style={{ display: 'flex', gap: 8, alignItems: 'center', paddingTop: 6 }}>
-                <span style={{ flex: 1, font: `500 12.5px ${FF}`, color: '#7c7869' }}>Confirmar exclusão?</span>
-                <button type="button" onClick={onDelete} style={{ height: 36, padding: '0 14px', border: 'none', background: '#c4421e', color: '#fff', borderRadius: 8, font: `700 12.5px ${FF}`, cursor: 'pointer' }}>Excluir</button>
-                <button type="button" onClick={() => setConfirmDelete(false)} style={{ height: 36, padding: '0 14px', border: '1.5px solid #d9d3c4', background: '#fff', color: '#1B2A4A', borderRadius: 8, font: `600 12.5px ${FF}`, cursor: 'pointer' }}>Cancelar</button>
-              </div>
-          }
-        </div>
-      </div>
-    </>
-  )
-}
-
 // ── Sortable column header ──────────────────────────────────
 function SortHeader({ label, sortAsc, sortDesc, current, onSort, style, className }: {
   label:    string
@@ -291,11 +196,10 @@ export default function Alunos() {
   const [query,       setQuery]       = useState('')
   const [sort,        setSort]        = useState<SortKey>('name-asc')
   const [sortOpen,    setSortOpen]    = useState(false)
-  const [quickIdx,    setQuickIdx]    = useState<number | null>(null)
   const [inviteOpen,  setInviteOpen]  = useState(false)
   const [addOpen,     setAddOpen]     = useState(false)
   const [toast,       setToast]       = useState('')
-  const { students, loading, fetchError, fetchStudents, deleteStudent, addStudent } = useStudentsStore()
+  const { students, loading, fetchError, fetchStudents, addStudent } = useStudentsStore()
   const { user } = useAuthStore()
 
   useEffect(() => { if (user?.id) fetchStudents(user.id) }, [user?.id])
@@ -489,7 +393,7 @@ export default function Alunos() {
               return (
                 <div
                   key={s.id}
-                  onClick={() => setQuickIdx(s.id)}
+                  onClick={() => navigate(`/coach/alunos/${s.id}`)}
                   style={{ display: 'flex', alignItems: 'center', gap: 13, padding: '13px 20px', borderTop: i === 0 ? 'none' : '1px solid #f1ece0', cursor: 'pointer' }}
                 >
                   <div style={{ flex: 1, minWidth: 120, display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -534,20 +438,6 @@ export default function Alunos() {
           </div>
         )}
       </div>
-
-      {/* Quick view */}
-      {quickIdx !== null && (() => {
-        const student = students.find(s => s.id === quickIdx)
-        return student ? (
-          <QuickView
-            student={student}
-            onClose={() => setQuickIdx(null)}
-            onOpenProfile={(id) => { setQuickIdx(null); navigate(`/coach/alunos/${id}`) }}
-            onMessage={(id) => { setQuickIdx(null); navigate(`/coach/mensagens?student=${id}`) }}
-            onDelete={() => { deleteStudent(quickIdx!); setQuickIdx(null); showToast('Aluno excluído.') }}
-          />
-        ) : null
-      })()}
 
       {addOpen && (
         <AddStudentModal

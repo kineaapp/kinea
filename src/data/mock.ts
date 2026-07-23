@@ -1,5 +1,5 @@
 export type SemColor  = 'green' | 'yellow' | 'red'
-export type PayStatus = 'active' | 'pending' | 'overdue'
+export type PayStatus = 'active' | 'overdue'
 
 export type AssessmentFrequency = 'weekly' | 'biweekly' | 'monthly' | null
 
@@ -34,9 +34,8 @@ export function getInitials(name: string) {
 }
 
 export function payInfo(p: PayStatus) {
-  if (p === 'active')  return { label: 'Em dia',   color: '#1B7a4a', bg: '#e7f3ea' }
-  if (p === 'pending') return { label: 'Pendente', color: '#b06a12', bg: '#f7ecd9' }
-  return                      { label: 'Vencido',  color: '#D2402A', bg: '#fbe6e1' }
+  if (p === 'active') return { label: 'Em dia',    color: '#1B7a4a', bg: '#e7f3ea' }
+  return                     { label: 'Em atraso', color: '#D2402A', bg: '#fbe6e1' }
 }
 
 export function semInfo(s: SemColor) {

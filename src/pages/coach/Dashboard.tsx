@@ -10,7 +10,7 @@ import { supabase } from '../../lib/supabase'
 const FF = '"Libre Franklin",sans-serif'
 
 type SemColor  = 'green' | 'yellow' | 'red'
-type PayStatus = 'active' | 'pending' | 'overdue'
+type PayStatus = 'active' | 'overdue'
 
 const AVATAR_PALETTE: [string, string][] = [
   ['#eef1f6','#1B2A4A'], ['#fbe6e1','#c4421e'], ['#e7f3ea','#1B7a4a'],
@@ -23,9 +23,8 @@ function getInitials(name: string) {
 }
 
 function payInfo(p: PayStatus) {
-  if (p === 'active')  return { label: 'Em dia',   color: '#1B7a4a', bg: '#e7f3ea' }
-  if (p === 'pending') return { label: 'Pendente', color: '#b06a12', bg: '#f7ecd9' }
-  return                      { label: 'Vencida',  color: '#D2402A', bg: '#fbe6e1' }
+  if (p === 'active') return { label: 'Em dia',    color: '#1B7a4a', bg: '#e7f3ea' }
+  return                     { label: 'Em atraso', color: '#D2402A', bg: '#fbe6e1' }
 }
 
 function semInfo(s: SemColor) {

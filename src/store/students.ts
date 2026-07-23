@@ -90,7 +90,7 @@ export const useStudentsStore = create<StudentsStore>((set) => ({
       .from('payments')
       .select('student_id, due_date')
       .in('student_id', studentIds)
-      .in('status', ['pending', 'overdue'])
+      .eq('status', 'overdue')
       .lt('due_date', today)
 
     const overdueIds    = new Set((overdueRows ?? []).map((p: any) => p.student_id))
@@ -109,10 +109,8 @@ export const useStudentsStore = create<StudentsStore>((set) => ({
     set({
       students: (data as Row[]).map(r => {
         const s = mapRow(r)
-        if (autoBlockIds.has(r.id) && s.pay !== 'active') {
+        if (overdueIds.has(r.id) && s.pay !== 'active') {
           s.pay = 'overdue'
-        } else if (overdueIds.has(r.id) && s.pay !== 'active') {
-          s.pay = 'pending'
         }
         if (toBlock.some(t => t.id === r.id)) s.blocked = true
         return s
@@ -134,7 +132,7 @@ export const useStudentsStore = create<StudentsStore>((set) => ({
   },
 
   updatePlan: async (id, plan) => {
-    const pay_status = 'pending'
+    const pay_status = 'overdue'
     const { error } = await supabase.from('students').update({ plan, pay_status }).eq('id', id)
     if (error) return false
     set(s => ({ students: s.students.map(st => st.id === id ? { ...st, plan, pay: pay_status as PayStatus } : st) }))
@@ -170,7 +168,7 @@ export const useStudentsStore = create<StudentsStore>((set) => ({
     const plan = data.plan ?? 'Sem plano'
     const { data: row, error } = await supabase
       .from('students')
-      .insert({ coach_id: coachId, name: data.name, email: data.email ?? '', goal: data.goal ?? '', plan, since: today, pay_status: 'pending' })
+      .insert({ coach_id: coachId, name: data.name, email: data.email ?? '', goal: data.goal ?? '', plan, since: today, pay_status: 'overdue' })
       .select()
       .single()
     if (!error && row) set(s => ({ students: [mapRow(row as Row), ...s.students] }))

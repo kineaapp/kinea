@@ -8,7 +8,7 @@ const FN_URL = import.meta.env.VITE_SUPABASE_URL + '/functions/v1'
 const FF = '"Libre Franklin",sans-serif'
 
 // ── Types ───────────────────────────────────────────────────
-type Status = 'pago' | 'pendente' | 'atrasado'
+type Status = 'pago' | 'atrasado'
 type Tab    = 'all' | Status
 
 interface Charge {
@@ -42,9 +42,8 @@ interface PlanRequest {
 
 // ── Constants ───────────────────────────────────────────────
 const STATUS_MAP: Record<Status, { label: string; color: string; bg: string }> = {
-  pago:     { label: 'Pago',      color: '#1B7a4a', bg: '#e7f3ea' },
-  pendente: { label: 'Pendente',  color: '#b06a12', bg: '#f7ecd9' },
-  atrasado: { label: 'Vencida',   color: '#c4421e', bg: '#fbe6e1' },
+  pago:     { label: 'Em dia',    color: '#1B7a4a', bg: '#e7f3ea' },
+  atrasado: { label: 'Em atraso', color: '#c4421e', bg: '#fbe6e1' },
 }
 
 const PLANS: Record<string, number> = { Mensal: 399, Trimestral: 247 }
@@ -59,13 +58,9 @@ function formatDate(dateStr: string): string {
   return `${d}/${m}/${y}`
 }
 
-function mapStatus(dbStatus: string, dueDate: string): Status {
+function mapStatus(dbStatus: string): Status {
   if (dbStatus === 'active') return 'pago'
-  const today = new Date(); today.setHours(0, 0, 0, 0)
-  const due = new Date(dueDate + 'T00:00:00')
-  const daysLate = Math.floor((today.getTime() - due.getTime()) / 86_400_000)
-  if (daysLate >= 5) return 'atrasado'
-  return 'pendente'
+  return 'atrasado'
 }
 
 // ── Receipt ──────────────────────────────────────────────────
@@ -128,11 +123,9 @@ function ChargeDrawer({ charge, onClose, onMarkPaid, onRemind }: {
 
   const history: { label: string; date: string; dot: string }[] = []
   if (charge.status === 'pago') {
-    history.push({ label: 'Pagamento confirmado',  date: charge.paidOn ?? '—', dot: '#1B7a4a' })
-  } else if (charge.status === 'atrasado') {
-    history.push({ label: 'Vencimento',            date: charge.due,         dot: '#b06a12' })
+    history.push({ label: 'Pagamento confirmado', date: charge.paidOn ?? '—', dot: '#1B7a4a' })
   } else {
-    history.push({ label: 'Aguardando vencimento', date: charge.due,         dot: '#b06a12' })
+    history.push({ label: 'Vencimento',           date: charge.due,          dot: '#c4421e' })
   }
 
   return (
@@ -344,7 +337,7 @@ export default function Pagamentos() {
           value:     p.amount,
           method:    'Pix',
           due:       formatDate(p.due_date),
-          status:    mapStatus(p.status, p.due_date),
+          status:    mapStatus(p.status),
           paidOn:    p.paid_at ? new Date(p.paid_at).toLocaleDateString('pt-BR') : null,
         })))
       })
@@ -420,7 +413,7 @@ export default function Pagamentos() {
     const amount = PLANS[st.plan] ?? 247
     const { data, error } = await supabase
       .from('payments')
-      .insert({ student_id: studentId, amount, status: 'pending', due_date: dueDate, description: `${st.plan} – cobrança manual` })
+      .insert({ student_id: studentId, amount, status: 'overdue', due_date: dueDate, description: `${st.plan} – cobrança manual` })
       .select('id')
       .single()
     if (error || !data) { showToast('Erro ao gerar cobrança.'); return }
@@ -433,7 +426,7 @@ export default function Pagamentos() {
       value:     amount,
       method:    'Pix',
       due:       formatDate(dueDate),
-      status:    mapStatus('pending', dueDate),
+      status:    'atrasado',
       paidOn:    null,
     }, ...prev])
     setNewOpen(false)
@@ -469,9 +462,8 @@ export default function Pagamentos() {
 
   const TABS: { key: Tab; label: string }[] = [
     { key: 'all',      label: 'Todos' },
-    { key: 'pago',     label: 'Pagos' },
-    { key: 'pendente', label: 'Pendentes' },
-    { key: 'atrasado', label: 'Vencidas' },
+    { key: 'pago',     label: 'Em dia' },
+    { key: 'atrasado', label: 'Em atraso' },
   ]
 
   const colLabel: React.CSSProperties = { font: `700 10.5px ${FF}`, letterSpacing: '.6px', textTransform: 'uppercase', color: '#9a948a' }
@@ -540,7 +532,7 @@ export default function Pagamentos() {
       )}
 
       {/* Summary cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14, marginBottom: 18 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14, marginBottom: 18 }}>
         {/* Recebido */}
         <div style={{ background: '#1B2A4A', borderRadius: 16, padding: '18px 19px', color: '#fff' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 11 }}>
@@ -551,18 +543,6 @@ export default function Pagamentos() {
           </div>
           <div style={{ font: `800 26px ${FF}`, letterSpacing: '-.5px' }}>{brl(sum('pago'))}</div>
           <div style={{ font: `500 11.5px ${FF}`, color: '#8fd6a8', marginTop: 5 }}>{cnt('pago')} fatura{cnt('pago') !== 1 ? 's' : ''} confirmada{cnt('pago') !== 1 ? 's' : ''}</div>
-        </div>
-
-        {/* A receber */}
-        <div style={{ background: '#fff', border: '1px solid #ece7d9', borderRadius: 16, padding: '18px 19px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 11 }}>
-            <div style={{ width: 30, height: 30, borderRadius: 9, background: '#f7ecd9', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#b06a12" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
-            </div>
-            <span style={{ font: `600 11.5px ${FF}`, color: '#7c7869' }}>A receber</span>
-          </div>
-          <div style={{ font: `800 26px ${FF}`, color: '#1B2A4A', letterSpacing: '-.5px' }}>{brl(sum('pendente'))}</div>
-          <div style={{ font: `500 11.5px ${FF}`, color: '#9a948a', marginTop: 5 }}>{cnt('pendente')} cobranças em aberto</div>
         </div>
 
         {/* Em atraso */}
