@@ -208,14 +208,6 @@ export default function Dashboard() {
       .limit(30)
       .then(({ data }) => setCheckIns((data as CheckInFeed[] | null) ?? []))
 
-    supabase
-      .from('weekly_feedbacks')
-      .select('id, week_start, workouts, sleep, nutrition, mood, notes, created_at, students!inner(name, coach_id)')
-      .eq('students.coach_id', user.id)
-      .order('created_at', { ascending: false })
-      .limit(5)
-      .then(({ data }) => setRecentFeedbacks((data as WeeklyFeedbackFeed[] | null) ?? []))
-
     // Próximos vencimentos reais da tabela payments (um por aluno, mais próximo)
     supabase
       .from('payments')
@@ -237,6 +229,24 @@ export default function Dashboard() {
         setUpcomingPayments(result.slice(0, 5))
       })
   }, [user?.id])
+
+  useEffect(() => {
+    if (students.length === 0) return
+    const ids = students.map(s => s.id)
+    supabase
+      .from('weekly_feedbacks')
+      .select('id, week_start, workouts, sleep, nutrition, mood, notes, created_at, student_id')
+      .in('student_id', ids)
+      .order('created_at', { ascending: false })
+      .limit(5)
+      .then(({ data }) => {
+        if (!data) return
+        setRecentFeedbacks((data as any[]).map(fb => ({
+          ...fb,
+          students: { name: students.find(s => s.id === fb.student_id)?.name ?? '—' },
+        })))
+      })
+  }, [students])
 
   const shown = filter === 'all' ? students : students.filter(s => s.sem === filter)
   const count = (c: SemColor) => students.filter(s => s.sem === c).length
