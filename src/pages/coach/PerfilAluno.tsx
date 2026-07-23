@@ -812,7 +812,7 @@ export default function PerfilAluno() {
   const toastRef  = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
   // ── Auth / student ────────────────────────────────────────
-  const { students, fetchStudents, deleteStudent, updatePlan, updateStudentInfo, blockStudent, updateAssessmentFrequency, updateNextAssessment } = useStudentsStore()
+  const { students, fetchStudents, deleteStudent, updatePlan, updateStudentInfo, blockStudent, updateAssessmentFrequency, updateNextAssessment, updatePlanDates } = useStudentsStore()
   const { user }  = useAuthStore()
   const studentId = parseInt(id ?? '0', 10)
   const [confirmDelete, setConfirmDelete] = useState(false)
@@ -838,6 +838,9 @@ export default function PerfilAluno() {
   const [editingAssessment, setEditingAssessment] = useState<AssessmentRow | null>(null)
   const [showScheduleNext,  setShowScheduleNext]  = useState(false)
   const [scheduleNextDate,  setScheduleNextDate]  = useState('')
+  const [showPlanDates,     setShowPlanDates]     = useState(false)
+  const [planStartVal,      setPlanStartVal]      = useState('')
+  const [planEndVal,        setPlanEndVal]        = useState('')
 
   useEffect(() => {
     if (students.length === 0 && user?.id) fetchStudents(user.id)
@@ -1871,15 +1874,105 @@ export default function PerfilAluno() {
                   </div>
 
                   {[
-                    { label: 'Pagamento', val: pay.label,   valColor: pay.color  },
-                    { label: 'Plano',     val: student.plan === 'Sem plano' ? 'Não definido' : student.plan, valColor: student.plan === 'Sem plano' ? '#9a948a' : '#1B2A4A' },
-                    { label: 'Avaliações', val: assessments.length > 0 ? `${assessments.length}` : '—', valColor: '#1B2A4A' },
-                  ].map(({ label, val, valColor }, i, arr) => (
-                    <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: i < arr.length - 1 ? '1px solid #f1ece0' : 'none' }}>
+                    { label: 'Pagamento', val: pay.label, valColor: pay.color },
+                  ].map(({ label, val, valColor }) => (
+                    <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #f1ece0' }}>
                       <span style={{ font: `400 13px ${FF}`, color: '#7c7869' }}>{label}</span>
                       <span style={{ font: `600 13px ${FF}`, color: valColor }}>{val}</span>
                     </div>
                   ))}
+
+                  {/* Plano + datas editáveis */}
+                  <div style={{ padding: '8px 0', borderBottom: '1px solid #f1ece0' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ font: `400 13px ${FF}`, color: '#7c7869' }}>Plano</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{ font: `600 13px ${FF}`, color: student.plan === 'Sem plano' ? '#9a948a' : '#1B2A4A' }}>
+                          {student.plan === 'Sem plano' ? 'Não definido' : student.plan}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setPlanStartVal(student.planStartDate ?? '')
+                            setPlanEndVal(student.planEndDate ?? '')
+                            setShowPlanDates(v => !v)
+                          }}
+                          title="Definir período"
+                          style={{ border: 'none', background: showPlanDates ? '#E8542A' : '#f4efe3', borderRadius: 7, cursor: 'pointer', color: showPlanDates ? '#fff' : '#E8542A', display: 'flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, flexShrink: 0 }}
+                        >
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                            <rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
+                    {showPlanDates && (
+                      <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                          <div>
+                            <div style={{ font: `600 10px ${FF}`, color: '#9a948a', textTransform: 'uppercase', letterSpacing: '.4px', marginBottom: 4 }}>Início</div>
+                            <input
+                              type="date"
+                              value={planStartVal}
+                              onChange={e => setPlanStartVal(e.target.value)}
+                              style={{ width: '100%', height: 36, border: '1.5px solid #d9d3c4', borderRadius: 8, padding: '0 8px', font: `500 12px ${FF}`, color: '#1B2A4A', outline: 'none', background: '#fff', boxSizing: 'border-box' }}
+                            />
+                          </div>
+                          <div>
+                            <div style={{ font: `600 10px ${FF}`, color: '#9a948a', textTransform: 'uppercase', letterSpacing: '.4px', marginBottom: 4 }}>Fim</div>
+                            <input
+                              type="date"
+                              value={planEndVal}
+                              onChange={e => setPlanEndVal(e.target.value)}
+                              style={{ width: '100%', height: 36, border: '1.5px solid #d9d3c4', borderRadius: 8, padding: '0 8px', font: `500 12px ${FF}`, color: '#1B2A4A', outline: 'none', background: '#fff', boxSizing: 'border-box' }}
+                            />
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', gap: 7 }}>
+                          <button
+                            type="button"
+                            onClick={() => setShowPlanDates(false)}
+                            style={{ flex: 1, height: 34, border: '1.5px solid #d9d3c4', background: '#fff', color: '#1B2A4A', borderRadius: 8, font: `600 12px ${FF}`, cursor: 'pointer' }}
+                          >
+                            Cancelar
+                          </button>
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              await updatePlanDates(studentId, planStartVal || null, planEndVal || null)
+                              setShowPlanDates(false)
+                              showToast('Período do plano atualizado.')
+                            }}
+                            style={{ flex: 2, height: 34, border: 'none', background: '#E8542A', color: '#fff', borderRadius: 8, font: `700 12px ${FF}`, cursor: 'pointer', boxShadow: '0 2px 0 #c4421e' }}
+                          >
+                            Salvar
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                    {/* Exibe datas salvas quando o picker está fechado */}
+                    {!showPlanDates && (student.planStartDate || student.planEndDate) && (
+                      <div style={{ display: 'flex', gap: 16, marginTop: 6 }}>
+                        {student.planStartDate && (
+                          <div>
+                            <div style={{ font: `500 10px ${FF}`, color: '#b0a99c', textTransform: 'uppercase', letterSpacing: '.4px' }}>Início</div>
+                            <div style={{ font: `600 12px ${FF}`, color: '#4a4437' }}>{fmtDate(student.planStartDate)}</div>
+                          </div>
+                        )}
+                        {student.planEndDate && (
+                          <div>
+                            <div style={{ font: `500 10px ${FF}`, color: '#b0a99c', textTransform: 'uppercase', letterSpacing: '.4px' }}>Fim</div>
+                            <div style={{ font: `600 12px ${FF}`, color: '#4a4437' }}>{fmtDate(student.planEndDate)}</div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0' }}>
+                    <span style={{ font: `400 13px ${FF}`, color: '#7c7869' }}>Avaliações</span>
+                    <span style={{ font: `600 13px ${FF}`, color: '#1B2A4A' }}>{assessments.length > 0 ? `${assessments.length}` : '—'}</span>
+                  </div>
                 </div>
                 {/* Acesso */}
                 <div style={{ background: '#fff', border: '1px solid #ece7d9', borderRadius: 14, padding: 18 }}>

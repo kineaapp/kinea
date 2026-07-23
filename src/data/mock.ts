@@ -19,6 +19,8 @@ export interface Student {
   phone:               string | null
   blocked:             boolean
   assessmentFrequency: AssessmentFrequency
+  planStartDate:       string | null
+  planEndDate:         string | null
 }
 
 export const ROSTER: Student[] = []

@@ -18,6 +18,7 @@ interface StudentsStore {
   blockStudent:              (id: number, blocked: boolean) => Promise<void>
   updateAssessmentFrequency: (id: number, freq: AssessmentFrequency) => Promise<void>
   updateNextAssessment:      (id: number, date: string) => Promise<void>
+  updatePlanDates:           (id: number, startDate: string | null, endDate: string | null) => Promise<void>
 }
 
 type Row = {
@@ -36,6 +37,8 @@ type Row = {
   blocked:               boolean
   unblocked_at:          string | null
   assessment_frequency:  AssessmentFrequency
+  plan_start_date:       string | null
+  plan_end_date:         string | null
 }
 
 function formatSince(dateStr: string): string {
@@ -60,6 +63,8 @@ function mapRow(r: Row): Student {
     phone:               r.phone ?? null,
     blocked:             r.blocked ?? false,
     assessmentFrequency: r.assessment_frequency ?? null,
+    planStartDate:       r.plan_start_date ?? null,
+    planEndDate:         r.plan_end_date   ?? null,
   }
 }
 
@@ -159,6 +164,17 @@ export const useStudentsStore = create<StudentsStore>((set) => ({
     const { error } = await supabase.from('students').update({ next_assessment: date }).eq('id', id)
     if (!error) set(s => ({
       students: s.students.map(st => st.id === id ? { ...st, next: date } : st),
+    }))
+  },
+
+  updatePlanDates: async (id, startDate, endDate) => {
+    const { error } = await supabase.from('students')
+      .update({ plan_start_date: startDate, plan_end_date: endDate })
+      .eq('id', id)
+    if (!error) set(s => ({
+      students: s.students.map(st => st.id === id
+        ? { ...st, planStartDate: startDate, planEndDate: endDate }
+        : st),
     }))
   },
 
