@@ -114,9 +114,7 @@ export const useStudentsStore = create<StudentsStore>((set) => ({
     set({
       students: (data as Row[]).map(r => {
         const s = mapRow(r)
-        if (overdueIds.has(r.id) && s.pay !== 'active') {
-          s.pay = 'overdue'
-        }
+        s.pay = overdueIds.has(r.id) ? 'overdue' : 'active'
         if (toBlock.some(t => t.id === r.id)) s.blocked = true
         return s
       }),
