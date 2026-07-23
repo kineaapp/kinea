@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { getInitials, avatarPalette } from '../../data/mock'
 import { supabase } from '../../lib/supabase'
 import { useAuthStore } from '../../store/auth'
@@ -299,10 +300,14 @@ function NewChargeModal({ students, onClose, onAdd }: {
 // ── Main ─────────────────────────────────────────────────────
 export default function Pagamentos() {
   const { user }   = useAuthStore()
+  const [searchParams] = useSearchParams()
   const [charges,   setCharges]   = useState<Charge[]>([])
   const [students,  setStudents]  = useState<Student[]>([])
   const [requests,  setRequests]  = useState<PlanRequest[]>([])
-  const [tab,       setTab]       = useState<Tab>('all')
+  const [tab,       setTab]       = useState<Tab>(() => {
+    const t = searchParams.get('tab')
+    return (t === 'atrasado' || t === 'a-vencer' || t === 'pago') ? t : 'all'
+  })
   const [query,     setQuery]     = useState('')
   const [sortDate,  setSortDate]  = useState<'asc' | 'desc'>('desc')
   const [openId,    setOpenId]    = useState<number | null>(null)

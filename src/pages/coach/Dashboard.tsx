@@ -57,9 +57,9 @@ type StudentAssessment = { id: number; name: string; next_assessment: string }
 type CheckInFeed       = { id: number; content: string; created_at: string; students: { name: string } | null }
 
 // ── Sub-components ──────────────────────────────────────────
-function KpiCard({ label, value, sub, subColor, iconBg, iconColor, icon }: {
+function KpiCard({ label, value, sub, subColor, iconBg, iconColor, icon, onSubClick }: {
   label: string; value: string | number; sub: string; subColor: string
-  iconBg: string; iconColor: string; icon: React.ReactNode
+  iconBg: string; iconColor: string; icon: React.ReactNode; onSubClick?: () => void
 }) {
   return (
     <div style={{ background: '#fff', border: '1px solid #ece7d9', borderRadius: 14, padding: '18px 18px 16px' }}>
@@ -68,7 +68,10 @@ function KpiCard({ label, value, sub, subColor, iconBg, iconColor, icon }: {
         <span style={{ width: 30, height: 30, borderRadius: 8, background: iconBg, display: 'flex', alignItems: 'center', justifyContent: 'center', color: iconColor }}>{icon}</span>
       </div>
       <div style={{ font: `800 30px/1 ${FF}`, color: '#1B2A4A', letterSpacing: '-1px' }}>{value}</div>
-      <div style={{ font: `500 12px ${FF}`, color: subColor, marginTop: 7 }}>{sub}</div>
+      {onSubClick
+        ? <button type="button" onClick={onSubClick} style={{ font: `500 12px ${FF}`, color: subColor, marginTop: 7, background: 'none', border: 'none', padding: 0, cursor: 'pointer', textDecoration: 'underline' }}>{sub}</button>
+        : <div style={{ font: `500 12px ${FF}`, color: subColor, marginTop: 7 }}>{sub}</div>
+      }
     </div>
   )
 }
@@ -261,6 +264,7 @@ export default function Dashboard() {
         />
         <KpiCard label="Pagam. vencidos" value={students.filter(s => s.pay === 'overdue').length} sub={students.filter(s => s.pay === 'overdue').length > 0 ? 'Ver pagamentos' : 'Sem atrasos'} subColor={students.filter(s => s.pay === 'overdue').length > 0 ? '#D2402A' : '#2b9d5f'} iconBg="#fbe6e1" iconColor="#D2402A"
           icon={<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /><path d="M12 8v4" /><path d="M12 16h.01" /></svg>}
+          onSubClick={students.filter(s => s.pay === 'overdue').length > 0 ? () => navigate('/coach/pagamentos?tab=atrasado') : undefined}
         />
         <KpiCard label="Leads novos" value={0} sub="no funil esta semana" subColor="#7c7869" iconBg="#f7ecd9" iconColor="#b06a12"
           icon={<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3v18h18" /><path d="M7 14l4-4 3 3 5-6" /></svg>}
