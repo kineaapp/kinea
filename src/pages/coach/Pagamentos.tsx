@@ -8,7 +8,7 @@ const FN_URL = import.meta.env.VITE_SUPABASE_URL + '/functions/v1'
 const FF = '"Libre Franklin",sans-serif'
 
 // ── Types ───────────────────────────────────────────────────
-type Status = 'pago' | 'atrasado'
+type Status = 'pago' | 'a-vencer' | 'atrasado'
 type Tab    = 'all' | Status
 
 interface Charge {
@@ -42,8 +42,9 @@ interface PlanRequest {
 
 // ── Constants ───────────────────────────────────────────────
 const STATUS_MAP: Record<Status, { label: string; color: string; bg: string }> = {
-  pago:     { label: 'Em dia',    color: '#1B7a4a', bg: '#e7f3ea' },
-  atrasado: { label: 'Em atraso', color: '#c4421e', bg: '#fbe6e1' },
+  pago:      { label: 'Em dia',    color: '#1B7a4a', bg: '#e7f3ea' },
+  'a-vencer':{ label: 'A vencer',  color: '#b06a12', bg: '#f7ecd9' },
+  atrasado:  { label: 'Em atraso', color: '#c4421e', bg: '#fbe6e1' },
 }
 
 const PLANS: Record<string, number> = { Mensal: 399, Trimestral: 247 }
@@ -58,9 +59,11 @@ function formatDate(dateStr: string): string {
   return `${d}/${m}/${y}`
 }
 
-function mapStatus(dbStatus: string): Status {
+function mapStatus(dbStatus: string, dueDate: string): Status {
   if (dbStatus === 'active') return 'pago'
-  return 'atrasado'
+  const today = new Date(); today.setHours(0, 0, 0, 0)
+  const due   = new Date(dueDate + 'T00:00:00')
+  return due > today ? 'a-vencer' : 'atrasado'
 }
 
 // ── Receipt ──────────────────────────────────────────────────
@@ -124,6 +127,8 @@ function ChargeDrawer({ charge, onClose, onMarkPaid, onRemind }: {
   const history: { label: string; date: string; dot: string }[] = []
   if (charge.status === 'pago') {
     history.push({ label: 'Pagamento confirmado', date: charge.paidOn ?? '—', dot: '#1B7a4a' })
+  } else if (charge.status === 'a-vencer') {
+    history.push({ label: 'Vencimento previsto',  date: charge.due,          dot: '#b06a12' })
   } else {
     history.push({ label: 'Vencimento',           date: charge.due,          dot: '#c4421e' })
   }
@@ -337,7 +342,7 @@ export default function Pagamentos() {
           value:     p.amount,
           method:    'Pix',
           due:       formatDate(p.due_date),
-          status:    mapStatus(p.status),
+          status:    mapStatus(p.status, p.due_date),
           paidOn:    p.paid_at ? new Date(p.paid_at).toLocaleDateString('pt-BR') : null,
         })))
       })
@@ -426,7 +431,7 @@ export default function Pagamentos() {
       value:     amount,
       method:    'Pix',
       due:       formatDate(dueDate),
-      status:    'atrasado',
+      status:    mapStatus('overdue', dueDate),
       paidOn:    null,
     }, ...prev])
     setNewOpen(false)
@@ -461,9 +466,10 @@ export default function Pagamentos() {
   const openCharge = openId !== null ? charges.find(c => c.id === openId) ?? null : null
 
   const TABS: { key: Tab; label: string }[] = [
-    { key: 'all',      label: 'Todos' },
-    { key: 'pago',     label: 'Em dia' },
-    { key: 'atrasado', label: 'Em atraso' },
+    { key: 'all',       label: 'Todos' },
+    { key: 'pago',      label: 'Em dia' },
+    { key: 'a-vencer',  label: 'A vencer' },
+    { key: 'atrasado',  label: 'Em atraso' },
   ]
 
   const colLabel: React.CSSProperties = { font: `700 10.5px ${FF}`, letterSpacing: '.6px', textTransform: 'uppercase', color: '#9a948a' }
@@ -532,7 +538,7 @@ export default function Pagamentos() {
       )}
 
       {/* Summary cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14, marginBottom: 18 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14, marginBottom: 18 }}>
         {/* Recebido */}
         <div style={{ background: '#1B2A4A', borderRadius: 16, padding: '18px 19px', color: '#fff' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 11 }}>
@@ -543,6 +549,18 @@ export default function Pagamentos() {
           </div>
           <div style={{ font: `800 26px ${FF}`, letterSpacing: '-.5px' }}>{brl(sum('pago'))}</div>
           <div style={{ font: `500 11.5px ${FF}`, color: '#8fd6a8', marginTop: 5 }}>{cnt('pago')} fatura{cnt('pago') !== 1 ? 's' : ''} confirmada{cnt('pago') !== 1 ? 's' : ''}</div>
+        </div>
+
+        {/* A vencer */}
+        <div style={{ background: '#fff', border: '1px solid #ece7d9', borderRadius: 16, padding: '18px 19px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 11 }}>
+            <div style={{ width: 30, height: 30, borderRadius: 9, background: '#f7ecd9', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#b06a12" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+            </div>
+            <span style={{ font: `600 11.5px ${FF}`, color: '#7c7869' }}>A vencer</span>
+          </div>
+          <div style={{ font: `800 26px ${FF}`, color: '#1B2A4A', letterSpacing: '-.5px' }}>{brl(sum('a-vencer'))}</div>
+          <div style={{ font: `500 11.5px ${FF}`, color: '#9a948a', marginTop: 5 }}>{cnt('a-vencer')} cobrança{cnt('a-vencer') !== 1 ? 's' : ''} a vencer</div>
         </div>
 
         {/* Em atraso */}
