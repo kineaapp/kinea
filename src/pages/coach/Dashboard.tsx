@@ -55,6 +55,7 @@ function diffDays(iso: string) {
 type RecentAssessment  = { id: number; assessed_at: string; weight_kg: number | null; students: { name: string } | null }
 type StudentAssessment = { id: number; name: string; next_assessment: string }
 type CheckInFeed       = { id: number; content: string; created_at: string; students: { name: string } | null }
+type WeeklyFeedbackFeed = { id: number; week_start: string; workouts: number | null; sleep: number | null; nutrition: number | null; mood: number | null; notes: string | null; created_at: string; students: { name: string } | null }
 
 // ── Sub-components ──────────────────────────────────────────
 function KpiCard({ label, value, sub, subColor, iconBg, iconColor, icon, onSubClick }: {
@@ -161,6 +162,7 @@ export default function Dashboard() {
   const [pendingAssessments,  setPendingAssessments]  = useState<StudentAssessment[]>([])
   const [checkIns,            setCheckIns]            = useState<CheckInFeed[]>([])
   const [upcomingPayments,    setUpcomingPayments]    = useState<{ studentId: number; name: string; iso: string }[]>([])
+  const [recentFeedbacks,     setRecentFeedbacks]     = useState<WeeklyFeedbackFeed[]>([])
 
   useEffect(() => { if (user?.id) fetchStudents(user.id) }, [user?.id])
 
@@ -205,6 +207,14 @@ export default function Dashboard() {
       .order('created_at', { ascending: false })
       .limit(30)
       .then(({ data }) => setCheckIns((data as CheckInFeed[] | null) ?? []))
+
+    supabase
+      .from('weekly_feedbacks')
+      .select('id, week_start, workouts, sleep, nutrition, mood, notes, created_at, students!inner(name, coach_id)')
+      .eq('students.coach_id', user.id)
+      .order('created_at', { ascending: false })
+      .limit(5)
+      .then(({ data }) => setRecentFeedbacks((data as WeeklyFeedbackFeed[] | null) ?? []))
 
     // Próximos vencimentos reais da tabela payments (um por aluno, mais próximo)
     supabase
@@ -548,6 +558,66 @@ export default function Dashboard() {
               </button>
             </div>
           )}
+
+          {/* Feedbacks recentes */}
+          {(() => {
+            function ratingColor(v: number | null) {
+              if (v == null) return '#c5bfb0'
+              if (v >= 4) return '#1B7a4a'
+              if (v >= 3) return '#b06a12'
+              return '#D2402A'
+            }
+            function fmtWeek(iso: string) {
+              const [, m, d] = iso.split('-')
+              return `${d}/${m}`
+            }
+
+            return (
+              <div style={{ background: '#fff', border: '1px solid #ece7d9', borderRadius: 14, padding: '18px 18px 10px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
+                  <h2 style={{ font: `700 15px ${FF}`, color: '#1B2A4A', margin: 0 }}>Feedbacks semanais</h2>
+                  {recentFeedbacks.length > 0 && (
+                    <span style={{ font: `600 11px ${FF}`, color: '#5a4ea0', background: '#ece9f6', borderRadius: 20, padding: '3px 9px' }}>últimos {recentFeedbacks.length}</span>
+                  )}
+                </div>
+
+                {recentFeedbacks.length === 0 ? (
+                  <div style={{ padding: '18px 0', borderTop: '1px solid #f1ece0', font: `400 13px ${FF}`, color: '#9a948a', textAlign: 'center' }}>Nenhum feedback recente</div>
+                ) : recentFeedbacks.map((fb, i) => {
+                  const pal  = AVATAR_PALETTE[i % AVATAR_PALETTE.length]
+                  const name = fb.students?.name ?? '—'
+                  const metrics: [string, number | null][] = [
+                    ['T', fb.workouts], ['S', fb.sleep], ['N', fb.nutrition], ['H', fb.mood],
+                  ]
+                  return (
+                    <div key={fb.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 0', borderTop: '1px solid #f1ece0' }}>
+                      <div style={{ width: 32, height: 32, borderRadius: '50%', background: pal[0], color: pal[1], display: 'flex', alignItems: 'center', justifyContent: 'center', font: `700 11px ${FF}`, flexShrink: 0 }}>
+                        {getInitials(name)}
+                      </div>
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
+                          <span style={{ font: `600 13px ${FF}`, color: '#1B2A4A', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{name}</span>
+                          <span style={{ font: `500 11px ${FF}`, color: '#b0a99c', flexShrink: 0 }}>sem. {fmtWeek(fb.week_start)}</span>
+                        </div>
+                        <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+                          {metrics.map(([abbr, val]) => (
+                            <span key={abbr} style={{ font: `600 11px ${FF}`, color: ratingColor(val) }}>
+                              {abbr}: {val ?? '—'}
+                            </span>
+                          ))}
+                        </div>
+                        {fb.notes && (
+                          <div style={{ font: `400 11.5px ${FF}`, color: '#7c7869', marginTop: 3, display: '-webkit-box', WebkitLineClamp: 1, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                            {fb.notes}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )
+          })()}
 
           {/* Leads pipeline */}
           <div style={{ background: '#fff', border: '1px solid #ece7d9', borderRadius: 14, padding: 18 }}>
