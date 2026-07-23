@@ -95,7 +95,7 @@ export const useStudentsStore = create<StudentsStore>((set) => ({
       .from('payments')
       .select('student_id, due_date')
       .in('student_id', studentIds)
-      .eq('status', 'overdue')
+      .neq('status', 'active')
       .lt('due_date', today)
 
     const overdueIds    = new Set((overdueRows ?? []).map((p: any) => p.student_id))
