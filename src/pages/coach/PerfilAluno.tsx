@@ -803,6 +803,47 @@ function AssessmentDetailDrawer({
   )
 }
 
+// ── Before/After Slider ────────────────────────────────────────
+function CompareSlider({ before, after, beforeLabel, afterLabel }: {
+  before: string; after: string; beforeLabel: string; afterLabel: string
+}) {
+  const [pos, setPos] = useState(50)
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  function updatePos(clientX: number) {
+    const rect = containerRef.current?.getBoundingClientRect()
+    if (!rect) return
+    setPos(Math.max(5, Math.min(95, ((clientX - rect.left) / rect.width) * 100)))
+  }
+
+  return (
+    <div
+      ref={containerRef}
+      style={{ position: 'relative', aspectRatio: '3/4', borderRadius: 12, overflow: 'hidden', cursor: 'ew-resize', userSelect: 'none', touchAction: 'none' }}
+      onPointerDown={e => { e.currentTarget.setPointerCapture(e.pointerId); updatePos(e.clientX) }}
+      onPointerMove={e => { if (e.buttons > 0) updatePos(e.clientX) }}
+    >
+      <img src={before} alt="Antes" draggable={false}
+        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', pointerEvents: 'none' }} />
+      <img src={after} alt="Depois" draggable={false}
+        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', clipPath: `inset(0 0 0 ${pos}%)`, pointerEvents: 'none' }} />
+      <div style={{ position: 'absolute', top: 0, bottom: 0, left: `${pos}%`, width: 2, background: 'rgba(255,255,255,.9)', transform: 'translateX(-50%)', pointerEvents: 'none' }}>
+        <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: 38, height: 38, borderRadius: '50%', background: '#fff', boxShadow: '0 2px 10px rgba(0,0,0,.35)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <svg width="18" height="12" viewBox="0 0 18 12" fill="none">
+            <path d="M5 6H13M5 6L2 3M5 6L2 9M13 6L16 3M13 6L16 9" stroke="#1B2A4A" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+        </div>
+      </div>
+      <div style={{ position: 'absolute', top: 10, left: 10, font: `700 11px ${FF}`, color: '#fff', background: 'rgba(27,42,74,.7)', padding: '4px 10px', borderRadius: 20, pointerEvents: 'none' }}>
+        {beforeLabel}
+      </div>
+      <div style={{ position: 'absolute', top: 10, right: 10, font: `700 11px ${FF}`, color: '#fff', background: 'rgba(232,84,42,.8)', padding: '4px 10px', borderRadius: 20, pointerEvents: 'none' }}>
+        {afterLabel}
+      </div>
+    </div>
+  )
+}
+
 // ── Main ───────────────────────────────────────────────────────
 export default function PerfilAluno() {
   const { id }    = useParams<{ id: string }>()
@@ -819,6 +860,7 @@ export default function PerfilAluno() {
   const [compareMode,     setCompareMode]     = useState(false)
   const [compareSelected, setCompareSelected] = useState<number[]>([])
   const [showComparison,  setShowComparison]  = useState(false)
+  const [photoAngle,      setPhotoAngle]      = useState('photo_frente_url')
   const [uploadingAssId,  setUploadingAssId]  = useState<number | null>(null)
   const assessPhotoRef  = useRef<HTMLInputElement>(null)
   const pendingAssIdRef = useRef<number | null>(null)
@@ -2559,7 +2601,7 @@ export default function PerfilAluno() {
                     <div style={{ display: 'flex', gap: 8 }}>
                       {assessments.length >= 2 && (
                         <button type="button"
-                          onClick={() => { setCompareMode(v => !v); setCompareSelected([]); setShowComparison(false) }}
+                          onClick={() => { setCompareMode(v => !v); setCompareSelected([]); setShowComparison(false); setPhotoAngle('photo_frente_url') }}
                           style={{ height: 42, padding: '0 16px', border: `1.5px solid ${compareMode ? '#E8542A' : '#d6cfbe'}`, background: compareMode ? '#fff8f6' : '#fff', color: compareMode ? '#E8542A' : '#1B2A4A', borderRadius: 10, font: `600 13px ${FF}`, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
                           {compareMode
                             ? <><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg> Cancelar</>
@@ -2589,34 +2631,75 @@ export default function PerfilAluno() {
 
                   /* ── COMPARAÇÃO ───────────────────────────────── */
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                    <button type="button" onClick={() => setShowComparison(false)}
+                    <button type="button" onClick={() => { setShowComparison(false); setPhotoAngle('photo_frente_url') }}
                       style={{ alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: 6, font: `600 13px ${FF}`, color: '#7c7869', background: 'none', border: 'none', cursor: 'pointer', padding: '0 2px' }}>
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
                       Voltar à lista
                     </button>
 
-                    {/* Fotos lado a lado */}
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                      {([compLeft, compRight] as AssessmentRow[]).map((a, ci) => (
-                        <div key={ci} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                          <div style={{ font: `600 12px ${FF}`, color: '#1B2A4A', textAlign: 'center' }}>
-                            {ci === 0 ? 'Antes' : 'Depois'} · {fmtDate(a.assessed_at)}
+                    {/* Fotos — seletor de ângulo + slider */}
+                    {(() => {
+                      type PhotoCol = 'photo_frente_url' | 'photo_lado_esq_url' | 'photo_lado_dir_url' | 'photo_costas_url'
+                      const ANGLES: { col: PhotoCol; label: string }[] = [
+                        { col: 'photo_frente_url',   label: 'Frente'    },
+                        { col: 'photo_lado_esq_url', label: 'Lado Esq.' },
+                        { col: 'photo_lado_dir_url', label: 'Lado Dir.' },
+                        { col: 'photo_costas_url',   label: 'Costas'    },
+                      ]
+                      const col    = photoAngle as PhotoCol
+                      const urlBef = compLeft[col]  as string | null
+                      const urlAft = compRight[col] as string | null
+                      return (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                          {/* Seletor de ângulo */}
+                          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                            {ANGLES.map(ang => {
+                              const active = photoAngle === ang.col
+                              return (
+                                <button key={ang.col} type="button" onClick={() => setPhotoAngle(ang.col)}
+                                  style={{ height: 32, padding: '0 12px', border: `1.5px solid ${active ? '#1B2A4A' : '#d6cfbe'}`, background: active ? '#1B2A4A' : '#fff', color: active ? '#fff' : '#7c7869', borderRadius: 8, font: `600 12px ${FF}`, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                                  {ang.label}
+                                </button>
+                              )
+                            })}
                           </div>
-                          {a.photo_frente_url ? (
-                            <img src={a.photo_frente_url} alt="" style={{ width: '100%', aspectRatio: '3/4', objectFit: 'cover', borderRadius: 12 }} />
+                          {/* Slider quando ambas existem, senão dois painéis */}
+                          {urlBef && urlAft ? (
+                            <CompareSlider
+                              before={urlBef}
+                              after={urlAft}
+                              beforeLabel={`Antes · ${fmtDate(compLeft.assessed_at)}`}
+                              afterLabel={`Depois · ${fmtDate(compRight.assessed_at)}`}
+                            />
                           ) : (
-                            <div style={{ width: '100%', aspectRatio: '3/4', background: '#f4efe3', border: '1.5px dashed #d6cfbe', borderRadius: 12, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-                              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#c8bfb0" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
-                              <button type="button"
-                                onClick={() => { pendingAssIdRef.current = a.id; assessPhotoRef.current?.click() }}
-                                style={{ font: `600 11px ${FF}`, color: '#E8542A', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>
-                                + Adicionar foto
-                              </button>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                              {([compLeft, compRight] as AssessmentRow[]).map((a, ci) => {
+                                const url = a[col] as string | null
+                                return (
+                                  <div key={ci} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                    <div style={{ font: `600 12px ${FF}`, color: '#1B2A4A', textAlign: 'center' }}>
+                                      {ci === 0 ? 'Antes' : 'Depois'} · {fmtDate(a.assessed_at)}
+                                    </div>
+                                    {url ? (
+                                      <img src={url} alt="" style={{ width: '100%', aspectRatio: '3/4', objectFit: 'cover', borderRadius: 12 }} />
+                                    ) : (
+                                      <div style={{ width: '100%', aspectRatio: '3/4', background: '#f4efe3', border: '1.5px dashed #d6cfbe', borderRadius: 12, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#c8bfb0" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                                        <button type="button"
+                                          onClick={() => { pendingAssIdRef.current = a.id; assessPhotoRef.current?.click() }}
+                                          style={{ font: `600 11px ${FF}`, color: '#E8542A', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>
+                                          + Adicionar foto
+                                        </button>
+                                      </div>
+                                    )}
+                                  </div>
+                                )
+                              })}
                             </div>
                           )}
                         </div>
-                      ))}
-                    </div>
+                      )
+                    })()}
 
                     {/* Tabela de comparação */}
                     <div style={{ background: '#fff', border: '1px solid #ece7d9', borderRadius: 14, overflow: 'hidden' }}>
@@ -2647,6 +2730,61 @@ export default function PerfilAluno() {
                         )
                       })}
                     </div>
+
+                    {/* Gráfico de evolução */}
+                    {assessments.filter(a => a.weight_kg != null).length >= 2 && (() => {
+                      const pts = assessments.filter(a => a.weight_kg != null)
+                      const weights = pts.map(a => a.weight_kg as number)
+                      const minW = Math.min(...weights), maxW = Math.max(...weights)
+                      const range = maxW - minW || 1
+                      const W = 400, H = 90, PT = 10, PB = 8, PX = 6
+                      const cxF = (i: number) => PX + (i / (pts.length - 1)) * (W - PX * 2)
+                      const cyF = (w: number) => PT + (1 - (w - minW) / range) * (H - PT - PB)
+                      const linePts = pts.map((a, i) => `${cxF(i)},${cyF(a.weight_kg as number)}`).join(' ')
+                      const areaPts = `${PX},${H - PB} ${linePts} ${cxF(pts.length - 1)},${H - PB}`
+                      return (
+                        <div style={{ background: '#fff', border: '1px solid #ece7d9', borderRadius: 14, padding: '16px 18px' }}>
+                          <div style={{ font: `700 12px ${FF}`, color: '#1B2A4A', marginBottom: 12 }}>Evolução do peso · todas as avaliações</div>
+                          <svg width="100%" height={H} viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none">
+                            <defs>
+                              <linearGradient id="evograd" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="0%" stopColor="#E8542A" stopOpacity="0.12" />
+                                <stop offset="100%" stopColor="#E8542A" stopOpacity="0" />
+                              </linearGradient>
+                            </defs>
+                            <polygon points={areaPts} fill="url(#evograd)" />
+                            <polyline points={linePts} fill="none" stroke="#E8542A" strokeWidth="2.2" strokeLinejoin="round" strokeLinecap="round" />
+                            {pts.map((a, i) => {
+                              const isComp = compareSelected.includes(a.id)
+                              const isLeft = compLeft && a.id === compLeft.id
+                              return (
+                                <circle key={a.id}
+                                  cx={cxF(i)} cy={cyF(a.weight_kg as number)}
+                                  r={isComp ? 6 : 3}
+                                  fill={isComp ? (isLeft ? '#1B2A4A' : '#E8542A') : '#fef6f3'}
+                                  stroke={isComp ? '#fff' : '#E8542A'}
+                                  strokeWidth={isComp ? 2 : 1.5}
+                                />
+                              )
+                            })}
+                          </svg>
+                          <div style={{ display: 'flex', gap: 20, marginTop: 10, flexWrap: 'wrap' }}>
+                            {compLeft?.weight_kg != null && (
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6, font: `600 11px ${FF}`, color: '#1B2A4A' }}>
+                                <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#1B2A4A', display: 'inline-block', flexShrink: 0 }} />
+                                Antes ({fmtDate(compLeft.assessed_at)}) · {compLeft.weight_kg.toFixed(1)} kg
+                              </div>
+                            )}
+                            {compRight?.weight_kg != null && (
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6, font: `600 11px ${FF}`, color: '#E8542A' }}>
+                                <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#E8542A', display: 'inline-block', flexShrink: 0 }} />
+                                Depois ({fmtDate(compRight.assessed_at)}) · {compRight.weight_kg.toFixed(1)} kg
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )
+                    })()}
                   </div>
 
                 ) : (
