@@ -1,7 +1,7 @@
 import { NavLink, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, Users, BarChart2, Dumbbell,
-  CreditCard, ClipboardCheck, MessageCircle, Settings, LogOut,
+  CreditCard, ClipboardCheck, ClipboardList, MessageCircle, Settings, LogOut,
 } from 'lucide-react'
 import KineaLogo from '../KineaLogo'
 import { useAuthStore } from '../../store/auth'
@@ -16,6 +16,7 @@ const NAV: { to: string; label: string; Icon: React.ElementType; badge?: 'messag
   { to: '/coach/treinos',   label: 'Treinos',      Icon: Dumbbell },
   { to: '/coach/pagamentos',label: 'Pagamentos',   Icon: CreditCard },
   { to: '/coach/avaliacoes',label: 'Avaliações',   Icon: ClipboardCheck, badge: 'assessments' },
+  { to: '/coach/feedbacks', label: 'Feedbacks',    Icon: ClipboardList },
   { to: '/coach/mensagens', label: 'Mensagens',    Icon: MessageCircle,  badge: 'messages' },
 ]
 

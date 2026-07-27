@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, useLocation } from 'react-router-dom'
 import { getInitials, payInfo, semInfo, avatarPalette } from '../../data/mock'
 import { useStudentsStore } from '../../store/students'
 import { useAuthStore } from '../../store/auth'
@@ -848,7 +848,8 @@ function CompareSlider({ before, after, beforeLabel, afterLabel }: {
 export default function PerfilAluno() {
   const { id }    = useParams<{ id: string }>()
   const navigate  = useNavigate()
-  const [tab, setTab] = useState<Tab>('overview')
+  const location  = useLocation()
+  const [tab, setTab] = useState<Tab>((location.state as { tab?: Tab } | null)?.tab ?? 'overview')
   const [toast, setToast] = useState('')
   const toastRef  = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 

@@ -10,6 +10,7 @@ import Leads from './pages/coach/Leads'
 import Treinos from './pages/coach/Treinos'
 import Pagamentos from './pages/coach/Pagamentos'
 import Avaliacoes from './pages/coach/Avaliacoes'
+import FeedbacksCoach from './pages/coach/FeedbacksCoach'
 import Mensagens from './pages/coach/Mensagens'
 import Configuracoes from './pages/coach/Configuracoes'
 import AlunoLayout from './components/layout/AlunoLayout'
@@ -49,6 +50,7 @@ export default function App() {
         <Route path="treinos"      element={<Treinos />} />
         <Route path="pagamentos"   element={<Pagamentos />} />
         <Route path="avaliacoes"   element={<Avaliacoes />} />
+        <Route path="feedbacks"    element={<FeedbacksCoach />} />
         <Route path="mensagens"    element={<Mensagens />} />
         <Route path="configuracoes" element={<Configuracoes />} />
       </Route>
