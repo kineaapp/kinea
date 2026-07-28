@@ -66,14 +66,37 @@ export default function Home() {
     const { data: studentRow } = await supabase
       .from('students').select('id').eq('student_id', user!.id).single()
     if (!studentRow) return
+    const sid = (studentRow as any).id
 
+    // Try active program first (new system)
+    const { data: paData } = await supabase
+      .from('program_assignments')
+      .select('programs( program_slots( id, position, workouts( id, name, goal, muscle_group, exercises( id ) ) ) )')
+      .eq('student_id', sid)
+      .eq('active', true)
+      .order('assigned_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    if (paData?.programs) {
+      const prog = (paData as any).programs
+      const slots: any[] = [...(prog.program_slots ?? [])].sort((a: any, b: any) => a.position - b.position)
+      const firstSlot = slots.find(s => s.workouts)
+      if (firstSlot?.workouts) {
+        const w = firstSlot.workouts
+        setTodayWorkout({ id: w.id, name: w.name, goal: w.goal, muscle_group: w.muscle_group, exercise_count: (w.exercises ?? []).length })
+        return
+      }
+    }
+
+    // Fallback to old workout_assignments
     const { data } = await supabase
       .from('workout_assignments')
       .select('workouts ( id, name, goal, muscle_group, exercises ( id ) )')
-      .eq('student_id', (studentRow as any).id)
+      .eq('student_id', sid)
       .order('assigned_at', { ascending: false })
       .limit(1)
-      .single()
+      .maybeSingle()
 
     if (data && (data as any).workouts) {
       const w = (data as any).workouts
