@@ -1,11 +1,13 @@
 import { useState, useRef, useEffect } from 'react'
 import { Send } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { useChatStore } from '../../store/chat'
 import { useAuthStore } from '../../store/auth'
 import { supabase } from '../../lib/supabase'
 import type { MsgEntry } from '../../store/chat'
 
 function AttachBubble({ msg }: { msg: Extract<MsgEntry, { type: 'attach' }> }) {
+  const { t } = useTranslation()
   const isAluno = msg.from === 'aluno'
   const bg = isAluno ? '#1B2A4A' : '#fff'
   const radius = isAluno ? '16px 16px 4px 16px' : '16px 16px 16px 4px'
@@ -24,7 +26,7 @@ function AttachBubble({ msg }: { msg: Extract<MsgEntry, { type: 'attach' }> }) {
 
           {msg.kind === 'audio' && (
             <div style={{ padding: '12px 14px' }}>
-              <div style={{ font: `700 12px "Libre Franklin",sans-serif`, color: isAluno ? '#FAEEDA' : '#1B2A4A', marginBottom: 6 }}>Mensagem de voz · {msg.size}</div>
+              <div style={{ font: `700 12px "Libre Franklin",sans-serif`, color: isAluno ? '#FAEEDA' : '#1B2A4A', marginBottom: 6 }}>{t('chat.voice_message', { size: msg.size })}</div>
               <audio src={msg.url} controls style={{ width: '100%', height: 32, display: 'block' }} />
             </div>
           )}
@@ -56,6 +58,7 @@ function AttachBubble({ msg }: { msg: Extract<MsgEntry, { type: 'attach' }> }) {
 }
 
 export default function Chat() {
+  const { t } = useTranslation()
   const { messages, loading, studentId, fetchMessages, sendMessage, addIncoming } = useChatStore()
   const { user } = useAuthStore()
   const [input, setInput] = useState('')
@@ -98,8 +101,8 @@ export default function Chat() {
           </svg>
         </div>
         <div>
-          <div style={{ font: `700 14px "Libre Franklin",sans-serif`, color: '#1B2A4A' }}>Seu Coach</div>
-          <div style={{ font: `400 12px "Libre Franklin",sans-serif`, color: '#A39E90' }}>Chat direto</div>
+          <div style={{ font: `700 14px "Libre Franklin",sans-serif`, color: '#1B2A4A' }}>{t('chat.your_coach')}</div>
+          <div style={{ font: `400 12px "Libre Franklin",sans-serif`, color: '#A39E90' }}>{t('chat.direct_chat')}</div>
         </div>
       </div>
 
@@ -107,7 +110,7 @@ export default function Chat() {
       <div style={{ flex: 1, overflowY: 'auto', padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 12 }}>
         {loading && messages.length === 0 && (
           <div style={{ alignSelf: 'center', marginTop: 40, font: `500 13px "Libre Franklin",sans-serif`, color: '#a89f8e' }}>
-            Carregando mensagens…
+            {t('chat.loading')}
           </div>
         )}
         {messages.map((m, i) => {
@@ -144,7 +147,7 @@ export default function Chat() {
           value={input}
           onChange={e => setInput(e.target.value)}
           onKeyDown={e => e.key === 'Enter' && send()}
-          placeholder="Escreva uma mensagem..."
+          placeholder={t('chat.input_placeholder')}
           style={{ flex: 1, background: '#F4EFE3', borderRadius: 22, padding: '11px 16px', border: 'none', outline: 'none', font: `400 14px "Libre Franklin",sans-serif`, color: '#1B2A4A' }}
         />
         <button

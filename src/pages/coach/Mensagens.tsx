@@ -4,6 +4,7 @@ import { useStudentsStore } from '../../store/students'
 import { useAuthStore } from '../../store/auth'
 import { useCoachChatStore } from '../../store/coachChat'
 import { supabase } from '../../lib/supabase'
+import { useTranslation } from 'react-i18next'
 
 const FF = '"Libre Franklin",sans-serif'
 
@@ -69,6 +70,7 @@ function Toast({ msg }: { msg: string }) {
 
 // ── Page ───────────────────────────────────────────────────────────────────────
 export default function Mensagens() {
+  const { t } = useTranslation()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const [activeId,    setActiveId]    = useState<number | null>(null)
@@ -166,9 +168,9 @@ export default function Mensagens() {
 
   function send(text?: string) {
     if (activeId === null) return
-    const t = (text ?? draft).trim()
-    if (!t) return
-    sendMessage(activeId, t)
+    const msg = (text ?? draft).trim()
+    if (!msg) return
+    sendMessage(activeId, msg)
     setDraft('')
   }
 
@@ -183,14 +185,14 @@ export default function Mensagens() {
     const ext  = file.name.split('.').pop() ?? 'bin'
     const path = `coach/${sid}/${Date.now()}.${ext}`
     const { error } = await supabase.storage.from('chat-attachments').upload(path, file)
-    if (error) { showToast('Erro ao enviar arquivo: ' + error.message); return }
+    if (error) { showToast(t('coach_messages.err_upload', { msg: error.message })); return }
     const { data: pd } = supabase.storage.from('chat-attachments').getPublicUrl(path)
     const { error: dbErr } = await supabase.from('chat_messages').insert({
       student_id: sid, from_role: 'coach', text: '',
       attachment_url: pd.publicUrl, attachment_name: file.name,
       attachment_size: file.size, attachment_kind: kind,
     })
-    if (dbErr) showToast('Erro ao salvar no banco: ' + dbErr.message)
+    if (dbErr) showToast(t('coach_messages.err_db', { msg: dbErr.message }))
   }
 
   // ── Audio recording ───────────────────────────────────────────────────────────
@@ -212,14 +214,14 @@ export default function Mensagens() {
         const blob  = new Blob(chunksRef.current, { type: 'audio/webm' })
         const hh    = now_hhmm()
         const dur   = fmtDur(recSecsRef.current)
-        const name  = `Áudio ${hh}`
+        const name  = t('coach_messages.audio_name', { time: hh })
         const sid   = activeId
         let url = URL.createObjectURL(blob)
         if (sid !== null) {
           addMsg(sid, { type: 'attach', from: 'me', kind: 'audio', url, name, size: dur, time: hh })
           const path = `coach/${sid}/${Date.now()}.webm`
           const { error } = await supabase.storage.from('chat-attachments').upload(path, blob)
-          if (error) { showToast('Erro ao enviar áudio: ' + error.message) }
+          if (error) { showToast(t('coach_messages.err_audio_upload', { msg: error.message })) }
           else {
             const { data: pd } = supabase.storage.from('chat-attachments').getPublicUrl(path)
             url = pd.publicUrl
@@ -228,7 +230,7 @@ export default function Mensagens() {
               attachment_url: url, attachment_name: name,
               attachment_size: blob.size, attachment_kind: 'audio',
             })
-            if (dbErr) showToast('Erro ao salvar no banco: ' + dbErr.message)
+            if (dbErr) showToast(t('coach_messages.err_db', { msg: dbErr.message }))
           }
         }
         setRecording(false); setRecSecs(0); recSecsRef.current = 0
@@ -240,7 +242,7 @@ export default function Mensagens() {
         setRecSecs(s => { const n = s + 1; recSecsRef.current = n; return n })
       }, 1000)
     } catch {
-      showToast('Permissão de microfone negada.')
+      showToast(t('coach_messages.err_mic'))
     }
   }
 
@@ -259,10 +261,10 @@ export default function Mensagens() {
           </svg>
         </div>
         {studentsLoading
-          ? <p style={{ font: `500 14px ${FF}`, color: '#a89f8e', margin: 0 }}>Carregando conversas…</p>
+          ? <p style={{ font: `500 14px ${FF}`, color: '#a89f8e', margin: 0 }}>{t('coach_messages.loading_convs')}</p>
           : <>
-              <p style={{ font: `500 14px ${FF}`, color: '#a89f8e', margin: 0 }}>Nenhuma conversa ainda.</p>
-              <p style={{ font: `400 12px ${FF}`, color: '#c5bfb0', margin: 0 }}>As mensagens dos alunos aparecerão aqui.</p>
+              <p style={{ font: `500 14px ${FF}`, color: '#a89f8e', margin: 0 }}>{t('coach_messages.no_convs_title')}</p>
+              <p style={{ font: `400 12px ${FF}`, color: '#c5bfb0', margin: 0 }}>{t('coach_messages.no_convs_desc')}</p>
             </>
         }
       </div>
@@ -295,7 +297,7 @@ export default function Mensagens() {
           <div style={{ padding: '20px 20px 14px', flexShrink: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
               <h1 style={{ font: `800 22px ${FF}`, color: '#1B2A4A', margin: 0, letterSpacing: '-.5px', display: 'flex', alignItems: 'center', gap: 8 }}>
-                Mensagens
+                {t('coach_messages.title')}
                 {totalUnread > 0 && (
                   <span style={{ background: '#E8542A', color: '#fff', font: `700 10.5px ${FF}`, minWidth: 19, height: 19, borderRadius: 10, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '0 5px' }}>
                     {totalUnread}
@@ -321,7 +323,7 @@ export default function Mensagens() {
                           autoFocus
                           value={pickerQuery}
                           onChange={e => setPickerQuery(e.target.value)}
-                          placeholder="Buscar aluno…"
+                          placeholder={t('coach_messages.search_student')}
                           style={{ width: '100%', height: 36, border: '1.5px solid #e0d9c8', borderRadius: 8, padding: '0 12px', font: `400 13px ${FF}`, color: '#1B2A4A', outline: 'none', background: '#faf7ee' }}
                         />
                       </div>
@@ -347,7 +349,7 @@ export default function Mensagens() {
                             )
                           })}
                         {students.filter(s => !pickerQuery.trim() || s.name.toLowerCase().includes(pickerQuery.trim().toLowerCase())).length === 0 && (
-                          <div style={{ padding: '16px 14px', font: `400 13px ${FF}`, color: '#a89f8e', textAlign: 'center' }}>Nenhum aluno encontrado.</div>
+                          <div style={{ padding: '16px 14px', font: `400 13px ${FF}`, color: '#a89f8e', textAlign: 'center' }}>{t('coach_messages.no_student_found')}</div>
                         )}
                       </div>
                     </div>
@@ -363,7 +365,7 @@ export default function Mensagens() {
                 value={query}
                 onChange={e => setQuery(e.target.value)}
                 type="text"
-                placeholder="Buscar conversa…"
+                placeholder={t('coach_messages.search_conv')}
                 style={{ width: '100%', height: 40, border: '1.5px solid #e0d9c8', borderRadius: 10, background: '#faf7ee', padding: '0 14px 0 36px', font: `400 13.5px ${FF}`, color: '#1B2A4A', outline: 'none', boxSizing: 'border-box' }}
               />
             </div>
@@ -374,10 +376,11 @@ export default function Mensagens() {
               const cp = AVATAR_PALETTE[c.id % AVATAR_PALETTE.length]
               const lastMsg = [...c.msgs].reverse().find((m): m is Extract<MsgEntry, { type: 'msg' }> => m.type === 'msg')
               const lastAttach = [...c.msgs].reverse().find((m): m is Extract<MsgEntry, { type: 'attach' }> => m.type === 'attach')
+              const youPrefix = t('coach_messages.you_prefix')
               const preview = lastMsg
-                ? (lastMsg.from === 'me' ? 'Você: ' : '') + lastMsg.text
+                ? (lastMsg.from === 'me' ? youPrefix : '') + lastMsg.text
                 : lastAttach
-                  ? (lastAttach.from === 'me' ? 'Você: ' : '') + (lastAttach.kind === 'image' ? '📷 Foto' : lastAttach.kind === 'video' ? '🎥 Vídeo' : lastAttach.kind === 'audio' ? '🎤 Áudio' : '📎 ' + lastAttach.name)
+                  ? (lastAttach.from === 'me' ? youPrefix : '') + (lastAttach.kind === 'image' ? t('coach_messages.attach_photo') : lastAttach.kind === 'video' ? t('coach_messages.attach_video') : lastAttach.kind === 'audio' ? t('coach_messages.attach_audio_msg') : '📎 ' + lastAttach.name)
                   : ''
               const isActive = c.id === activeId
               return (
@@ -417,7 +420,7 @@ export default function Mensagens() {
             })}
             {filtered.length === 0 && (
               <div style={{ padding: '40px 20px', textAlign: 'center', font: `500 13px ${FF}`, color: '#a89f8e' }}>
-                Nenhuma conversa encontrada.
+                {t('coach_messages.no_conv_found')}
               </div>
             )}
           </div>
@@ -439,7 +442,7 @@ export default function Mensagens() {
             <div style={{ minWidth: 0, flex: 1 }}>
               <div style={{ font: `800 15.5px ${FF}`, color: '#1B2A4A', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{active.name}</div>
               <div style={{ font: `500 11.5px ${FF}`, color: active.online ? '#1B7a4a' : '#b0a99c' }}>
-                {active.online ? 'online agora' : 'visto por último hoje'}
+                {active.online ? t('coach_messages.online') : t('coach_messages.last_seen')}
               </div>
             </div>
             <button
@@ -448,7 +451,7 @@ export default function Mensagens() {
               onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = '#fdf3ee'}
               onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}
             >
-              Ver perfil
+              {t('coach_messages.view_profile')}
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6" /></svg>
             </button>
           </div>
@@ -460,7 +463,7 @@ export default function Mensagens() {
           >
             {msgsLoading[activeId!] && active.msgs.length === 0 && (
               <div style={{ alignSelf: 'center', marginTop: 40, font: `500 13px ${FF}`, color: '#a89f8e' }}>
-                Carregando mensagens…
+                {t('coach_messages.loading_msgs')}
               </div>
             )}
             {active.msgs.map((m, i) => {
@@ -501,7 +504,7 @@ export default function Mensagens() {
                               </svg>
                             </div>
                             <div>
-                              <div style={{ font: `700 12.5px ${FF}`, color: me ? '#fff' : '#1B2A4A' }}>Mensagem de voz</div>
+                              <div style={{ font: `700 12.5px ${FF}`, color: me ? '#fff' : '#1B2A4A' }}>{t('coach_messages.voice_message')}</div>
                               <div style={{ font: `500 11px ${FF}`, color: me ? 'rgba(255,255,255,.7)' : '#9a948a' }}>{m.size}</div>
                             </div>
                           </div>
@@ -576,7 +579,7 @@ export default function Mensagens() {
                   <div style={{ position: 'absolute', bottom: 'calc(100% + 8px)', left: 0, background: '#fff', border: '1px solid #ece7d9', borderRadius: 12, boxShadow: '0 8px 28px rgba(27,42,74,.18)', overflow: 'hidden', zIndex: 50, minWidth: 196 }}>
                     {([
                       {
-                        label: 'Foto ou vídeo',
+                        label: t('coach_messages.attach_photo_video'),
                         icon: (
                           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                             <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
@@ -586,7 +589,7 @@ export default function Mensagens() {
                         action: () => photoRef.current?.click(),
                       },
                       {
-                        label: 'Arquivo',
+                        label: t('coach_messages.attach_file'),
                         icon: (
                           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
                             <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
@@ -596,7 +599,7 @@ export default function Mensagens() {
                         action: () => fileRef.current?.click(),
                       },
                       {
-                        label: 'Gravar áudio',
+                        label: t('coach_messages.attach_record'),
                         icon: (
                           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
                             <path d="M12 2a3 3 0 0 1 3 3v7a3 3 0 0 1-6 0V5a3 3 0 0 1 3-3z" />
@@ -642,7 +645,7 @@ export default function Mensagens() {
                 <div style={{ flex: 1, height: 46, border: '1.5px solid #c4421e', borderRadius: 23, background: '#fff5f3', padding: '0 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
                   <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#c4421e', flexShrink: 0 }} />
                   <span style={{ font: `800 15px ${FF}`, color: '#c4421e', minWidth: 38 }}>{fmtDur(recSecs)}</span>
-                  <span style={{ font: `400 13px ${FF}`, color: '#9a948a', flex: 1 }}>Gravando áudio…</span>
+                  <span style={{ font: `400 13px ${FF}`, color: '#9a948a', flex: 1 }}>{t('coach_messages.recording')}</span>
                   <button
                     type="button"
                     onClick={cancelRecording}
@@ -650,7 +653,7 @@ export default function Mensagens() {
                     onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = '#c4421e'}
                     onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = '#9a948a'}
                   >
-                    Cancelar
+                    {t('coach_messages.cancel')}
                   </button>
                 </div>
                 <button
@@ -671,7 +674,7 @@ export default function Mensagens() {
                   onChange={e => setDraft(e.target.value)}
                   onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); send() } }}
                   type="text"
-                  placeholder="Escreva uma mensagem…"
+                  placeholder={t('coach_messages.compose_placeholder')}
                   style={{ flex: 1, height: 46, border: '1.5px solid #e0d9c8', borderRadius: 23, background: '#fff', padding: '0 18px', font: `400 14px ${FF}`, color: '#1B2A4A', outline: 'none' }}
                 />
                 <button

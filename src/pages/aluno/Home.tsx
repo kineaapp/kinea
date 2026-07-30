@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { MessageCircle } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '../../store/auth'
+import { useSettingsStore } from '../../store/settings'
 import { supabase } from '../../lib/supabase'
 import { getWeekStart } from './FeedbackSemanal'
 
@@ -24,11 +26,14 @@ function formatCpf(v: string): string {
 }
 
 export default function Home() {
+  const { t } = useTranslation()
   const navigate        = useNavigate()
   const { user, updateUser } = useAuthStore()
+  const { language } = useSettingsStore()
 
   const firstName = user?.name?.split(' ')[0] ?? 'Aluno'
-  const dateStr   = new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })
+  const locale = language === 'en-US' ? 'en-US' : 'pt-BR'
+  const dateStr = new Date().toLocaleDateString(locale, { weekday: 'long', day: 'numeric', month: 'long' })
 
   const [editOpen,    setEditOpen]    = useState(false)
   const [editName,    setEditName]    = useState('')
@@ -68,7 +73,6 @@ export default function Home() {
     if (!studentRow) return
     const sid = (studentRow as any).id
 
-    // Try active program first (new system)
     const { data: paData } = await supabase
       .from('program_assignments')
       .select('programs( program_slots( id, position, workouts( id, name, goal, muscle_group, exercises( id ) ) ) )')
@@ -89,7 +93,6 @@ export default function Home() {
       }
     }
 
-    // Fallback to old workout_assignments
     const { data } = await supabase
       .from('workout_assignments')
       .select('workouts ( id, name, goal, muscle_group, exercises ( id ) )')
@@ -122,8 +125,8 @@ export default function Home() {
   async function handleSave() {
     const name = editName.trim()
     const cpf  = editCpf.replace(/\D/g, '')
-    if (!name) { setEditError('Informe seu nome.'); return }
-    if (cpf && cpf.length !== 11) { setEditError('CPF incompleto.'); return }
+    if (!name) { setEditError(t('home.err_name')); return }
+    if (cpf && cpf.length !== 11) { setEditError(t('home.err_cpf')); return }
 
     setEditSaving(true); setEditError('')
     try {
@@ -138,7 +141,7 @@ export default function Home() {
       setSaved(true)
       setTimeout(() => { setEditOpen(false); setSaved(false) }, 1200)
     } catch {
-      setEditError('Não foi possível salvar. Tente novamente.')
+      setEditError(t('home.err_save'))
     }
     setEditSaving(false)
   }
@@ -148,7 +151,7 @@ export default function Home() {
 
       {/* Nav title */}
       <div style={{ padding: '18px 20px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h1 style={{ font: `800 20px ${FF}`, color: '#1B2A4A', margin: 0, letterSpacing: '-.4px' }}>Início</h1>
+        <h1 style={{ font: `800 20px ${FF}`, color: '#1B2A4A', margin: 0, letterSpacing: '-.4px' }}>{t('home.title')}</h1>
       </div>
 
       {/* Hero block */}
@@ -159,16 +162,16 @@ export default function Home() {
               {dateStr}
             </div>
             <div style={{ font: `800 22px ${FF}`, color: '#FAEEDA', letterSpacing: '-.5px' }}>
-              Olá, {firstName}!
+              {t('home.hello', { name: firstName })}
             </div>
             <div style={{ font: `400 12px ${FF}`, color: '#8B97AD', marginTop: 5 }}>
-              Bem-vindo ao seu espaço de treino.
+              {t('home.welcome')}
             </div>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
             <button
               onClick={openEdit}
-              title="Editar meus dados"
+              title={t('home.edit_data_title')}
               style={{ width: 40, height: 40, borderRadius: '50%', background: 'rgba(255,255,255,.1)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
             >
               <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#FAEEDA" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
@@ -191,18 +194,18 @@ export default function Home() {
         <div onClick={() => { if (!editSaving) setEditOpen(false) }} style={{ position: 'fixed', inset: 0, background: 'rgba(20,25,40,.5)', zIndex: 60, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
           <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 480, background: '#fff', borderRadius: '20px 20px 0 0', padding: '24px 22px 36px', boxShadow: '0 -12px 40px rgba(0,0,0,.2)' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-              <h2 style={{ font: `800 17px ${FF}`, color: '#1B2A4A', margin: 0 }}>Meus dados</h2>
+              <h2 style={{ font: `800 17px ${FF}`, color: '#1B2A4A', margin: 0 }}>{t('home.edit_data_title')}</h2>
               <button onClick={() => setEditOpen(false)} disabled={editSaving} style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#9a948a', padding: 4, display: 'flex' }}>
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
               </button>
             </div>
 
             {editLoading ? (
-              <div style={{ textAlign: 'center', padding: '24px 0', font: `400 14px ${FF}`, color: '#9a948a' }}>Carregando...</div>
+              <div style={{ textAlign: 'center', padding: '24px 0', font: `400 14px ${FF}`, color: '#9a948a' }}>{t('common.loading')}</div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                 <div>
-                  <label style={{ display: 'block', font: `600 11px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#6b6657', marginBottom: 7 }}>Nome completo</label>
+                  <label style={{ display: 'block', font: `600 11px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#6b6657', marginBottom: 7 }}>{t('home.full_name')}</label>
                   <input
                     type="text" value={editName} onChange={e => { setEditName(e.target.value); setEditError('') }}
                     disabled={editSaving}
@@ -212,7 +215,7 @@ export default function Home() {
                   />
                 </div>
                 <div>
-                  <label style={{ display: 'block', font: `600 11px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#6b6657', marginBottom: 7 }}>CPF</label>
+                  <label style={{ display: 'block', font: `600 11px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#6b6657', marginBottom: 7 }}>{t('home.cpf')}</label>
                   <input
                     type="text" inputMode="numeric" placeholder="000.000.000-00"
                     value={editCpf} onChange={e => { setEditCpf(formatCpf(e.target.value)); setEditError('') }}
@@ -234,10 +237,10 @@ export default function Home() {
                   type="button" onClick={handleSave} disabled={editSaving || saved}
                   style={{ width: '100%', height: 48, border: 'none', borderRadius: 11, background: saved ? '#1B7a4a' : '#E8542A', color: '#fff', font: `700 14.5px ${FF}`, cursor: editSaving ? 'default' : 'pointer', opacity: editSaving ? .75 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, transition: 'background .2s', marginTop: 4 }}>
                   {saved
-                    ? <><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5"/></svg> Salvo!</>
+                    ? <><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5"/></svg> {t('home.saved')}</>
                     : editSaving
-                      ? <><span style={{ width: 16, height: 16, border: '2px solid rgba(255,255,255,.4)', borderTopColor: '#fff', borderRadius: '50%', display: 'inline-block', animation: 'kspin .7s linear infinite' }} /> Salvando...</>
-                      : 'Salvar'
+                      ? <><span style={{ width: 16, height: 16, border: '2px solid rgba(255,255,255,.4)', borderTopColor: '#fff', borderRadius: '50%', display: 'inline-block', animation: 'kspin .7s linear infinite' }} /> {t('home.saving')}</>
+                      : t('common.save')
                   }
                 </button>
               </div>
@@ -264,12 +267,10 @@ export default function Home() {
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ font: `700 13px ${FF}`, color: '#FAEEDA', marginBottom: 3 }}>
-                {isSunday ? 'Check-in semanal disponível 🎯' : 'Check-in semanal pendente'}
+                {isSunday ? t('home.checkin_available') : t('home.checkin_pending')}
               </div>
               <div style={{ font: `400 11.5px ${FF}`, color: isSunday ? 'rgba(250,238,218,.8)' : '#8B97AD', lineHeight: 1.4 }}>
-                {isSunday
-                  ? 'É domingo! Responda e seu coach acompanha sua evolução.'
-                  : 'Compartilhe como foi sua semana com o coach.'}
+                {isSunday ? t('home.checkin_sunday') : t('home.checkin_week')}
               </div>
             </div>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#FAEEDA" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: .6, flexShrink: 0 }}>
@@ -282,12 +283,12 @@ export default function Home() {
       {/* Treino de Hoje */}
       <div style={{ padding: '18px 18px 0' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-          <h2 style={{ font: `700 15px ${FF}`, color: '#1B2A4A', margin: 0 }}>Treino de Hoje</h2>
+          <h2 style={{ font: `700 15px ${FF}`, color: '#1B2A4A', margin: 0 }}>{t('home.today_workout')}</h2>
           <button
             onClick={() => navigate('/aluno/treinos')}
             style={{ font: `600 12px ${FF}`, color: '#E8542A', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
           >
-            Ver todos
+            {t('home.see_all')}
           </button>
         </div>
 
@@ -298,7 +299,7 @@ export default function Home() {
               <div style={{ padding: '14px 16px 12px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
                   <span style={{ font: `600 11px ${FF}`, color: g.color, background: g.bg, borderRadius: 20, padding: '3px 9px' }}>{todayWorkout.goal}</span>
-                  <span style={{ font: `500 11px ${FF}`, color: '#9a948a' }}>{todayWorkout.exercise_count} exercício{todayWorkout.exercise_count !== 1 ? 's' : ''}</span>
+                  <span style={{ font: `500 11px ${FF}`, color: '#9a948a' }}>{t('home.exercises', { count: todayWorkout.exercise_count })}</span>
                 </div>
                 <div style={{ font: `800 16px ${FF}`, color: '#1B2A4A', letterSpacing: '-.3px', marginBottom: 2 }}>{todayWorkout.name}</div>
                 <div style={{ font: `400 12px ${FF}`, color: '#9a948a' }}>{todayWorkout.muscle_group}</div>
@@ -308,7 +309,7 @@ export default function Home() {
                 style={{ width: '100%', height: 42, border: 'none', background: '#1B2A4A', color: '#FAEEDA', font: `700 13px ${FF}`, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7 }}
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-                Iniciar treino
+                {t('home.start_workout')}
               </button>
             </div>
           )
@@ -319,9 +320,9 @@ export default function Home() {
                 <path d="M18 8h1a4 4 0 0 1 0 8h-1" /><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z" /><line x1="6" y1="1" x2="6" y2="4" /><line x1="10" y1="1" x2="10" y2="4" /><line x1="14" y1="1" x2="14" y2="4" />
               </svg>
             </div>
-            <div style={{ font: `700 14px ${FF}`, color: '#1B2A4A' }}>Nenhum treino cadastrado ainda</div>
+            <div style={{ font: `700 14px ${FF}`, color: '#1B2A4A' }}>{t('home.no_workout_title')}</div>
             <div style={{ font: `400 12.5px ${FF}`, color: '#9a948a', lineHeight: 1.5 }}>
-              Seu coach ainda está preparando seu programa.<br />Você será notificado quando estiver pronto.
+              {t('home.no_workout_desc').split('\n').map((line, i) => <span key={i}>{line}{i === 0 && <br />}</span>)}
             </div>
           </div>
         )}
@@ -329,7 +330,7 @@ export default function Home() {
 
       {/* Mensagem do Coach */}
       <div style={{ padding: '16px 18px 0' }}>
-        <h2 style={{ font: `700 15px ${FF}`, color: '#1B2A4A', margin: '0 0 12px' }}>Mensagem do Coach</h2>
+        <h2 style={{ font: `700 15px ${FF}`, color: '#1B2A4A', margin: '0 0 12px' }}>{t('home.coach_message')}</h2>
         <div
           onClick={() => navigate('/aluno/chat')}
           style={{ background: '#fff', borderRadius: 14, border: '1.5px dashed #D6CFBE', padding: '20px 16px', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, textAlign: 'center' }}
@@ -337,13 +338,13 @@ export default function Home() {
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#C5BFB0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
           </svg>
-          <div style={{ font: `400 12.5px ${FF}`, color: '#9a948a' }}>Nenhuma mensagem ainda. Toque para abrir o chat.</div>
+          <div style={{ font: `400 12.5px ${FF}`, color: '#9a948a' }}>{t('home.no_messages')}</div>
         </div>
       </div>
 
       {/* Progresso */}
       <div style={{ padding: '16px 18px 28px' }}>
-        <h2 style={{ font: `700 15px ${FF}`, color: '#1B2A4A', margin: '0 0 12px' }}>Sua jornada</h2>
+        <h2 style={{ font: `700 15px ${FF}`, color: '#1B2A4A', margin: '0 0 12px' }}>{t('home.your_journey')}</h2>
         <div style={{ background: '#fff', borderRadius: 14, padding: '16px 18px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <div style={{ width: 44, height: 44, borderRadius: 12, background: '#e7f3ea', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -352,9 +353,9 @@ export default function Home() {
               </svg>
             </div>
             <div>
-              <div style={{ font: `700 13.5px ${FF}`, color: '#1B2A4A' }}>Anamnese e avaliação concluídas</div>
+              <div style={{ font: `700 13.5px ${FF}`, color: '#1B2A4A' }}>{t('home.profile_complete')}</div>
               <div style={{ font: `400 12px ${FF}`, color: '#9a948a', marginTop: 2 }}>
-                Perfil completo — seu coach já pode montar seu programa.
+                {t('home.profile_complete_desc')}
               </div>
             </div>
           </div>

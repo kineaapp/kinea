@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ChevronLeft } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '../../store/auth'
+import { useSettingsStore } from '../../store/settings'
 import { supabase } from '../../lib/supabase'
 
 const FF = '"Libre Franklin",sans-serif'
@@ -18,13 +20,12 @@ function fmtSize(b: number | null): string {
   return (b / 1048576).toFixed(1) + ' MB'
 }
 
-function fmtDate(iso: string) {
-  return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })
-}
-
 export default function Arquivos() {
   const navigate = useNavigate()
+  const { t } = useTranslation()
   const { user } = useAuthStore()
+  const { language } = useSettingsStore()
+  const locale = language === 'en-US' ? 'en-US' : 'pt-BR'
 
   const [files,   setFiles]   = useState<AttachmentRow[]>([])
   const [loading, setLoading] = useState(true)
@@ -51,6 +52,10 @@ export default function Arquivos() {
     setLoading(false)
   }
 
+  function fmtDate(iso: string) {
+    return new Date(iso).toLocaleDateString(locale, { day: '2-digit', month: 'short', year: 'numeric' })
+  }
+
   return (
     <div style={{ background: '#F4EFE3', minHeight: '100%', paddingBottom: 40 }}>
       {/* Header */}
@@ -61,20 +66,20 @@ export default function Arquivos() {
         >
           <ChevronLeft size={20} color="#1B2A4A" strokeWidth={2.5} />
         </button>
-        <h1 style={{ font: `800 18px ${FF}`, color: '#1B2A4A', margin: 0, letterSpacing: '-.3px' }}>Arquivos do coach</h1>
+        <h1 style={{ font: `800 18px ${FF}`, color: '#1B2A4A', margin: 0, letterSpacing: '-.3px' }}>{t('files.coach_files')}</h1>
       </div>
 
       <div style={{ padding: '0 18px' }}>
         {loading ? (
           <div style={{ textAlign: 'center', padding: '60px 0', font: `500 14px ${FF}`, color: '#a89f8e' }}>
-            Carregando…
+            {t('files.loading')}
           </div>
         ) : empty ? (
           <div style={{ background: '#fff', borderRadius: 16, padding: '48px 24px', textAlign: 'center', boxShadow: '0 2px 8px rgba(27,42,74,.07)' }}>
             <div style={{ fontSize: 36, marginBottom: 12 }}>📎</div>
-            <div style={{ font: `700 15px ${FF}`, color: '#1B2A4A', marginBottom: 4 }}>Nenhum arquivo ainda</div>
+            <div style={{ font: `700 15px ${FF}`, color: '#1B2A4A', marginBottom: 4 }}>{t('files.empty_title')}</div>
             <div style={{ font: `400 13px ${FF}`, color: '#9a948a' }}>
-              Quando o coach enviar exames, laudos ou documentos, eles aparecerão aqui.
+              {t('files.empty_desc')}
             </div>
           </div>
         ) : (

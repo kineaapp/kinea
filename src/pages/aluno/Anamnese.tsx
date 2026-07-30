@@ -3,6 +3,7 @@ import type { CSSProperties } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ChevronLeft, Check } from 'lucide-react'
 import { jsPDF } from 'jspdf'
+import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '../../store/auth'
 import { supabase } from '../../lib/supabase'
 
@@ -23,6 +24,9 @@ const EMPTY: AnamneseData = {
   objetivo: '', diasSemana: '', horario: '',
   horasSono: '', nivelEstresse: '', fuma: '', alcool: '',
 }
+
+// DB-stored values for diseases — never change these
+const DOENCAS_OPTIONS = ['Diabetes', 'Hipertensão', 'Doença cardíaca', 'Asma', 'Obesidade', 'Colesterol alto', 'Nenhuma']
 
 // ── Design tokens ────────────────────────────────────────────
 
@@ -119,47 +123,55 @@ function CheckItem({ label, checked, onToggle }: { label: string; checked: boole
 
 // ── Validation per step ──────────────────────────────────────
 
-function validate(step: number, data: AnamneseData): string | null {
+function validate(step: number, data: AnamneseData, t: (key: string) => string): string | null {
   if (step === 0) {
-    if (!data.nome.trim())     return 'Informe seu nome completo.'
-    if (!data.dataNasc)        return 'Informe sua data de nascimento.'
-    if (!data.telefone.trim()) return 'Informe seu telefone.'
+    if (!data.nome.trim())     return t('anamnese.err_name')
+    if (!data.dataNasc)        return t('anamnese.err_birth_date')
+    if (!data.telefone.trim()) return t('anamnese.err_phone')
   }
   if (step === 2) {
-    if (!data.praticaAtual)    return 'Responda se pratica exercício atualmente.'
-    if (!data.treinouPersonal) return 'Responda se já treinou com personal.'
+    if (!data.praticaAtual)    return t('anamnese.err_exercises_now')
+    if (!data.treinouPersonal) return t('anamnese.err_personal_trainer')
   }
   if (step === 3) {
-    if (!data.objetivo)   return 'Escolha seu objetivo principal.'
-    if (!data.diasSemana) return 'Informe quantos dias por semana você tem disponíveis.'
-    if (!data.horario)    return 'Escolha seu horário preferido.'
+    if (!data.objetivo)   return t('anamnese.err_main_goal')
+    if (!data.diasSemana) return t('anamnese.err_days_week')
+    if (!data.horario)    return t('anamnese.err_preferred_time')
   }
   if (step === 4) {
-    if (!data.horasSono)    return 'Informe suas horas de sono.'
-    if (!data.nivelEstresse) return 'Avalie seu nível de estresse.'
-    if (!data.fuma)          return 'Responda sobre tabagismo.'
-    if (!data.alcool)        return 'Responda sobre consumo de álcool.'
+    if (!data.horasSono)     return t('anamnese.err_sleep_hours')
+    if (!data.nivelEstresse) return t('anamnese.err_stress_level')
+    if (!data.fuma)          return t('anamnese.err_smoking')
+    if (!data.alcool)        return t('anamnese.err_alcohol')
   }
   return null
 }
-
-// ── Step content ─────────────────────────────────────────────
-
-const DOENCAS_OPTIONS = ['Diabetes', 'Hipertensão', 'Doença cardíaca', 'Asma', 'Obesidade', 'Colesterol alto', 'Nenhuma']
-
-const STEPS = [
-  'Dados Pessoais',
-  'Histórico de Saúde',
-  'Atividade Física',
-  'Objetivos',
-  'Estilo de Vida',
-]
 
 // ── Main component ───────────────────────────────────────────
 
 export default function Anamnese() {
   const navigate = useNavigate()
+  const { t } = useTranslation()
   const { user, setUser } = useAuthStore()
+
+  const STEPS = [
+    t('anamnese.step_personal'),
+    t('anamnese.step_health'),
+    t('anamnese.step_activity'),
+    t('anamnese.step_goals'),
+    t('anamnese.step_lifestyle'),
+  ]
+
+  // Display labels for diseases — values (Portuguese) stay in DOENCAS_OPTIONS for DB storage
+  const DOENCAS_LABELS: Record<string, string> = {
+    'Diabetes':        t('anamnese.disease_diabetes'),
+    'Hipertensão':     t('anamnese.disease_hypertension'),
+    'Doença cardíaca': t('anamnese.disease_heart'),
+    'Asma':            t('anamnese.disease_asthma'),
+    'Obesidade':       t('anamnese.disease_obesity'),
+    'Colesterol alto': t('anamnese.disease_cholesterol'),
+    'Nenhuma':         t('anamnese.disease_none'),
+  }
 
   const [step, setStep]     = useState(0)
   const [data, setData]     = useState<AnamneseData>({ ...EMPTY, nome: user?.name ?? '' })
@@ -185,7 +197,7 @@ export default function Anamnese() {
   }
 
   function goNext() {
-    const err = validate(step, data)
+    const err = validate(step, data, t)
     if (err) { setError(err); return }
     setError('')
     if (step < total - 1) { setStep(s => s + 1); return }
@@ -222,7 +234,7 @@ export default function Anamnese() {
         alcool:           data.alcool,
       })
 
-      // 2. Generate PDF
+      // 2. Generate PDF (always in Portuguese — goes to Brazilian coach)
       const doc = new jsPDF({ unit: 'mm', format: 'a4' })
       const W = 210, ml = 18, mr = 18, cw = W - ml - mr
       let y = 0
@@ -352,111 +364,114 @@ export default function Anamnese() {
   // ── Step renders ─────────────────────────────────────────
 
   const stepContent = [
-    // Step 0 — Dados Pessoais
+    // Step 0 — Personal data
     <div key={0} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <Field label="Nome completo *" type="text" placeholder="Seu nome completo" value={data.nome} onChange={e => set1('nome', e.target.value)} />
-      <Field label="Data de nascimento *" type="date" value={data.dataNasc} onChange={e => set1('dataNasc', e.target.value)} />
-      <Field label="Telefone / WhatsApp *" type="tel" placeholder="(11) 99999-9999" value={data.telefone} onChange={e => set1('telefone', e.target.value)} />
-      <Field label="Profissão" type="text" placeholder="Ex.: professora, analista..." value={data.profissao} onChange={e => set1('profissao', e.target.value)} />
-      <Field label="Altura (cm)" type="number" placeholder="Ex.: 170" min="100" max="250" value={data.altura} onChange={e => set1('altura', e.target.value)} />
+      <Field label={t('anamnese.field_full_name')} type="text" placeholder="Seu nome completo" value={data.nome} onChange={e => set1('nome', e.target.value)} />
+      <Field label={t('anamnese.field_birth_date')} type="date" value={data.dataNasc} onChange={e => set1('dataNasc', e.target.value)} />
+      <Field label={t('anamnese.field_phone')} type="tel" placeholder="(11) 99999-9999" value={data.telefone} onChange={e => set1('telefone', e.target.value)} />
+      <Field label={t('anamnese.field_profession')} type="text" placeholder="Ex.: professora, analista..." value={data.profissao} onChange={e => set1('profissao', e.target.value)} />
+      <Field label={t('anamnese.field_height')} type="number" placeholder="Ex.: 170" min="100" max="250" value={data.altura} onChange={e => set1('altura', e.target.value)} />
     </div>,
 
-    // Step 1 — Histórico de Saúde
+    // Step 1 — Health history
     <div key={1} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div>
-        <label style={labelStyle}>Doenças pré-existentes</label>
+        <label style={labelStyle}>{t('anamnese.field_diseases')}</label>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {DOENCAS_OPTIONS.map(d => (
-            <CheckItem key={d} label={d} checked={data.doencas.includes(d)} onToggle={() => toggleDoenca(d)} />
+            <CheckItem key={d} label={DOENCAS_LABELS[d] ?? d} checked={data.doencas.includes(d)} onToggle={() => toggleDoenca(d)} />
           ))}
         </div>
         {data.doencas.includes('Nenhuma') ? null : (
           <input
             type="text"
-            placeholder="Outras — descreva aqui"
+            placeholder={t('anamnese.field_other_disease_ph')}
             value={data.outraDoenca}
             onChange={e => set1('outraDoenca', e.target.value)}
             style={{ ...inputStyle, marginTop: 8 }}
           />
         )}
       </div>
-      <Textarea label="Medicamentos em uso (se nenhum, deixe em branco)" value={data.medicamentos} onChange={v => set1('medicamentos', v)} />
-      <Textarea label="Histórico de cirurgias (se nenhuma, deixe em branco)" value={data.cirurgia} onChange={v => set1('cirurgia', v)} />
-      <Textarea label="Limitações ou dores físicas (se nenhuma, deixe em branco)" value={data.limitacoes} onChange={v => set1('limitacoes', v)} />
+      <Textarea label={t('anamnese.field_medications')} value={data.medicamentos} onChange={v => set1('medicamentos', v)} />
+      <Textarea label={t('anamnese.field_surgeries')} value={data.cirurgia} onChange={v => set1('cirurgia', v)} />
+      <Textarea label={t('anamnese.field_limitations')} value={data.limitacoes} onChange={v => set1('limitacoes', v)} />
     </div>,
 
-    // Step 2 — Atividade Física
+    // Step 2 — Physical activity
     <div key={2} style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       <RadioGroup
-        label="Pratica exercício físico atualmente? *"
-        options={[{ value: 'Sim', label: 'Sim' }, { value: 'Não', label: 'Não' }]}
+        label={t('anamnese.field_exercises_now')}
+        options={[
+          { value: 'Sim', label: t('anamnese.opt_yes') },
+          { value: 'Não', label: t('anamnese.opt_no') },
+        ]}
         value={data.praticaAtual}
         onChange={v => set1('praticaAtual', v)}
       />
       {data.praticaAtual === 'Sim' && (
-        <Textarea label="Qual atividade e frequência?" rows={2} value={data.atividadeAtual} onChange={v => set1('atividadeAtual', v)} />
+        <Textarea label={t('anamnese.field_current_activity')} rows={2} value={data.atividadeAtual} onChange={v => set1('atividadeAtual', v)} />
       )}
       <RadioGroup
-        label="Já treinou com personal trainer? *"
+        label={t('anamnese.field_personal_trainer')}
         options={[
-          { value: 'Sim', label: 'Sim' },
-          { value: 'Não', label: 'Não' },
-          { value: 'Nunca treinei', label: 'Nunca treinei' },
+          { value: 'Sim',           label: t('anamnese.opt_yes') },
+          { value: 'Não',           label: t('anamnese.opt_no') },
+          { value: 'Nunca treinei', label: t('anamnese.opt_never_trained') },
         ]}
         value={data.treinouPersonal}
         onChange={v => set1('treinouPersonal', v)}
       />
     </div>,
 
-    // Step 3 — Objetivos
+    // Step 3 — Goals
     <div key={3} style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       <RadioGroup
-        label="Objetivo principal *"
+        label={t('anamnese.field_main_goal')}
         options={[
-          { value: 'Emagrecimento', label: 'Emagrecimento' },
-          { value: 'Hipertrofia', label: 'Hipertrofia' },
-          { value: 'Condicionamento', label: 'Condicionamento' },
-          { value: 'Saúde geral', label: 'Saúde geral' },
-          { value: 'Ganho de força', label: 'Ganho de força' },
-          { value: 'Outro', label: 'Outro' },
+          { value: 'Emagrecimento',  label: t('anamnese.obj_weight_loss') },
+          { value: 'Hipertrofia',    label: t('anamnese.obj_hypertrophy') },
+          { value: 'Condicionamento', label: t('anamnese.obj_conditioning') },
+          { value: 'Saúde geral',    label: t('anamnese.obj_general_health') },
+          { value: 'Ganho de força', label: t('anamnese.obj_strength') },
+          { value: 'Outro',          label: t('anamnese.obj_other') },
         ]}
         value={data.objetivo}
         onChange={v => set1('objetivo', v)}
       />
       <RadioGroup
-        label="Dias disponíveis por semana *"
+        label={t('anamnese.field_days_week')}
         options={['2', '3', '4', '5', '6'].map(d => ({ value: d, label: `${d}×` }))}
         value={data.diasSemana}
         onChange={v => set1('diasSemana', v)}
       />
       <RadioGroup
-        label="Horário preferido *"
+        label={t('anamnese.field_preferred_time')}
         options={[
-          { value: 'Manhã', label: 'Manhã' },
-          { value: 'Tarde', label: 'Tarde' },
-          { value: 'Noite', label: 'Noite' },
-          { value: 'Flexível', label: 'Flexível' },
+          { value: 'Manhã',    label: t('anamnese.time_morning') },
+          { value: 'Tarde',    label: t('anamnese.time_afternoon') },
+          { value: 'Noite',    label: t('anamnese.time_evening') },
+          { value: 'Flexível', label: t('anamnese.time_flexible') },
         ]}
         value={data.horario}
         onChange={v => set1('horario', v)}
       />
     </div>,
 
-    // Step 4 — Estilo de Vida
+    // Step 4 — Lifestyle
     <div key={4} style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       <RadioGroup
-        label="Horas de sono por noite *"
+        label={t('anamnese.field_sleep_hours')}
         options={[
-          { value: 'Menos de 5h', label: '< 5h' },
-          { value: '5–6h', label: '5–6h' },
-          { value: '7–8h', label: '7–8h' },
-          { value: 'Mais de 8h', label: '> 8h' },
+          { value: 'Menos de 5h', label: t('anamnese.sleep_less5') },
+          { value: '5–6h',        label: t('anamnese.sleep_5_6') },
+          { value: '7–8h',        label: t('anamnese.sleep_7_8') },
+          { value: 'Mais de 8h',  label: t('anamnese.sleep_more8') },
         ]}
         value={data.horasSono}
         onChange={v => set1('horasSono', v)}
       />
       <div>
-        <label style={labelStyle}>Nível de estresse *</label>
+        <label style={labelStyle}>{t('anamnese.field_stress_level')}</label>
         <div style={{ display: 'flex', gap: 8 }}>
           {[1, 2, 3, 4, 5].map(n => (
             <button
@@ -475,26 +490,26 @@ export default function Anamnese() {
           ))}
         </div>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 5 }}>
-          <span style={{ font: `400 11px ${FF}`, color: '#A39E90' }}>Baixo</span>
-          <span style={{ font: `400 11px ${FF}`, color: '#A39E90' }}>Alto</span>
+          <span style={{ font: `400 11px ${FF}`, color: '#A39E90' }}>{t('anamnese.stress_low')}</span>
+          <span style={{ font: `400 11px ${FF}`, color: '#A39E90' }}>{t('anamnese.stress_high')}</span>
         </div>
       </div>
       <RadioGroup
-        label="Tabagismo *"
+        label={t('anamnese.field_smoking')}
         options={[
-          { value: 'Não fumo', label: 'Não fumo' },
-          { value: 'Sim', label: 'Sim' },
-          { value: 'Ex-fumante', label: 'Ex-fumante' },
+          { value: 'Não fumo',    label: t('anamnese.smoke_no') },
+          { value: 'Sim',         label: t('anamnese.smoke_yes') },
+          { value: 'Ex-fumante',  label: t('anamnese.smoke_ex') },
         ]}
         value={data.fuma}
         onChange={v => set1('fuma', v)}
       />
       <RadioGroup
-        label="Consumo de álcool *"
+        label={t('anamnese.field_alcohol')}
         options={[
-          { value: 'Não consumo', label: 'Não consumo' },
-          { value: 'Socialmente', label: 'Socialmente' },
-          { value: 'Frequentemente', label: 'Frequentemente' },
+          { value: 'Não consumo',    label: t('anamnese.alcohol_no') },
+          { value: 'Socialmente',    label: t('anamnese.alcohol_social') },
+          { value: 'Frequentemente', label: t('anamnese.alcohol_often') },
         ]}
         value={data.alcool}
         onChange={v => set1('alcool', v)}
@@ -518,7 +533,7 @@ export default function Anamnese() {
           <div style={{ flex: 1 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6 }}>
               <span style={{ font: `700 14px ${FF}`, color: '#1B2A4A' }}>{STEPS[step]}</span>
-              <span style={{ font: `500 11px ${FF}`, color: '#A39E90' }}>Passo {step + 1} de {total}</span>
+              <span style={{ font: `500 11px ${FF}`, color: '#A39E90' }}>{t('anamnese.step_of', { step: step + 1, total })}</span>
             </div>
             <div style={{ height: 4, background: '#EDE8DC', borderRadius: 4 }}>
               <div style={{ height: '100%', width: `${progress}%`, background: '#E8542A', borderRadius: 4, transition: 'width 300ms ease' }} />
@@ -532,10 +547,10 @@ export default function Anamnese() {
         <div style={{ padding: '20px 18px 0' }}>
           <div style={{ background: '#1B2A4A', borderRadius: 16, padding: '18px 18px' }}>
             <div style={{ font: `800 18px ${FF}`, color: '#FAEEDA', letterSpacing: '-.3px', marginBottom: 6 }}>
-              Bem-vindo(a) à Kinea!
+              {t('anamnese.welcome_title')}
             </div>
             <div style={{ font: `400 13px ${FF}`, color: '#8B97AD', lineHeight: 1.55 }}>
-              Antes de liberar seus treinos, seu coach precisa conhecer você. Preencha a anamnese — leva cerca de 3 minutos.
+              {t('anamnese.welcome_desc')}
             </div>
           </div>
         </div>
@@ -576,9 +591,9 @@ export default function Anamnese() {
           {loading ? (
             <>
               <span style={{ width: 18, height: 18, border: '2.5px solid rgba(255,255,255,.4)', borderTopColor: '#fff', borderRadius: '50%', display: 'inline-block', animation: 'kspin .7s linear infinite' }} />
-              Gerando PDF e enviando...
+              {t('anamnese.generating_pdf')}
             </>
-          ) : step < total - 1 ? 'Continuar →' : 'Concluir e enviar'}
+          ) : step < total - 1 ? t('anamnese.continue') : t('anamnese.submit_and_send')}
         </button>
       </div>
     </div>

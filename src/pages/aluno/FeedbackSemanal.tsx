@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ChevronLeft, Check } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '../../store/auth'
+import { useSettingsStore } from '../../store/settings'
 import { supabase } from '../../lib/supabase'
 
 const FF = '"Libre Franklin",sans-serif'
@@ -15,37 +17,14 @@ export function getWeekStart(): string {
   return monday.toISOString().split('T')[0]
 }
 
-export function getWeekRange(weekStart: string): string {
+export function getWeekRange(weekStart: string, locale: string): string {
   const start = new Date(weekStart + 'T12:00:00')
   const end = new Date(start)
   end.setDate(start.getDate() + 6)
   const opts: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'long' }
-  return `${start.toLocaleDateString('pt-BR', opts)} a ${end.toLocaleDateString('pt-BR', opts)}`
+  const sep = locale === 'en-US' ? ' to ' : ' a '
+  return `${start.toLocaleDateString(locale, opts)}${sep}${end.toLocaleDateString(locale, opts)}`
 }
-
-export const SLEEP_OPTS = [
-  { v: 1, emoji: '😴', label: 'Muito ruim' },
-  { v: 2, emoji: '😕', label: 'Ruim' },
-  { v: 3, emoji: '😐', label: 'Regular' },
-  { v: 4, emoji: '😊', label: 'Bom' },
-  { v: 5, emoji: '🌟', label: 'Excelente' },
-]
-
-export const NUTRITION_OPTS = [
-  { v: 1, emoji: '🍔', label: 'Muito ruim' },
-  { v: 2, emoji: '😕', label: 'Ruim' },
-  { v: 3, emoji: '😐', label: 'Regular' },
-  { v: 4, emoji: '👍', label: 'Boa' },
-  { v: 5, emoji: '🥗', label: 'Excelente' },
-]
-
-export const MOOD_OPTS = [
-  { v: 1, emoji: '😞', label: 'Muito baixo' },
-  { v: 2, emoji: '😕', label: 'Baixo' },
-  { v: 3, emoji: '😐', label: 'Moderado' },
-  { v: 4, emoji: '😊', label: 'Bom' },
-  { v: 5, emoji: '💪', label: 'Ótimo' },
-]
 
 function ScaleCard({ title, hint, value, onChange, opts }: {
   title: string
@@ -83,12 +62,39 @@ function ScaleCard({ title, hint, value, onChange, opts }: {
 export default function FeedbackSemanal() {
   const navigate   = useNavigate()
   const { user }   = useAuthStore()
+  const { t } = useTranslation()
+  const { language } = useSettingsStore()
+  const locale = language === 'en-US' ? 'en-US' : 'pt-BR'
 
-  const [studentId,  setStudentId]  = useState<number | null>(null)
+  const SLEEP_OPTS = [
+    { v: 1, emoji: '😴', label: t('feedback_semanal.opt_very_bad') },
+    { v: 2, emoji: '😕', label: t('feedback_semanal.opt_bad')      },
+    { v: 3, emoji: '😐', label: t('feedback_semanal.opt_regular')   },
+    { v: 4, emoji: '😊', label: t('feedback_semanal.opt_good')      },
+    { v: 5, emoji: '🌟', label: t('feedback_semanal.opt_excellent') },
+  ]
+
+  const NUTRITION_OPTS = [
+    { v: 1, emoji: '🍔', label: t('feedback_semanal.opt_very_bad') },
+    { v: 2, emoji: '😕', label: t('feedback_semanal.opt_bad')      },
+    { v: 3, emoji: '😐', label: t('feedback_semanal.opt_regular')  },
+    { v: 4, emoji: '👍', label: t('feedback_semanal.opt_good_f')   },
+    { v: 5, emoji: '🥗', label: t('feedback_semanal.opt_excellent') },
+  ]
+
+  const MOOD_OPTS = [
+    { v: 1, emoji: '😞', label: t('feedback_semanal.opt_very_low') },
+    { v: 2, emoji: '😕', label: t('feedback_semanal.opt_low')      },
+    { v: 3, emoji: '😐', label: t('feedback_semanal.opt_moderate') },
+    { v: 4, emoji: '😊', label: t('feedback_semanal.opt_good')     },
+    { v: 5, emoji: '💪', label: t('feedback_semanal.opt_great')    },
+  ]
+
+  const [studentId,   setStudentId]   = useState<number | null>(null)
   const [alreadyDone, setAlreadyDone] = useState(false)
-  const [loading,    setLoading]    = useState(true)
-  const [saving,     setSaving]     = useState(false)
-  const [done,       setDone]       = useState(false)
+  const [loading,     setLoading]     = useState(true)
+  const [saving,      setSaving]      = useState(false)
+  const [done,        setDone]        = useState(false)
 
   const [workouts,   setWorkouts]   = useState(3)
   const [sleep,      setSleep]      = useState<number | null>(null)
@@ -130,11 +136,10 @@ export default function FeedbackSemanal() {
       notes: notes.trim() || null,
     }, { onConflict: 'student_id,week_start' })
 
-    // Envia mensagem no chat para o coach ser notificado
     const label = (v: number, opts: { v: number; label: string }[]) =>
       opts.find(o => o.v === v)?.label ?? String(v)
     const chatMsg =
-      `📋 Check-in semanal (${getWeekRange(weekStart)})\n\n` +
+      `📋 Check-in semanal (${getWeekRange(weekStart, locale)})\n\n` +
       `🏋️ Treinos realizados: ${workouts}\n` +
       `😴 Sono: ${label(sleep, SLEEP_OPTS)}\n` +
       `🥗 Alimentação: ${label(nutrition, NUTRITION_OPTS)}\n` +
@@ -151,14 +156,12 @@ export default function FeedbackSemanal() {
     setDone(true)
   }
 
-  // ── Loading ───────────────────────────────────────────────────
   if (loading) return (
     <div style={{ background: '#F4EFE3', minHeight: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div style={{ font: `500 14px ${FF}`, color: '#7C7869' }}>Carregando…</div>
+      <div style={{ font: `500 14px ${FF}`, color: '#7C7869' }}>{t('common.loading')}</div>
     </div>
   )
 
-  // ── Já respondido / Concluído ─────────────────────────────────
   if (done || alreadyDone) return (
     <div style={{ background: '#F4EFE3', minHeight: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 20, padding: 32 }}>
       <div style={{ width: 72, height: 72, borderRadius: 20, background: 'rgba(76,175,138,.15)', border: '1.5px solid rgba(76,175,138,.4)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -166,24 +169,23 @@ export default function FeedbackSemanal() {
       </div>
       <div style={{ textAlign: 'center' }}>
         <div style={{ font: `900 20px ${FF}`, color: '#1B2A4A', marginBottom: 8 }}>
-          {alreadyDone && !done ? 'Check-in já enviado!' : 'Check-in enviado!'}
+          {alreadyDone && !done ? t('feedback_semanal.done_title_already') : t('feedback_semanal.success')}
         </div>
         <div style={{ font: `400 13.5px ${FF}`, color: '#7C7869', lineHeight: 1.65, maxWidth: 260 }}>
           {alreadyDone && !done
-            ? 'Você já respondeu o check-in desta semana. Até domingo que vem! 💪'
-            : 'Seu coach já foi notificado. Até domingo que vem! 💪'}
+            ? t('feedback_semanal.done_body_already')
+            : t('feedback_semanal.done_body_sent')}
         </div>
       </div>
       <button onClick={() => navigate('/aluno/home')}
         style={{ height: 48, padding: '0 28px', background: '#E8542A', border: 'none', borderRadius: 12, font: `700 14px ${FF}`, color: '#fff', cursor: 'pointer', boxShadow: '0 4px 0 #C4421E' }}>
-        Voltar ao início
+        {t('feedback_semanal.back_home')}
       </button>
     </div>
   )
 
   const canSubmit = sleep !== null && nutrition !== null && mood !== null
 
-  // ── Formulário ────────────────────────────────────────────────
   return (
     <div style={{ background: '#F4EFE3', minHeight: '100%', paddingBottom: 40 }}>
 
@@ -195,23 +197,23 @@ export default function FeedbackSemanal() {
         </button>
         <div>
           <h1 style={{ font: `800 18px ${FF}`, color: '#1B2A4A', margin: 0, letterSpacing: '-.3px' }}>
-            Check-in semanal
+            {t('feedback_semanal.title')}
           </h1>
           <div style={{ font: `400 11.5px ${FF}`, color: '#7C7869', marginTop: 2 }}>
-            {getWeekRange(weekStart)}
+            {getWeekRange(weekStart, locale)}
           </div>
         </div>
       </div>
 
       <div style={{ padding: '24px 20px 0', display: 'flex', flexDirection: 'column', gap: 20 }}>
 
-        {/* Treinos */}
+        {/* Workouts count */}
         <div style={{ background: '#fff', borderRadius: 16, padding: '18px 20px', boxShadow: '0 2px 8px rgba(27,42,74,.06)' }}>
           <div style={{ font: `700 14px ${FF}`, color: '#1B2A4A', marginBottom: 4 }}>
-            Quantos treinos você fez essa semana?
+            {t('feedback_semanal.workouts_question')}
           </div>
           <div style={{ font: `400 12px ${FF}`, color: '#7C7869', marginBottom: 16 }}>
-            Inclua todos os tipos de atividade física
+            {t('feedback_semanal.workouts_hint')}
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 5 }}>
             {[0, 1, 2, 3, 4, 5, 6, 7].map(n => (
@@ -231,42 +233,42 @@ export default function FeedbackSemanal() {
         </div>
 
         <ScaleCard
-          title="Como foi seu sono?"
-          hint="Qualidade e duração do descanso"
+          title={t('feedback_semanal.sleep_title')}
+          hint={t('feedback_semanal.sleep_hint')}
           value={sleep}
           onChange={setSleep}
           opts={SLEEP_OPTS}
         />
 
         <ScaleCard
-          title="Como está sua alimentação?"
-          hint="Dieta, refeições e hidratação"
+          title={t('feedback_semanal.nutrition_title')}
+          hint={t('feedback_semanal.nutrition_hint')}
           value={nutrition}
           onChange={setNutrition}
           opts={NUTRITION_OPTS}
         />
 
         <ScaleCard
-          title="Humor e disposição"
-          hint="Como você está se sentindo no geral"
+          title={t('feedback_semanal.mood_title')}
+          hint={t('feedback_semanal.mood_hint')}
           value={mood}
           onChange={setMood}
           opts={MOOD_OPTS}
         />
 
-        {/* Observações */}
+        {/* Notes */}
         <div style={{ background: '#fff', borderRadius: 16, padding: '18px 20px', boxShadow: '0 2px 8px rgba(27,42,74,.06)' }}>
           <div style={{ font: `700 14px ${FF}`, color: '#1B2A4A', marginBottom: 4 }}>
-            Observações{' '}
-            <span style={{ font: `400 12px ${FF}`, color: '#7C7869' }}>(opcional)</span>
+            {t('feedback_semanal.notes_label')}{' '}
+            <span style={{ font: `400 12px ${FF}`, color: '#7C7869' }}>{t('feedback_semanal.notes_optional')}</span>
           </div>
           <div style={{ font: `400 12px ${FF}`, color: '#7C7869', marginBottom: 12 }}>
-            Algo que queira compartilhar com o coach
+            {t('feedback_semanal.notes_share')}
           </div>
           <textarea
             value={notes}
             onChange={e => setNotes(e.target.value)}
-            placeholder="Como foi a semana? Alguma dificuldade ou ponto de atenção?"
+            placeholder={t('feedback_semanal.notes_placeholder')}
             rows={4}
             style={{
               width: '100%', background: '#fafaf7',
@@ -277,7 +279,7 @@ export default function FeedbackSemanal() {
           />
         </div>
 
-        {/* Enviar */}
+        {/* Submit */}
         <button
           onClick={() => void handleSubmit()}
           disabled={!canSubmit || saving}
@@ -291,12 +293,12 @@ export default function FeedbackSemanal() {
             boxShadow: canSubmit ? '0 4px 0 #C4421E' : 'none',
             transition: 'all .2s', opacity: saving ? 0.7 : 1,
           }}>
-          {saving ? 'Enviando…' : 'Enviar check-in →'}
+          {saving ? t('feedback_semanal.submitting') : t('feedback_semanal.submit_btn')}
         </button>
 
         {!canSubmit && (
           <p style={{ font: `400 12px ${FF}`, color: '#7C7869', textAlign: 'center', margin: '-12px 0 0' }}>
-            Responda todas as perguntas para enviar
+            {t('feedback_semanal.fill_all')}
           </p>
         )}
       </div>

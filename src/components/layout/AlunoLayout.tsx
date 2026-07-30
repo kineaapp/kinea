@@ -2,25 +2,27 @@ import { Outlet, useLocation, NavLink, Navigate, useNavigate } from 'react-route
 import { Home, Dumbbell, MessageCircle, Activity, User } from 'lucide-react'
 import { useAuthStore } from '../../store/auth'
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { supabase } from '../../lib/supabase'
 
 const FF = '"Libre Franklin",sans-serif'
-
-const TABS = [
-  { to: '/aluno/home',       icon: Home,          label: 'Início'    },
-  { to: '/aluno/treinos',    icon: Dumbbell,      label: 'Treinos'   },
-  { to: '/aluno/chat',       icon: MessageCircle, label: 'Chat'      },
-  { to: '/aluno/avaliacoes', icon: Activity,      label: 'Avaliação' },
-  { to: '/aluno/perfil',     icon: User,          label: 'Perfil'    },
-]
 
 function AssessmentReminderModal({ daysPastDue, onStart, onSnooze }: {
   daysPastDue: number
   onStart: () => void
   onSnooze: () => void
 }) {
+  const { t } = useTranslation()
   const daysUsed = Math.min(daysPastDue, 7)
   const pct = (daysUsed / 7) * 100
+
+  const title = daysPastDue === 0
+    ? t('aluno_layout.assessment_today')
+    : t('aluno_layout.assessment_overdue', { count: daysPastDue })
+
+  const desc = daysPastDue === 0
+    ? t('aluno_layout.assessment_today_desc')
+    : t('aluno_layout.days_left', { count: 7 - daysPastDue })
 
   return (
     <div style={{
@@ -43,20 +45,18 @@ function AssessmentReminderModal({ daysPastDue, onStart, onSnooze }: {
         </div>
 
         <h2 style={{ font: `800 20px ${FF}`, color: '#1B2A4A', margin: '0 0 8px', textAlign: 'center', letterSpacing: '-.3px' }}>
-          {daysPastDue === 0 ? 'Sua avaliação é hoje!' : `Avaliação há ${daysPastDue} dia${daysPastDue > 1 ? 's' : ''}`}
+          {title}
         </h2>
         <p style={{ font: `400 13px/1.6 ${FF}`, color: '#7C7869', margin: '0 0 20px', textAlign: 'center' }}>
-          {daysPastDue === 0
-            ? 'Chegou o dia da sua avaliação periódica. Faça agora ou escolha outro momento.'
-            : `Você tem até ${7 - daysPastDue} dia${7 - daysPastDue !== 1 ? 's' : ''} para fazer sua avaliação periódica.`}
+          {desc}
         </p>
 
         {/* Progress bar */}
         <div style={{ marginBottom: 24 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-            <span style={{ font: `600 11px ${FF}`, color: '#A39E90' }}>Prazo utilizado</span>
+            <span style={{ font: `600 11px ${FF}`, color: '#A39E90' }}>{t('aluno_layout.deadline_used')}</span>
             <span style={{ font: `600 11px ${FF}`, color: daysUsed >= 6 ? '#D2402A' : '#A39E90' }}>
-              {daysUsed} / 7 dias
+              {t('aluno_layout.days_of_7', { count: daysUsed })}
             </span>
           </div>
           <div style={{ height: 6, background: '#EDE8DC', borderRadius: 4, overflow: 'hidden' }}>
@@ -79,7 +79,7 @@ function AssessmentReminderModal({ daysPastDue, onStart, onSnooze }: {
             font: `700 16px ${FF}`, color: '#fff', cursor: 'pointer',
           }}
         >
-          Fazer avaliação agora
+          {t('aluno_layout.do_now')}
         </button>
 
         <button
@@ -91,7 +91,7 @@ function AssessmentReminderModal({ daysPastDue, onStart, onSnooze }: {
             font: `600 14px ${FF}`, color: '#7C7869', cursor: 'pointer',
           }}
         >
-          Fazer depois
+          {t('aluno_layout.do_later')}
         </button>
       </div>
     </div>
@@ -99,6 +99,7 @@ function AssessmentReminderModal({ daysPastDue, onStart, onSnooze }: {
 }
 
 export default function AlunoLayout() {
+  const { t } = useTranslation()
   const { pathname } = useLocation()
   const navigate = useNavigate()
   const { user } = useAuthStore()
@@ -106,6 +107,14 @@ export default function AlunoLayout() {
   const [nextAssessment, setNextAssessment] = useState<string | null>(null)
   const [assessmentSnoozed, setAssessmentSnoozed] = useState(false)
   const [dataLoaded, setDataLoaded] = useState(false)
+
+  const TABS = [
+    { to: '/aluno/home',       icon: Home,          label: t('nav.home')           },
+    { to: '/aluno/treinos',    icon: Dumbbell,      label: t('nav.workouts')       },
+    { to: '/aluno/chat',       icon: MessageCircle, label: t('nav.chat')           },
+    { to: '/aluno/avaliacoes', icon: Activity,      label: t('nav.assessment_tab') },
+    { to: '/aluno/perfil',     icon: User,          label: t('nav.profile')        },
+  ]
 
   useEffect(() => {
     if (!user?.id) return
@@ -146,9 +155,11 @@ export default function AlunoLayout() {
         <div style={{ width: 64, height: 64, borderRadius: '50%', background: '#fbe6e1', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 24 }}>
           <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#c4421e" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
         </div>
-        <div style={{ font: '800 22px "Libre Franklin",sans-serif', color: '#1B2A4A', marginBottom: 10 }}>Acesso suspenso</div>
+        <div style={{ font: '800 22px "Libre Franklin",sans-serif', color: '#1B2A4A', marginBottom: 10 }}>
+          {t('aluno_layout.access_suspended_title')}
+        </div>
         <div style={{ font: '400 14px "Libre Franklin",sans-serif', color: '#7c7869', lineHeight: 1.6 }}>
-          Seu acesso ao Kinea foi suspenso por falta de pagamento. Entre em contato com seu coach para regularizar sua situação.
+          {t('aluno_layout.access_suspended_desc')}
         </div>
       </div>
     </div>
@@ -201,7 +212,7 @@ export default function AlunoLayout() {
               >
                 {({ isActive }) => (
                   <>
-                    {label === 'Chat' && (
+                    {label === t('nav.chat') && (
                       <span style={{
                         position: 'absolute', top: 8, left: '50%', marginLeft: 5,
                         width: 8, height: 8, borderRadius: '50%',

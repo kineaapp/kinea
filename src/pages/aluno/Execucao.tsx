@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { ChevronLeft, Check } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '../../store/auth'
+import { useSettingsStore } from '../../store/settings'
 import { supabase } from '../../lib/supabase'
 
 const FF = '"Libre Franklin",sans-serif'
@@ -94,7 +96,9 @@ function roundRect(
 export default function Execucao() {
   const navigate  = useNavigate()
   const location  = useLocation()
+  const { t } = useTranslation()
   const { user }  = useAuthStore()
+  const locale = useSettingsStore(s => s.language)
   const state = location.state as { workoutId?: number; workoutName?: string } | null
 
   const workoutIdRef  = useRef<number | null>(null)
@@ -579,14 +583,14 @@ export default function Execucao() {
         <Check size={36} color="#4CAF8A" />
       </div>
       <div style={{ textAlign: 'center' }}>
-        <div style={{ font: `900 22px ${FF}`, color: '#FAEEDA', marginBottom: 10 }}>Treino concluído hoje!</div>
+        <div style={{ font: `900 22px ${FF}`, color: '#FAEEDA', marginBottom: 10 }}>{t('execucao.done_today_title')}</div>
         <div style={{ font: `400 14px ${FF}`, color: '#8B97AD', lineHeight: 1.65, maxWidth: 260 }}>
-          Você já realizou este treino hoje. Descanse e volte amanhã mais forte 💪
+          {t('execucao.done_today_desc')}
         </div>
       </div>
       <button onClick={() => navigate('/aluno/treinos')}
         style={{ height: 48, padding: '0 28px', background: '#E8542A', border: 'none', borderRadius: 12, font: `700 14px ${FF}`, color: '#fff', cursor: 'pointer', boxShadow: '0 4px 0 #C4421E' }}>
-        Ver meus treinos
+        {t('execucao.see_workouts')}
       </button>
     </div>
   )
@@ -594,24 +598,24 @@ export default function Execucao() {
   // ── loading ───────────────────────────────────────────────────────────────────
   if (phase === 'loading') return (
     <div style={{ background: '#1B2A4A', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div style={{ font: `500 14px ${FF}`, color: '#8B97AD' }}>Carregando treino…</div>
+      <div style={{ font: `500 14px ${FF}`, color: '#8B97AD' }}>{t('execucao.loading')}</div>
     </div>
   )
 
   // ── feedback ──────────────────────────────────────────────────────────────────
   if (phase === 'feedback') {
     const INTENSITY = [
-      { v: 1, label: 'Muito\nfácil', emoji: '😴' },
-      { v: 2, label: 'Fácil',        emoji: '🙂' },
-      { v: 3, label: 'Moderado',     emoji: '💪' },
-      { v: 4, label: 'Difícil',      emoji: '🔥' },
-      { v: 5, label: 'Exaustivo',    emoji: '😤' },
+      { v: 1, label: t('execucao.intensity_1'), emoji: '😴' },
+      { v: 2, label: t('execucao.intensity_2'), emoji: '🙂' },
+      { v: 3, label: t('execucao.intensity_3'), emoji: '💪' },
+      { v: 4, label: t('execucao.intensity_4'), emoji: '🔥' },
+      { v: 5, label: t('execucao.intensity_5'), emoji: '😤' },
     ]
     const PAIN = [
-      { v: 0, label: 'Nenhuma' },
-      { v: 1, label: 'Leve' },
-      { v: 2, label: 'Moderada' },
-      { v: 3, label: 'Intensa' },
+      { v: 0, label: t('execucao.pain_0') },
+      { v: 1, label: t('execucao.pain_1') },
+      { v: 2, label: t('execucao.pain_2') },
+      { v: 3, label: t('execucao.pain_3') },
     ]
     return (
       <div style={{ background: '#1B2A4A', minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
@@ -620,14 +624,14 @@ export default function Execucao() {
             <Check size={22} color="#4CAF8A" />
           </div>
           <div>
-            <div style={{ font: `900 20px ${FF}`, color: '#FAEEDA' }}>Treino concluído!</div>
-            <div style={{ font: `400 12px ${FF}`, color: '#8B97AD' }}>Nos conta como foi</div>
+            <div style={{ font: `900 20px ${FF}`, color: '#FAEEDA' }}>{t('execucao.feedback_done')}</div>
+            <div style={{ font: `400 12px ${FF}`, color: '#8B97AD' }}>{t('execucao.feedback_how_was')}</div>
           </div>
         </div>
 
         <div style={{ flex: 1, overflowY: 'auto', padding: '26px 20px 12px' }}>
           <div style={{ marginBottom: 28 }}>
-            <div style={{ font: `700 13px ${FF}`, color: '#FAEEDA', marginBottom: 14 }}>Intensidade do treino</div>
+            <div style={{ font: `700 13px ${FF}`, color: '#FAEEDA', marginBottom: 14 }}>{t('execucao.feedback_intensity')}</div>
             <div style={{ display: 'flex', gap: 8 }}>
               {INTENSITY.map(opt => (
                 <button key={opt.v} onClick={() => setFbIntensity(opt.v)}
@@ -640,7 +644,7 @@ export default function Execucao() {
           </div>
 
           <div style={{ marginBottom: 28 }}>
-            <div style={{ font: `700 13px ${FF}`, color: '#FAEEDA', marginBottom: 14 }}>Sentiu dor durante o treino?</div>
+            <div style={{ font: `700 13px ${FF}`, color: '#FAEEDA', marginBottom: 14 }}>{t('execucao.feedback_pain')}</div>
             <div style={{ display: 'flex', gap: 8 }}>
               {PAIN.map(opt => (
                 <button key={opt.v} onClick={() => setFbPain(opt.v)}
@@ -652,11 +656,11 @@ export default function Execucao() {
           </div>
 
           <div style={{ marginBottom: 12 }}>
-            <div style={{ font: `700 13px ${FF}`, color: '#FAEEDA', marginBottom: 12 }}>Observações <span style={{ font: `400 12px ${FF}`, color: '#8B97AD' }}>(opcional)</span></div>
+            <div style={{ font: `700 13px ${FF}`, color: '#FAEEDA', marginBottom: 12 }}>{t('execucao.feedback_notes')} <span style={{ font: `400 12px ${FF}`, color: '#8B97AD' }}>{t('execucao.feedback_notes_optional')}</span></div>
             <textarea
               value={fbNotes}
               onChange={e => setFbNotes(e.target.value)}
-              placeholder="Alguma dificuldade, sensação ou ponto de atenção?"
+              placeholder={t('execucao.feedback_notes_ph')}
               rows={4}
               style={{ width: '100%', background: 'rgba(255,255,255,.06)', border: '1.5px solid rgba(255,255,255,.1)', borderRadius: 12, padding: '12px 14px', font: `400 13px ${FF}`, color: '#FAEEDA', resize: 'none', outline: 'none', boxSizing: 'border-box' } as React.CSSProperties}
             />
@@ -666,7 +670,7 @@ export default function Execucao() {
         <div style={{ padding: '12px 20px 36px' }}>
           <button onClick={handleFeedbackSubmit} disabled={fbSaving}
             style={{ width: '100%', height: 52, background: '#E8542A', border: 'none', borderRadius: 14, font: `700 16px ${FF}`, color: '#fff', cursor: 'pointer', boxShadow: '0 4px 0 #C4421E', opacity: fbSaving ? 0.7 : 1 }}>
-            {fbSaving ? 'Salvando…' : 'Ver resumo do treino →'}
+            {fbSaving ? t('execucao.feedback_saving') : t('execucao.feedback_see_summary')}
           </button>
         </div>
       </div>
@@ -694,17 +698,17 @@ export default function Execucao() {
             <div style={{ width: 38, height: 38, borderRadius: 10, background: 'rgba(76,175,138,.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <Check size={20} color="#4CAF8A" />
             </div>
-            <div style={{ font: `900 18px ${FF}`, color: '#FAEEDA' }}>Resumo do treino</div>
+            <div style={{ font: `900 18px ${FF}`, color: '#FAEEDA' }}>{t('execucao.summary_title')}</div>
           </div>
           <button onClick={() => navigate('/aluno/treinos')}
             style={{ height: 34, padding: '0 14px', background: 'rgba(255,255,255,.08)', border: 'none', borderRadius: 8, font: `600 12px ${FF}`, color: '#8B97AD', cursor: 'pointer' }}>
-            Fechar
+            {t('execucao.summary_close')}
           </button>
         </div>
 
         <div style={{ flex: 1, overflowY: 'auto', padding: '20px 20px 0' }}>
           <div style={{ font: `400 12px ${FF}`, color: '#8B97AD', marginBottom: 4 }}>
-            {new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}
+            {new Date().toLocaleDateString(locale, { weekday: 'long', day: 'numeric', month: 'long' })}
           </div>
           <div style={{ font: `900 26px ${FF}`, color: '#FAEEDA', letterSpacing: '-.5px', marginBottom: 22 }}>
             {workoutName}
@@ -712,13 +716,13 @@ export default function Execucao() {
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 26 }}>
             {(isCircuit ? [
-              { label: 'Duração',    value: fmtDuration(workoutDurationSec) },
-              { label: 'Rounds',     value: `${totalRounds}` },
-              { label: 'Exercícios', value: `${exercises.length}` },
+              { label: t('execucao.summary_duration'),  value: fmtDuration(workoutDurationSec) },
+              { label: t('execucao.summary_rounds'),    value: `${totalRounds}` },
+              { label: t('execucao.summary_exercises'), value: `${exercises.length}` },
             ] : [
-              { label: 'Duração',     value: fmtDuration(workoutDurationSec) },
-              { label: 'Séries',      value: `${totalSetsCount}` },
-              { label: 'Carga total', value: totalLoad > 0 ? `${Math.round(totalLoad).toLocaleString('pt-BR')} kg` : '—' },
+              { label: t('execucao.summary_duration'),   value: fmtDuration(workoutDurationSec) },
+              { label: t('execucao.summary_sets'),       value: `${totalSetsCount}` },
+              { label: t('execucao.summary_total_load'), value: totalLoad > 0 ? `${Math.round(totalLoad).toLocaleString('pt-BR')} kg` : '—' },
             ]).map(s => (
               <div key={s.label} style={{ background: 'rgba(255,255,255,.07)', borderRadius: 14, padding: '14px 10px', textAlign: 'center' }}>
                 <div style={{ font: `900 ${s.label === 'Carga total' && totalLoad >= 10000 ? '16px' : '22px'} ${FF}`, color: '#FAEEDA' }}>{s.value}</div>
@@ -728,7 +732,7 @@ export default function Execucao() {
           </div>
 
           <div style={{ font: `700 11px ${FF}`, color: '#8B97AD', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 10 }}>
-            {isCircuit ? 'Exercícios do circuito' : 'Por exercício'}
+            {isCircuit ? t('execucao.summary_circuit_exercises') : t('execucao.summary_by_exercise')}
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 28 }}>
             {isCircuit
@@ -749,7 +753,7 @@ export default function Execucao() {
                   <div key={e.name} style={{ background: 'rgba(255,255,255,.06)', borderRadius: 12, padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <span style={{ font: `600 13px ${FF}`, color: '#FAEEDA', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.name}</span>
                     <span style={{ font: `700 12px ${FF}`, color: '#E8542A', flexShrink: 0, marginLeft: 12 }}>
-                      {e.sets} série{e.sets !== 1 ? 's' : ''}
+                      {t('execucao.set_count', { count: e.sets })}
                     </span>
                   </div>
                 ))
@@ -760,13 +764,13 @@ export default function Execucao() {
         <div style={{ padding: '12px 20px 36px' }}>
           <button onClick={() => setShareAskPhoto(true)} disabled={sharing}
             style={{ width: '100%', height: 52, background: '#E8542A', border: 'none', borderRadius: 14, font: `700 15px ${FF}`, color: '#fff', cursor: sharing ? 'default' : 'pointer', boxShadow: '0 4px 0 #C4421E', opacity: sharing ? 0.7 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-            {sharing ? 'Gerando imagem…' : (
+            {sharing ? t('execucao.summary_sharing') : (
               <>
                 <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
                   <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
                 </svg>
-                Compartilhar resumo
+                {t('execucao.summary_share')}
               </>
             )}
           </button>
@@ -776,22 +780,22 @@ export default function Execucao() {
           <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.55)', display: 'flex', alignItems: 'flex-end', zIndex: 100 }} onClick={() => setShareAskPhoto(false)}>
             <div style={{ background: '#1e3056', borderRadius: '20px 20px 0 0', padding: '28px 20px 44px', width: '100%' }} onClick={e => e.stopPropagation()}>
               <div style={{ width: 36, height: 4, background: 'rgba(255,255,255,.2)', borderRadius: 2, margin: '0 auto 22px' }} />
-              <div style={{ font: `900 17px ${FF}`, color: '#FAEEDA', textAlign: 'center', marginBottom: 8 }}>Adicionar foto de fundo?</div>
+              <div style={{ font: `900 17px ${FF}`, color: '#FAEEDA', textAlign: 'center', marginBottom: 8 }}>{t('execucao.share_add_photo_title')}</div>
               <div style={{ font: `400 13px ${FF}`, color: '#8B97AD', textAlign: 'center', marginBottom: 26, lineHeight: 1.55 }}>
-                Tire uma foto e ela será usada como fundo do card do treino.
+                {t('execucao.share_add_photo_desc')}
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 <button onClick={() => { setShareAskPhoto(false); photoInputRef.current?.click() }}
                   style={{ height: 52, background: '#E8542A', border: 'none', borderRadius: 14, font: `700 14px ${FF}`, color: '#fff', cursor: 'pointer', boxShadow: '0 4px 0 #C4421E' }}>
-                  Sim, tirar foto
+                  {t('execucao.share_yes_photo')}
                 </button>
                 <button onClick={() => void doShare()}
                   style={{ height: 52, background: 'rgba(255,255,255,.1)', border: 'none', borderRadius: 14, font: `600 14px ${FF}`, color: '#FAEEDA', cursor: 'pointer' }}>
-                  Não, só o resumo
+                  {t('execucao.share_no_photo')}
                 </button>
                 <button onClick={() => setShareAskPhoto(false)}
                   style={{ height: 44, background: 'transparent', border: 'none', borderRadius: 12, font: `500 13px ${FF}`, color: '#8B97AD', cursor: 'pointer' }}>
-                  Cancelar
+                  {t('common.cancel')}
                 </button>
               </div>
             </div>
@@ -819,9 +823,9 @@ export default function Execucao() {
               <ChevronLeft size={20} color="#FAEEDA" strokeWidth={2} />
             </button>
             <div style={{ textAlign: 'center' }}>
-              <div style={{ font: `600 12px ${FF}`, color: '#8B97AD' }}>{workoutName || 'Circuito'}</div>
+              <div style={{ font: `600 12px ${FF}`, color: '#8B97AD' }}>{workoutName || t('execucao.circuit_default_name')}</div>
               <div style={{ font: `700 11px ${FF}`, color: '#4CAF8A', marginTop: 2 }}>
-                Round {currentRound} de {totalRounds} concluído!
+                {t('execucao.round_done_header', { round: currentRound, total: totalRounds })}
               </div>
             </div>
             <div style={{ width: 36 }} />
@@ -836,12 +840,12 @@ export default function Execucao() {
               <Check size={34} color="#4CAF8A" />
             </div>
             <div style={{ font: `900 24px ${FF}`, color: '#FAEEDA', letterSpacing: '-.5px', marginBottom: 6 }}>
-              Round {currentRound} concluído!
+              {t('execucao.round_done_title', { round: currentRound })}
             </div>
             <div style={{ font: `400 13px ${FF}`, color: '#8B97AD', marginBottom: 36, textAlign: 'center', lineHeight: 1.55 }}>
               {currentRound < totalRounds
-                ? `Prepare-se para o Round ${currentRound + 1} de ${totalRounds}`
-                : 'Último round — descanse e finalize!'}
+                ? t('execucao.prepare_next', { next: currentRound + 1, total: totalRounds })
+                : t('execucao.last_round_desc')}
             </div>
 
             <svg width={160} height={160} viewBox="0 0 160 160"
@@ -856,16 +860,16 @@ export default function Execucao() {
                 {String(roundRestSec).padStart(2, '0')}
               </text>
               <text x={80} y={100} textAnchor="middle" fill="#8B97AD" style={{ font: `500 12px ${FF}` }}>
-                {roundRestRunning ? 'descanso' : 'toque para avançar'}
+                {roundRestRunning ? t('execucao.rest_label') : t('execucao.timer_tap_skip')}
               </text>
             </svg>
-            <span style={{ font: `400 11px ${FF}`, color: '#8B97AD' }}>toque no timer para pular</span>
+            <span style={{ font: `400 11px ${FF}`, color: '#8B97AD' }}>{t('execucao.timer_tap_skip')}</span>
           </div>
 
           <div style={{ padding: '12px 18px 40px' }}>
             <button onClick={skipRoundRest}
               style={{ width: '100%', padding: 16, background: 'rgba(255,255,255,.1)', border: 'none', borderRadius: 14, font: `700 15px ${FF}`, color: '#FAEEDA', cursor: 'pointer' }}>
-              Começar Round {currentRound + 1} →
+              {t('execucao.start_round', { n: currentRound + 1 })}
             </button>
           </div>
         </div>
@@ -881,9 +885,9 @@ export default function Execucao() {
             <ChevronLeft size={20} color="#FAEEDA" strokeWidth={2} />
           </button>
           <div style={{ textAlign: 'center' }}>
-            <div style={{ font: `600 12px ${FF}`, color: '#8B97AD' }}>{workoutName || 'Circuito'}</div>
+            <div style={{ font: `600 12px ${FF}`, color: '#8B97AD' }}>{workoutName || t('execucao.circuit_default_name')}</div>
             <div style={{ font: `700 12px ${FF}`, color: '#E8542A', marginTop: 2 }}>
-              Round {currentRound} de {totalRounds}
+              {t('execucao.round_of', { round: currentRound, total: totalRounds })}
             </div>
           </div>
           <button onClick={() => setShowUpcoming(true)} title="Ver exercícios"
@@ -901,7 +905,7 @@ export default function Execucao() {
 
         <div style={{ padding: '0 22px 12px' }}>
           <div style={{ font: `500 11px ${FF}`, color: '#8B97AD', textTransform: 'uppercase', letterSpacing: '.3px', marginBottom: 7 }}>
-            {circEx.muscle.toUpperCase()} · {circuitExIdx + 1} DE {exercises.length}
+            {circEx.muscle.toUpperCase()} · {t('execucao.circuit_n_of', { n: circuitExIdx + 1, total: exercises.length })}
           </div>
           <div style={{ font: `900 30px ${FF}`, color: '#FAEEDA', letterSpacing: '-.7px' }}>
             {circEx.name}
@@ -945,10 +949,10 @@ export default function Execucao() {
           <button onClick={() => void handleCircuitExConc()}
             style={{ width: '100%', padding: 18, background: '#E8542A', border: 'none', borderRadius: 14, font: `700 16px ${FF}`, color: '#fff', cursor: 'pointer', boxShadow: '0 4px 0 #C4421E' }}>
             {isLastExRound && isLastRound
-              ? 'Concluir Circuito'
+              ? t('execucao.complete_circuit')
               : isLastExRound
-                ? `Concluir Round ${currentRound} →`
-                : 'Próximo exercício →'
+                ? t('execucao.complete_round', { n: currentRound })
+                : t('execucao.next_exercise_btn')
             }
           </button>
           {(circuitExIdx > 0 || circuitExIdx < exercises.length - 1) && (
@@ -956,13 +960,13 @@ export default function Execucao() {
               {circuitExIdx > 0 && (
                 <button onClick={() => setCircuitExIdx(i => i - 1)}
                   style={{ flex: 1, height: 42, background: 'rgba(255,255,255,.08)', border: 'none', borderRadius: 12, font: `600 13px ${FF}`, color: '#8B97AD', cursor: 'pointer' }}>
-                  ← Anterior
+                  {t('execucao.prev_btn')}
                 </button>
               )}
               {circuitExIdx < exercises.length - 1 && (
                 <button onClick={() => setCircuitExIdx(i => i + 1)}
                   style={{ flex: 1, height: 42, background: 'rgba(255,255,255,.08)', border: 'none', borderRadius: 12, font: `600 13px ${FF}`, color: '#8B97AD', cursor: 'pointer' }}>
-                  Próximo →
+                  {t('execucao.next_btn')}
                 </button>
               )}
             </div>
@@ -975,9 +979,9 @@ export default function Execucao() {
             <div style={{ background: '#1e3056', borderRadius: '20px 20px 0 0', padding: '24px 20px 40px', width: '100%', maxHeight: '72vh', display: 'flex', flexDirection: 'column' }}
               onClick={e => e.stopPropagation()}>
               <div style={{ width: 36, height: 4, background: 'rgba(255,255,255,.2)', borderRadius: 2, margin: '0 auto 20px' }} />
-              <div style={{ font: `700 15px ${FF}`, color: '#FAEEDA', marginBottom: 4 }}>Exercícios do circuito</div>
+              <div style={{ font: `700 15px ${FF}`, color: '#FAEEDA', marginBottom: 4 }}>{t('execucao.circuit_panel_title')}</div>
               <div style={{ font: `400 12px ${FF}`, color: '#8B97AD', marginBottom: 16 }}>
-                Round {currentRound} de {totalRounds} · {circuitExIdx + 1} de {exercises.length}
+                {t('execucao.round_of', { round: currentRound, total: totalRounds })} · {t('execucao.panel_n_of', { n: circuitExIdx + 1, total: exercises.length })}
               </div>
               <div style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {exercises.map((e, i) => {
@@ -1000,7 +1004,7 @@ export default function Execucao() {
                         </div>
                       </div>
                       {current && (
-                        <span style={{ font: `600 10px ${FF}`, color: '#E8542A', background: 'rgba(232,84,42,.18)', borderRadius: 8, padding: '3px 8px', flexShrink: 0 }}>ATUAL</span>
+                        <span style={{ font: `600 10px ${FF}`, color: '#E8542A', background: 'rgba(232,84,42,.18)', borderRadius: 8, padding: '3px 8px', flexShrink: 0 }}>{t('execucao.current_badge')}</span>
                       )}
                     </div>
                   )
@@ -1016,10 +1020,10 @@ export default function Execucao() {
   // ── workout ───────────────────────────────────────────────────────────────────
   if (exercises.length === 0) return (
     <div style={{ background: '#1B2A4A', minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16, padding: 24 }}>
-      <div style={{ font: `700 16px ${FF}`, color: '#FAEEDA', textAlign: 'center' }}>Nenhum exercício encontrado neste treino.</div>
+      <div style={{ font: `700 16px ${FF}`, color: '#FAEEDA', textAlign: 'center' }}>{t('execucao.no_exercises')}</div>
       <button onClick={() => navigate('/aluno/treinos')}
         style={{ height: 42, padding: '0 20px', border: 'none', background: '#E8542A', color: '#fff', borderRadius: 10, font: `600 13px ${FF}`, cursor: 'pointer' }}>
-        Voltar
+        {t('common.back')}
       </button>
     </div>
   )
@@ -1062,13 +1066,13 @@ export default function Execucao() {
           <ChevronLeft size={20} color="#FAEEDA" strokeWidth={2} />
         </button>
         <div style={{ textAlign: 'center' }}>
-          <div style={{ font: `600 12px ${FF}`, color: '#8B97AD' }}>{workoutName || 'Treino'}</div>
+          <div style={{ font: `600 12px ${FF}`, color: '#8B97AD' }}>{workoutName || t('execucao.workout_default_name')}</div>
           {supersetPartner
             ? <div style={{ font: `700 11px ${FF}`, color: '#E8542A', marginTop: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}>
-                <span style={{ background: 'rgba(232,84,42,.18)', borderRadius: 10, padding: '1px 7px' }}>SUPERSET</span>
-                <span style={{ color: '#8B97AD', fontWeight: 400 }}>série {supersetRound + 1} de {ex.sets}</span>
+                <span style={{ background: 'rgba(232,84,42,.18)', borderRadius: 10, padding: '1px 7px' }}>{t('execucao.superset_badge')}</span>
+                <span style={{ color: '#8B97AD', fontWeight: 400 }}>{t('execucao.series_of', { round: supersetRound + 1, sets: ex.sets })}</span>
               </div>
-            : <div style={{ font: `500 11px ${FF}`, color: '#E8542A', marginTop: 2 }}>Exercício {exIdx + 1} de {totalExs}</div>
+            : <div style={{ font: `500 11px ${FF}`, color: '#E8542A', marginTop: 2 }}>{t('execucao.exercise_of', { n: exIdx + 1, total: totalExs })}</div>
           }
         </div>
         <button onClick={() => setShowUpcoming(true)}
@@ -1087,7 +1091,7 @@ export default function Execucao() {
 
       {resumed && (
         <div style={{ margin: '-12px 18px 14px', background: 'rgba(76,175,138,.15)', border: '1px solid rgba(76,175,138,.3)', borderRadius: 10, padding: '8px 14px', font: `600 12px ${FF}`, color: '#4CAF8A', textAlign: 'center' }}>
-          Treino retomado do ponto onde você parou
+          {t('execucao.resume_notice')}
         </div>
       )}
 
@@ -1102,7 +1106,7 @@ export default function Execucao() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, background: 'rgba(255,255,255,.05)', borderRadius: 10, padding: '8px 12px' }}>
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#8B97AD" strokeWidth="2.5" strokeLinecap="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
             <span style={{ font: `500 11px ${FF}`, color: '#8B97AD' }}>
-              {isMidSuperset ? 'Após' : 'Em seguida'}: <span style={{ color: '#FAEEDA', fontWeight: 700 }}>{supersetPartner.name}</span>
+              {isMidSuperset ? t('execucao.superset_after') : t('execucao.superset_next')}: <span style={{ color: '#FAEEDA', fontWeight: 700 }}>{supersetPartner.name}</span>
             </span>
           </div>
         )}
@@ -1112,7 +1116,7 @@ export default function Execucao() {
           </span>
           {(prevWeight !== undefined || prevReps !== undefined) && (
             <span style={{ background: 'rgba(255,255,255,.08)', borderRadius: 20, padding: '5px 12px', font: `600 11px ${FF}`, color: '#8B97AD' }}>
-              Última:{prevReps !== undefined ? ` ${prevReps} reps` : ''}{prevWeight !== undefined && prevReps !== undefined ? ' ·' : ''}{prevWeight !== undefined ? ` ${fmtWeight(prevWeight)} kg` : ''}
+              {t('execucao.last_perf')}{prevReps !== undefined ? ` ${prevReps} reps` : ''}{prevWeight !== undefined && prevReps !== undefined ? ' ·' : ''}{prevWeight !== undefined ? ` ${fmtWeight(prevWeight)} kg` : ''}
             </span>
           )}
         </div>
@@ -1130,7 +1134,7 @@ export default function Execucao() {
             {String(timerSec).padStart(2, '0')}
           </text>
           <text x={80} y={100} textAnchor="middle" fill="#8B97AD" style={{ font: `500 12px ${FF}` }}>
-            {timerRunning ? 'descanso' : 'toque para iniciar'}
+            {timerRunning ? t('execucao.rest_label') : t('execucao.timer_tap')}
           </text>
         </svg>
       </div>
@@ -1144,7 +1148,7 @@ export default function Execucao() {
                 <div style={{ width: 22, height: 22, background: '#4CAF8A', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                   <Check size={13} color="#fff" strokeWidth={2.5} />
                 </div>
-                <span style={{ font: `600 13px ${FF}`, color: '#8B97AD', flex: 1 }}>Série {i + 1}</span>
+                <span style={{ font: `600 13px ${FF}`, color: '#8B97AD', flex: 1 }}>{t('execucao.set_label', { n: i + 1 })}</span>
                 <span style={{ font: `700 12px ${FF}`, color: '#4CAF8A' }}>
                   {setsDone[i].reps} reps{setsDone[i].weight > 0 ? ` · ${fmtWeight(setsDone[i].weight)} kg` : ''}
                 </span>
@@ -1158,11 +1162,11 @@ export default function Execucao() {
               <div key={i} style={{ background: 'rgba(232,84,42,.12)', border: '1.5px solid rgba(232,84,42,.3)', borderRadius: 12, padding: '12px 14px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
                   <div style={{ width: 22, height: 22, background: 'rgba(232,84,42,.2)', border: '1.5px solid #E8542A', borderRadius: 6, flexShrink: 0 }} />
-                  <span style={{ font: `700 13px ${FF}`, color: '#FAEEDA' }}>Série {i + 1} — atual</span>
+                  <span style={{ font: `700 13px ${FF}`, color: '#FAEEDA' }}>{t('execucao.set_current', { n: i + 1 })}</span>
                 </div>
                 <div style={{ display: 'flex', gap: 10 }}>
                   <div style={{ flex: 1, background: 'rgba(255,255,255,.07)', borderRadius: 10, padding: '10px 12px' }}>
-                    <div style={{ font: `500 10px ${FF}`, color: '#8B97AD', textTransform: 'uppercase', letterSpacing: '.4px', marginBottom: 8 }}>Repetições</div>
+                    <div style={{ font: `500 10px ${FF}`, color: '#8B97AD', textTransform: 'uppercase', letterSpacing: '.4px', marginBottom: 8 }}>{t('execucao.set_reps')}</div>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                       <button onClick={() => setReps(r => Math.max(1, r - 1))} style={{ width: 30, height: 30, background: 'rgba(255,255,255,.1)', border: 'none', borderRadius: 8, cursor: 'pointer', color: '#FAEEDA', font: `700 18px ${FF}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>−</button>
                       <span style={{ font: `800 20px ${FF}`, color: '#FAEEDA' }}>{reps}</span>
@@ -1170,7 +1174,7 @@ export default function Execucao() {
                     </div>
                   </div>
                   <div style={{ flex: 1, background: 'rgba(255,255,255,.07)', borderRadius: 10, padding: '10px 12px' }}>
-                    <div style={{ font: `500 10px ${FF}`, color: '#8B97AD', textTransform: 'uppercase', letterSpacing: '.4px', marginBottom: 8 }}>Carga (kg)</div>
+                    <div style={{ font: `500 10px ${FF}`, color: '#8B97AD', textTransform: 'uppercase', letterSpacing: '.4px', marginBottom: 8 }}>{t('execucao.set_load')}</div>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       <input
                         type="number"
@@ -1193,7 +1197,7 @@ export default function Execucao() {
             return (
               <div key={i} style={{ padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 12 }}>
                 <div style={{ width: 22, height: 22, background: 'rgba(255,255,255,.06)', border: '1px solid rgba(255,255,255,.1)', borderRadius: 6, flexShrink: 0 }} />
-                <span style={{ font: `600 13px ${FF}`, color: 'rgba(139,151,173,.5)' }}>Série {i + 1}</span>
+                <span style={{ font: `600 13px ${FF}`, color: 'rgba(139,151,173,.5)' }}>{t('execucao.set_label', { n: i + 1 })}</span>
               </div>
             )
           })}
@@ -1204,23 +1208,23 @@ export default function Execucao() {
         <button onClick={() => void handleSerieConc()}
           style={{ width: '100%', padding: 16, background: '#E8542A', border: 'none', borderRadius: 14, font: `700 16px ${FF}`, color: '#fff', cursor: 'pointer', boxShadow: '0 4px 0 #C4421E' }}>
           {isLast
-            ? 'Concluir Treino'
+            ? t('execucao.finish_workout')
             : (!isMidSuperset && supersetPartner)
-              ? `Série concluída → ${supersetPartner.name}`
-              : 'Série concluída'}
+              ? t('execucao.set_done_superset', { name: supersetPartner.name })
+              : t('execucao.set_done')}
         </button>
         {!isMidSuperset && (exIdx > 0 || exIdx < totalExs - 1) && (
           <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
             {exIdx > 0 && (
               <button onClick={() => goToExercise(exIdx - 1)}
                 style={{ flex: 1, height: 42, background: 'rgba(255,255,255,.08)', border: 'none', borderRadius: 12, font: `600 13px ${FF}`, color: '#8B97AD', cursor: 'pointer' }}>
-                ← Anterior
+                {t('execucao.prev_btn')}
               </button>
             )}
             {exIdx < totalExs - 1 && (
               <button onClick={() => goToExercise(exIdx + 1)}
                 style={{ flex: 1, height: 42, background: 'rgba(255,255,255,.08)', border: 'none', borderRadius: 12, font: `600 13px ${FF}`, color: '#8B97AD', cursor: 'pointer' }}>
-                Próximo →
+                {t('execucao.next_btn')}
               </button>
             )}
           </div>
@@ -1234,9 +1238,9 @@ export default function Execucao() {
             onClick={e => e.stopPropagation()}>
             <div style={{ width: 36, height: 4, background: 'rgba(255,255,255,.2)', borderRadius: 2, margin: '0 auto 20px' }} />
             <div style={{ font: `700 15px ${FF}`, color: '#FAEEDA', marginBottom: 16 }}>
-              Exercícios do treino
+              {t('execucao.exercises_panel_title')}
               <span style={{ font: `400 12px ${FF}`, color: '#8B97AD', marginLeft: 8 }}>
-                {exIdx + 1} de {exercises.length}
+                {t('execucao.panel_n_of', { n: exIdx + 1, total: exercises.length })}
               </span>
             </div>
             <div style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -1272,7 +1276,7 @@ export default function Execucao() {
                     </div>
                     {isCurrent && (
                       <span style={{ font: `600 10px ${FF}`, color: '#E8542A', background: 'rgba(232,84,42,.18)', borderRadius: 8, padding: '3px 8px', flexShrink: 0 }}>
-                        ATUAL
+                        {t('execucao.current_badge')}
                       </span>
                     )}
                   </div>
@@ -1290,12 +1294,12 @@ export default function Execucao() {
             onClick={e => e.stopPropagation()}>
             <div style={{ width: 36, height: 4, background: 'rgba(255,255,255,.2)', borderRadius: 2, margin: '0 auto 22px' }} />
             <div style={{ font: `700 16px ${FF}`, color: '#FAEEDA', marginBottom: 20 }}>
-              Editar série {editSetIdx + 1}
+              {t('execucao.edit_set_title', { n: (editSetIdx ?? 0) + 1 })}
             </div>
 
             <div style={{ display: 'flex', gap: 12, marginBottom: 28 }}>
               <div style={{ flex: 1, background: 'rgba(255,255,255,.07)', borderRadius: 12, padding: '14px 12px' }}>
-                <div style={{ font: `500 10px ${FF}`, color: '#8B97AD', textTransform: 'uppercase', letterSpacing: '.4px', marginBottom: 10 }}>Repetições</div>
+                <div style={{ font: `500 10px ${FF}`, color: '#8B97AD', textTransform: 'uppercase', letterSpacing: '.4px', marginBottom: 10 }}>{t('execucao.set_reps')}</div>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <button onClick={() => setEditReps(r => Math.max(1, r - 1))}
                     style={{ width: 34, height: 34, background: 'rgba(255,255,255,.1)', border: 'none', borderRadius: 8, cursor: 'pointer', color: '#FAEEDA', font: `700 20px ${FF}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>−</button>
@@ -1306,7 +1310,7 @@ export default function Execucao() {
               </div>
 
               <div style={{ flex: 1, background: 'rgba(255,255,255,.07)', borderRadius: 12, padding: '14px 12px' }}>
-                <div style={{ font: `500 10px ${FF}`, color: '#8B97AD', textTransform: 'uppercase', letterSpacing: '.4px', marginBottom: 10 }}>Carga (kg)</div>
+                <div style={{ font: `500 10px ${FF}`, color: '#8B97AD', textTransform: 'uppercase', letterSpacing: '.4px', marginBottom: 10 }}>{t('execucao.set_load')}</div>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <input
                     type="number"
@@ -1328,11 +1332,11 @@ export default function Execucao() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               <button onClick={() => void handleEditSetSave()}
                 style={{ height: 52, background: '#E8542A', border: 'none', borderRadius: 14, font: `700 15px ${FF}`, color: '#fff', cursor: 'pointer', boxShadow: '0 4px 0 #C4421E' }}>
-                Salvar
+                {t('execucao.save_set')}
               </button>
               <button onClick={() => setEditSetIdx(null)}
                 style={{ height: 44, background: 'transparent', border: 'none', borderRadius: 12, font: `500 13px ${FF}`, color: '#8B97AD', cursor: 'pointer' }}>
-                Cancelar
+                {t('common.cancel')}
               </button>
             </div>
           </div>

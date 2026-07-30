@@ -1,6 +1,8 @@
 import { useRef, useState, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 
 export default function IntroScreen({ onDone }: { onDone: () => void }) {
+  const { t } = useTranslation()
   const videoRef = useRef<HTMLVideoElement>(null)
   const [fading, setFading] = useState(false)
 
@@ -51,7 +53,7 @@ export default function IntroScreen({ onDone }: { onDone: () => void }) {
           letterSpacing: '.2px',
         }}
       >
-        Pular
+        {t('common.skip')}
       </button>
     </div>
   )

@@ -1,26 +1,28 @@
 import { useNavigate } from 'react-router-dom'
 import { ChevronRight, CreditCard, Bell, Settings, HelpCircle, LogOut, Paperclip } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '../../store/auth'
 
 const FF = '"Libre Franklin",sans-serif'
 
-const MENU = [
-  { icon: CreditCard, label: 'Pagamentos',    to: '/aluno/perfil/pagamentos', danger: false },
-  { icon: Paperclip,  label: 'Arquivos',      to: '/aluno/arquivos',          danger: false },
-  { icon: Bell,       label: 'Notificações',  to: '/aluno/notificacoes',      danger: false },
-  { icon: Settings,   label: 'Configurações', to: '/aluno/configuracoes',     danger: false },
-  { icon: HelpCircle, label: 'Suporte',       to: null,                       danger: false },
-  { icon: LogOut,     label: 'Sair',          to: null,                       danger: true  },
-]
-
 export default function Perfil() {
   const navigate     = useNavigate()
+  const { t } = useTranslation()
   const { user, logout } = useAuthStore()
 
   const photo    = user?.photo
   const initials = user?.initials ?? '?'
   const name     = user?.name     ?? ''
   const email    = user?.email    ?? ''
+
+  const MENU = [
+    { icon: CreditCard, label: t('nav.payments'),           to: '/aluno/perfil/pagamentos', danger: false },
+    { icon: Paperclip,  label: t('profile.menu_files'),     to: '/aluno/arquivos',          danger: false },
+    { icon: Bell,       label: t('profile.menu_notifications'), to: '/aluno/notificacoes',  danger: false },
+    { icon: Settings,   label: t('profile.menu_settings'),  to: '/aluno/configuracoes',     danger: false },
+    { icon: HelpCircle, label: t('profile.menu_support'),   to: null,                       danger: false },
+    { icon: LogOut,     label: t('nav.logout'),             to: null,                       danger: true  },
+  ]
 
   function handleMenu(to: string | null, danger: boolean) {
     if (danger) { logout(); navigate('/login'); return }
@@ -54,8 +56,8 @@ export default function Perfil() {
               </svg>
             </div>
             <div>
-              <div style={{ font: `700 13px ${FF}`, color: '#1B2A4A' }}>Perfil completo</div>
-              <div style={{ font: `400 11.5px ${FF}`, color: '#9a948a', marginTop: 1 }}>Anamnese e avaliação inicial concluídas</div>
+              <div style={{ font: `700 13px ${FF}`, color: '#1B2A4A' }}>{t('profile.complete')}</div>
+              <div style={{ font: `400 11.5px ${FF}`, color: '#9a948a', marginTop: 1 }}>{t('profile.complete_desc')}</div>
             </div>
           </div>
         </div>
@@ -64,7 +66,7 @@ export default function Perfil() {
       {/* Menu */}
       <div style={{ padding: '20px 18px 32px', display: 'flex', flexDirection: 'column', gap: 8 }}>
         <div style={{ font: `600 11px ${FF}`, color: '#A39E90', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 6 }}>
-          Minha conta
+          {t('profile.my_account')}
         </div>
         {MENU.map(({ icon: Icon, label, to, danger }) => (
           <button

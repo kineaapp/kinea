@@ -1,9 +1,12 @@
 import { useState, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '../../store/auth'
 import { useSettingsStore } from '../../store/settings'
+import type { Language } from '../../store/settings'
 import KineaLogo from '../../components/KineaLogo'
 import { supabase } from '../../lib/supabase'
+import i18n from '../../i18n'
 
 const FF = '"Libre Franklin",sans-serif'
 
@@ -71,7 +74,9 @@ function Toast({ msg }: { msg: string }) {
 
 // ── Page ───────────────────────────────────────────────────────────────────────
 export default function Configuracoes() {
+  const { t } = useTranslation()
   const { user, setUser, updateUser, logout } = useAuthStore()
+  const { customLogoDataUrl, setCustomLogo, language, setLanguage } = useSettingsStore()
   const navigate = useNavigate()
   const [toast, setToast] = useState('')
   const toastRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
@@ -101,14 +106,13 @@ export default function Configuracoes() {
   }, [updateUser])
 
   // Logo
-  const { customLogoDataUrl, setCustomLogo } = useSettingsStore()
   const logoInputRef = useRef<HTMLInputElement>(null)
 
   function handleLogoUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
     const reader = new FileReader()
-    reader.onload = () => { setCustomLogo(reader.result as string); showToast('Logotipo atualizado.') }
+    reader.onload = () => { setCustomLogo(reader.result as string); showToast(t('settings.toast_logo_updated')) }
     reader.readAsDataURL(file)
     e.target.value = ''
   }
@@ -125,31 +129,36 @@ export default function Configuracoes() {
 
   function saveProfile() {
     const trimmed = name.trim()
-    if (!trimmed) { showToast('Informe seu nome.'); return }
+    if (!trimmed) { showToast(t('settings.err_name')); return }
     if (user) {
       const parts = trimmed.trim().split(/\s+/)
       const initials = ((parts[0]?.[0] ?? '') + (parts[1]?.[0] ?? '')).toUpperCase()
       setUser({ ...user, name: trimmed, initials })
     }
-    showToast('Perfil atualizado com sucesso.')
+    showToast(t('settings.toast_profile_updated'))
   }
 
   async function savePassword() {
     setPassError('')
-    if (!passFields.current) { setPassError('Informe a senha atual.'); return }
-    if (passFields.next.length < 6) { setPassError('A nova senha precisa ter pelo menos 6 caracteres.'); return }
-    if (passFields.next !== passFields.confirm) { setPassError('As senhas não coincidem.'); return }
+    if (!passFields.current) { setPassError(t('settings.err_enter_current_pw')); return }
+    if (passFields.next.length < 6) { setPassError(t('settings.err_short_new_pw')); return }
+    if (passFields.next !== passFields.confirm) { setPassError(t('settings.err_pw_mismatch')); return }
     const { error: signInError } = await supabase.auth.signInWithPassword({ email: user?.email ?? '', password: passFields.current })
-    if (signInError) { setPassError('Senha atual incorreta.'); return }
+    if (signInError) { setPassError(t('settings.err_wrong_pw')); return }
     const { error: updateError } = await supabase.auth.updateUser({ password: passFields.next })
-    if (updateError) { setPassError('Erro ao alterar senha: ' + updateError.message); return }
+    if (updateError) { setPassError(t('settings.err_pw_change', { message: updateError.message })); return }
     setPassFields({ current: '', next: '', confirm: '' })
-    showToast('Senha alterada com sucesso.')
+    showToast(t('settings.toast_password_changed'))
   }
 
   function handleLogout() {
     logout()
     navigate('/login', { replace: true })
+  }
+
+  function handleLanguageChange(lang: Language) {
+    setLanguage(lang)
+    i18n.changeLanguage(lang)
   }
 
   const initials = (() => {
@@ -162,14 +171,14 @@ export default function Configuracoes() {
 
       {/* Header */}
       <div style={{ marginBottom: 28 }}>
-        <h1 style={{ font: `800 27px ${FF}`, color: '#1B2A4A', margin: 0, letterSpacing: '-.6px' }}>Configurações</h1>
-        <p style={{ font: `400 14px ${FF}`, color: '#7c7869', margin: '4px 0 0' }}>Gerencie seu perfil, notificações e segurança</p>
+        <h1 style={{ font: `800 27px ${FF}`, color: '#1B2A4A', margin: 0, letterSpacing: '-.6px' }}>{t('settings.title')}</h1>
+        <p style={{ font: `400 14px ${FF}`, color: '#7c7869', margin: '4px 0 0' }}>{t('settings.manage_desc')}</p>
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
 
         {/* ── Identidade visual ── */}
-        <Card title="Identidade visual">
+        <Card title={t('settings.visual_identity')}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
             <div style={{ width: 88, height: 60, border: '1.5px solid #ece7d9', borderRadius: 12, background: '#faf7ee', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden', padding: 8 }}>
               {customLogoDataUrl
@@ -179,10 +188,10 @@ export default function Configuracoes() {
             </div>
             <div style={{ flex: 1 }}>
               <div style={{ font: `600 14px ${FF}`, color: '#1B2A4A', marginBottom: 2 }}>
-                {customLogoDataUrl ? 'Logotipo personalizado' : 'Logotipo padrão (Kinea)'}
+                {customLogoDataUrl ? t('settings.custom_logo') : t('settings.default_logo')}
               </div>
               <div style={{ font: `400 12.5px ${FF}`, color: '#9a948a', marginBottom: 12 }}>
-                Substitua pelo logotipo da sua consultoria. Recomendado: PNG ou SVG com fundo transparente.
+                {t('settings.logo_desc')}
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
                 <input ref={logoInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleLogoUpload} />
@@ -190,14 +199,14 @@ export default function Configuracoes() {
                   onClick={() => logoInputRef.current?.click()}
                   style={{ height: 36, padding: '0 16px', border: '1.5px solid #d9d3c4', background: '#fff', color: '#1B2A4A', borderRadius: 8, font: `600 12.5px ${FF}`, cursor: 'pointer' }}
                 >
-                  {customLogoDataUrl ? 'Alterar logotipo' : 'Enviar logotipo'}
+                  {customLogoDataUrl ? t('settings.change_logo') : t('settings.upload_logo')}
                 </button>
                 {customLogoDataUrl && (
                   <button
-                    onClick={() => { setCustomLogo(null); showToast('Logotipo removido.') }}
+                    onClick={() => { setCustomLogo(null); showToast(t('settings.toast_logo_removed')) }}
                     style={{ height: 36, padding: '0 16px', border: '1.5px solid #e8c5bb', background: '#fef5f3', color: '#c4421e', borderRadius: 8, font: `600 12.5px ${FF}`, cursor: 'pointer' }}
                   >
-                    Remover
+                    {t('common.remove')}
                   </button>
                 )}
               </div>
@@ -206,7 +215,7 @@ export default function Configuracoes() {
         </Card>
 
         {/* ── Perfil ── */}
-        <Card title="Perfil do coach">
+        <Card title={t('settings.coach_profile')}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             {/* Avatar */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 4 }}>
@@ -229,30 +238,30 @@ export default function Configuracoes() {
                   onClick={() => photoInputRef.current?.click()}
                   style={{ border: '1.5px solid #d9d3c4', background: '#fff', color: '#6b6657', font: `600 12px ${FF}`, borderRadius: 8, padding: '6px 14px', cursor: 'pointer' }}
                 >
-                  Alterar foto
+                  {t('common.change_photo')}
                 </button>
               </div>
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-              <Field label="Nome completo">
-                <Input value={name} onChange={setName} placeholder="Seu nome" />
+              <Field label={t('settings.full_name')}>
+                <Input value={name} onChange={setName} placeholder={t('settings.your_name_ph')} />
               </Field>
-              <Field label="E-mail">
+              <Field label={t('settings.email')}>
                 <Input value={user?.email ?? 'coach@kinea.app'} readOnly />
               </Field>
             </div>
 
-            <Field label="Especialidade">
-              <Input value={specialty} onChange={setSpecialty} placeholder="Ex: Musculação e Emagrecimento" />
+            <Field label={t('settings.specialty')}>
+              <Input value={specialty} onChange={setSpecialty} placeholder={t('settings.specialty_ph')} />
             </Field>
 
-            <Field label="Bio">
+            <Field label={t('settings.bio')}>
               <textarea
                 value={bio}
                 onChange={e => setBio(e.target.value)}
                 rows={3}
-                placeholder="Breve descrição sobre você e sua metodologia"
+                placeholder={t('settings.bio_ph')}
                 style={{ width: '100%', border: '1.5px solid #d9d3c4', borderRadius: 10, background: '#fff', padding: '11px 14px', font: `400 14px ${FF}`, color: '#1B2A4A', outline: 'none', resize: 'vertical' as const, boxSizing: 'border-box' as const, lineHeight: 1.5 }}
               />
             </Field>
@@ -262,20 +271,20 @@ export default function Configuracoes() {
                 onClick={saveProfile}
                 style={{ height: 42, padding: '0 22px', border: 'none', background: '#E8542A', color: '#fff', borderRadius: 10, font: `700 13.5px ${FF}`, cursor: 'pointer', boxShadow: '0 2px 0 #c4421e' }}
               >
-                Salvar perfil
+                {t('settings.save_profile')}
               </button>
             </div>
           </div>
         </Card>
 
         {/* ── Notificações ── */}
-        <Card title="Notificações">
+        <Card title={t('settings.notifications')}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
             {([
-              { key: 'messages',      label: 'Novas mensagens de alunos',    desc: 'Receba alertas quando um aluno enviar uma mensagem' },
-              { key: 'payments',      label: 'Pagamentos vencidos',           desc: 'Alertas automáticos sobre cobranças em atraso' },
-              { key: 'reassessments', label: 'Reavaliações pendentes',        desc: 'Lembrete quando um aluno precisar de reavaliação' },
-              { key: 'checkins',      label: 'Check-ins semanais',            desc: 'Notificação quando alunos enviarem check-in' },
+              { key: 'messages',      label: t('settings.notif_messages'),      desc: t('settings.notif_messages_desc') },
+              { key: 'payments',      label: t('settings.notif_payments'),       desc: t('settings.notif_payments_desc') },
+              { key: 'reassessments', label: t('settings.notif_reassessments'),  desc: t('settings.notif_reassessments_desc') },
+              { key: 'checkins',      label: t('settings.notif_checkins'),       desc: t('settings.notif_checkins_desc') },
             ] as const).map((item, idx, arr) => (
               <div
                 key={item.key}
@@ -291,18 +300,39 @@ export default function Configuracoes() {
           </div>
         </Card>
 
+        {/* ── Idioma ── */}
+        <Card title={t('settings.language_section')}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+            {(['pt-BR', 'en-US'] as Language[]).map(lang => {
+              const active = language === lang
+              const label = lang === 'pt-BR' ? t('settings.language_pt') : t('settings.language_en')
+              return (
+                <button
+                  key={lang}
+                  onClick={() => handleLanguageChange(lang)}
+                  style={{ padding: '12px 8px', borderRadius: 12, border: `2px solid ${active ? '#1B2A4A' : '#E0D9CC'}`, background: active ? '#1B2A4A' : '#FAFAF8', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, transition: 'all .15s' }}
+                >
+                  <span style={{ font: `700 13px ${FF}`, color: active ? '#FAEEDA' : '#1B2A4A' }}>
+                    {label}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+        </Card>
+
         {/* ── Segurança ── */}
-        <Card title="Segurança">
+        <Card title={t('settings.security')}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <Field label="Senha atual">
+            <Field label={t('settings.current_password')}>
               <Input value={passFields.current} onChange={v => setPassFields(p => ({ ...p, current: v }))} type="password" placeholder="••••••••" />
             </Field>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-              <Field label="Nova senha">
-                <Input value={passFields.next} onChange={v => setPassFields(p => ({ ...p, next: v }))} type="password" placeholder="Mín. 6 caracteres" />
+              <Field label={t('settings.new_password')}>
+                <Input value={passFields.next} onChange={v => setPassFields(p => ({ ...p, next: v }))} type="password" placeholder={t('settings.min_chars_ph')} />
               </Field>
-              <Field label="Confirmar nova senha">
-                <Input value={passFields.confirm} onChange={v => setPassFields(p => ({ ...p, confirm: v }))} type="password" placeholder="Repita a senha" />
+              <Field label={t('settings.confirm_password')}>
+                <Input value={passFields.confirm} onChange={v => setPassFields(p => ({ ...p, confirm: v }))} type="password" placeholder={t('settings.repeat_password_ph')} />
               </Field>
             </div>
             {passError && <div style={{ font: `500 12px ${FF}`, color: '#c4421e' }}>{passError}</div>}
@@ -311,24 +341,24 @@ export default function Configuracoes() {
                 onClick={savePassword}
                 style={{ height: 42, padding: '0 22px', border: '1.5px solid #d9d3c4', background: '#fff', color: '#1B2A4A', borderRadius: 10, font: `700 13.5px ${FF}`, cursor: 'pointer' }}
               >
-                Alterar senha
+                {t('settings.change_password')}
               </button>
             </div>
           </div>
         </Card>
 
         {/* ── Conta ── */}
-        <Card title="Conta">
+        <Card title={t('settings.account')}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' as const, gap: 12 }}>
             <div>
-              <div style={{ font: `600 14px ${FF}`, color: '#1B2A4A', marginBottom: 2 }}>Sair da conta</div>
-              <div style={{ font: `400 12.5px ${FF}`, color: '#9a948a' }}>Você será redirecionado para a tela de login</div>
+              <div style={{ font: `600 14px ${FF}`, color: '#1B2A4A', marginBottom: 2 }}>{t('settings.logout_title')}</div>
+              <div style={{ font: `400 12.5px ${FF}`, color: '#9a948a' }}>{t('settings.logout_desc')}</div>
             </div>
             <button
               onClick={handleLogout}
               style={{ height: 42, padding: '0 22px', border: '1.5px solid #e8c5bb', background: '#fef5f3', color: '#c4421e', borderRadius: 10, font: `700 13.5px ${FF}`, cursor: 'pointer' }}
             >
-              Sair da conta
+              {t('settings.logout_btn')}
             </button>
           </div>
         </Card>

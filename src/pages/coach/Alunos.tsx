@@ -4,6 +4,7 @@ import { getInitials, payInfo, semInfo, avatarPalette } from '../../data/mock'
 import type { Student, PayStatus, SemColor } from '../../data/mock'
 import { useStudentsStore } from '../../store/students'
 import { useAuthStore } from '../../store/auth'
+import { useTranslation } from 'react-i18next'
 
 
 const FF = '"Libre Franklin",sans-serif'
@@ -11,14 +12,6 @@ const FF = '"Libre Franklin",sans-serif'
 // ── Sort ────────────────────────────────────────────────────
 type SortKey = 'name-asc' | 'name-desc' | 'pay' | 'engagement' | 'since-desc' | 'since-asc'
 
-const SORT_OPTIONS: { key: SortKey; label: string }[] = [
-  { key: 'name-asc',   label: 'Nome A → Z' },
-  { key: 'name-desc',  label: 'Nome Z → A' },
-  { key: 'pay',        label: 'Pagamento: vencidos primeiro' },
-  { key: 'engagement', label: 'Engajamento: inativos primeiro' },
-  { key: 'since-desc', label: 'Cadastro: mais recentes' },
-  { key: 'since-asc',  label: 'Cadastro: mais antigos' },
-]
 
 const PAY_ORDER: Record<PayStatus, number> = { overdue: 0, active: 1 }
 const SEM_ORDER: Record<SemColor, number>  = { red: 0, yellow: 1, green: 2 }
@@ -45,6 +38,7 @@ function sortStudents(list: Student[], key: SortKey) {
 
 // ── Quick add modal ─────────────────────────────────────────
 function AddStudentModal({ onClose, onAdd }: { onClose: () => void; onAdd: (name: string) => Promise<void> }) {
+  const { t } = useTranslation()
   const [name,    setName]    = useState('')
   const [saving,  setSaving]  = useState(false)
   const [err,     setErr]     = useState('')
@@ -54,13 +48,13 @@ function AddStudentModal({ onClose, onAdd }: { onClose: () => void; onAdd: (name
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     const trimmed = name.trim()
-    if (!trimmed) { setErr('Digite o nome do aluno.'); return }
+    if (!trimmed) { setErr(t('coach_students.err_name')); return }
     setSaving(true)
     try {
       await onAdd(trimmed)
       onClose()
     } catch {
-      setErr('Erro ao salvar. Tente novamente.')
+      setErr(t('coach_students.err_save'))
       setSaving(false)
     }
   }
@@ -69,18 +63,18 @@ function AddStudentModal({ onClose, onAdd }: { onClose: () => void; onAdd: (name
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(20,25,40,.5)', zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
       <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 400, background: '#fff', borderRadius: 16, padding: '26px 26px 24px', boxShadow: '0 24px 60px rgba(0,0,0,.3)' }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 6 }}>
-          <h2 style={{ font: `800 20px ${FF}`, color: '#1B2A4A', margin: 0, letterSpacing: '-.4px' }}>Adicionar aluno</h2>
+          <h2 style={{ font: `800 20px ${FF}`, color: '#1B2A4A', margin: 0, letterSpacing: '-.4px' }}>{t('coach_students.add_modal_title')}</h2>
           <button type="button" onClick={onClose} style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#9a948a', padding: 2 }}>
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
           </button>
         </div>
-        <p style={{ font: `400 13.5px/1.5 ${FF}`, color: '#7c7869', margin: '0 0 18px' }}>Cadastro rápido — apenas o nome. Você preenche o restante no perfil do aluno.</p>
+        <p style={{ font: `400 13.5px/1.5 ${FF}`, color: '#7c7869', margin: '0 0 18px' }}>{t('coach_students.add_modal_desc')}</p>
         <form onSubmit={handleSubmit}>
-          <label style={{ display: 'block', font: `600 11px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#6b6657', marginBottom: 7 }}>Nome do aluno</label>
+          <label style={{ display: 'block', font: `600 11px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#6b6657', marginBottom: 7 }}>{t('coach_students.student_name_label')}</label>
           <input
             ref={inputRef}
             type="text"
-            placeholder="Ex: João Silva"
+            placeholder={t('coach_students.add_placeholder')}
             value={name}
             onChange={e => { setName(e.target.value); setErr('') }}
             style={{ width: '100%', height: 46, border: `1.5px solid ${err ? '#c4421e' : '#d9d3c4'}`, borderRadius: 10, background: '#fff', padding: '0 14px', font: `400 14px ${FF}`, color: '#1B2A4A', outline: 'none', marginBottom: err ? 6 : 14, boxSizing: 'border-box' }}
@@ -91,7 +85,7 @@ function AddStudentModal({ onClose, onAdd }: { onClose: () => void; onAdd: (name
             disabled={saving}
             style={{ width: '100%', height: 48, border: 'none', background: saving ? '#c4421e99' : '#E8542A', color: '#fff', borderRadius: 10, font: `700 14.5px ${FF}`, cursor: saving ? 'default' : 'pointer', boxShadow: saving ? 'none' : '0 2px 0 #c4421e' }}
           >
-            {saving ? 'Salvando…' : 'Adicionar aluno'}
+            {saving ? t('coach_students.add_saving') : t('coach_students.add_student')}
           </button>
         </form>
       </div>
@@ -101,12 +95,13 @@ function AddStudentModal({ onClose, onAdd }: { onClose: () => void; onAdd: (name
 
 // ── Shared: invite modal ────────────────────────────────────
 function InviteModal({ onClose }: { onClose: () => void }) {
+  const { t } = useTranslation()
   const { user } = useAuthStore()
   const [link,  setLink]  = useState('')
   const [copied,setCopied]= useState(false)
   function gen() {
-    const t = Math.random().toString(36).slice(2,8) + Math.random().toString(36).slice(2,8)
-    setLink(window.location.origin + '/register/' + (user?.id ?? '') + '/' + t); setCopied(false)
+    const token = Math.random().toString(36).slice(2,8) + Math.random().toString(36).slice(2,8)
+    setLink(window.location.origin + '/register/' + (user?.id ?? '') + '/' + token); setCopied(false)
   }
   function copy() {
     try { navigator.clipboard.writeText(link) } catch {}
@@ -116,21 +111,21 @@ function InviteModal({ onClose }: { onClose: () => void }) {
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(20,25,40,.5)', zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
       <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 420, background: '#fff', borderRadius: 16, padding: '26px 26px 24px', boxShadow: '0 24px 60px rgba(0,0,0,.3)' }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 6 }}>
-          <h2 style={{ font: `800 20px ${FF}`, color: '#1B2A4A', margin: 0, letterSpacing: '-.4px' }}>Convidar aluno</h2>
+          <h2 style={{ font: `800 20px ${FF}`, color: '#1B2A4A', margin: 0, letterSpacing: '-.4px' }}>{t('coach_students.invite_title')}</h2>
           <button type="button" onClick={onClose} style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#9a948a', padding: 2 }}>
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
           </button>
         </div>
-        <p style={{ font: `400 13.5px/1.5 ${FF}`, color: '#7c7869', margin: '0 0 18px' }}>Gere um link de convite. O aluno define a própria senha e o link expira em 7 dias.</p>
+        <p style={{ font: `400 13.5px/1.5 ${FF}`, color: '#7c7869', margin: '0 0 18px' }}>{t('coach_students.invite_desc')}</p>
         {!link
-          ? <button type="button" onClick={gen} style={{ width: '100%', height: 48, border: 'none', background: '#E8542A', color: '#fff', borderRadius: 10, font: `700 14.5px ${FF}`, cursor: 'pointer', boxShadow: '0 2px 0 #c4421e' }}>Gerar link de convite</button>
+          ? <button type="button" onClick={gen} style={{ width: '100%', height: 48, border: 'none', background: '#E8542A', color: '#fff', borderRadius: 10, font: `700 14.5px ${FF}`, cursor: 'pointer', boxShadow: '0 2px 0 #c4421e' }}>{t('coach_students.invite_gen_btn')}</button>
           : <div>
-              <div style={{ font: `600 11px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#6b6657', marginBottom: 7 }}>Link gerado</div>
+              <div style={{ font: `600 11px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#6b6657', marginBottom: 7 }}>{t('coach_students.invite_link_label')}</div>
               <div style={{ display: 'flex', gap: 8 }}>
                 <div style={{ flex: 1, minWidth: 0, height: 46, border: '1.5px solid #d9d3c4', borderRadius: 10, background: '#f7f3ea', display: 'flex', alignItems: 'center', padding: '0 13px', font: `500 12.5px ${FF}`, color: '#1B2A4A', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{link}</div>
-                <button type="button" onClick={copy} style={{ flexShrink: 0, width: 104, height: 46, border: 'none', borderRadius: 10, background: copied ? '#1B7a4a' : '#1B2A4A', color: '#fff', font: `700 13px ${FF}`, cursor: 'pointer' }}>{copied ? 'Copiado!' : 'Copiar'}</button>
+                <button type="button" onClick={copy} style={{ flexShrink: 0, width: 104, height: 46, border: 'none', borderRadius: 10, background: copied ? '#1B7a4a' : '#1B2A4A', color: '#fff', font: `700 13px ${FF}`, cursor: 'pointer' }}>{copied ? t('coach_students.invite_copied') : t('coach_students.invite_copy')}</button>
               </div>
-              <p style={{ font: `400 12px/1.5 ${FF}`, color: '#9a948a', margin: '12px 0 0' }}>Compartilhe por WhatsApp ou e-mail. O aluno aparece aqui assim que concluir o cadastro.</p>
+              <p style={{ font: `400 12px/1.5 ${FF}`, color: '#9a948a', margin: '12px 0 0' }}>{t('coach_students.invite_share_hint')}</p>
             </div>
         }
       </div>
@@ -191,6 +186,7 @@ function SortHeader({ label, sortAsc, sortDesc, current, onSort, style, classNam
 type Filter = 'all' | 'green' | 'yellow' | 'red'
 
 export default function Alunos() {
+  const { t } = useTranslation()
   const navigate = useNavigate()
   const [filter,      setFilter]      = useState<Filter>('all')
   const [query,       setQuery]       = useState('')
@@ -201,6 +197,15 @@ export default function Alunos() {
   const [toast,       setToast]       = useState('')
   const { students, loading, fetchError, fetchStudents, addStudent } = useStudentsStore()
   const { user } = useAuthStore()
+
+  const SORT_OPTIONS: { key: SortKey; label: string }[] = [
+    { key: 'name-asc',   label: t('coach_students.sort_name_asc') },
+    { key: 'name-desc',  label: t('coach_students.sort_name_desc') },
+    { key: 'pay',        label: t('coach_students.sort_pay') },
+    { key: 'engagement', label: t('coach_students.sort_engagement') },
+    { key: 'since-desc', label: t('coach_students.sort_since_desc') },
+    { key: 'since-asc',  label: t('coach_students.sort_since_asc') },
+  ]
 
   useEffect(() => { if (user?.id) fetchStudents(user.id) }, [user?.id])
   const toastRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
@@ -244,17 +249,17 @@ export default function Alunos() {
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap', marginBottom: 22 }}>
         <div>
-          <h1 style={{ font: `800 27px ${FF}`, color: '#1B2A4A', margin: 0, letterSpacing: '-.6px' }}>Alunos</h1>
+          <h1 style={{ font: `800 27px ${FF}`, color: '#1B2A4A', margin: 0, letterSpacing: '-.6px' }}>{t('coach_students.title')}</h1>
           <p style={{ font: `400 14px ${FF}`, color: '#7c7869', margin: '4px 0 0' }}>
-            <strong style={{ color: '#1B2A4A' }}>{students.length}</strong> alunos ·{' '}
-            <strong style={{ color: '#1B2A4A' }}>{students.filter(s => s.pay === 'active').length}</strong> ativos ·{' '}
-            <strong style={{ color: '#D2402A' }}>{students.filter(s => s.pay === 'overdue').length}</strong> com pagamento vencido
+            <strong style={{ color: '#1B2A4A' }}>{students.length}</strong> {t('coach_students.students_label')} ·{' '}
+            <strong style={{ color: '#1B2A4A' }}>{students.filter(s => s.pay === 'active').length}</strong> {t('coach_students.active_label')} ·{' '}
+            <strong style={{ color: '#D2402A' }}>{students.filter(s => s.pay === 'overdue').length}</strong> {t('coach_students.overdue_label')}
           </p>
         </div>
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
 <button type="button" onClick={() => setInviteOpen(true)} style={{ display: 'flex', alignItems: 'center', gap: 8, height: 42, padding: '0 18px', border: 'none', background: '#E8542A', color: '#fff', borderRadius: 10, font: `700 13.5px ${FF}`, cursor: 'pointer', boxShadow: '0 2px 0 #c4421e' }}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6"/><path d="M22 11h-6"/></svg>
-            Convidar aluno
+            {t('coach_students.invite_student')}
           </button>
         </div>
       </div>
@@ -264,22 +269,22 @@ export default function Alunos() {
         <div className="k-search" style={{ position: 'relative', flex: 1, maxWidth: 340, minWidth: 200 }}>
           <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#9a948a" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ position: 'absolute', left: 13, top: '50%', transform: 'translateY(-50%)' }}><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
           <input
-            type="text" placeholder="Buscar por nome ou objetivo…"
+            type="text" placeholder={t('coach_students.search_placeholder')}
             value={query} onChange={e => setQuery(e.target.value)}
             className="k-input"
             style={{ width: '100%', height: 44, border: '1.5px solid #e1dac9', borderRadius: 11, background: '#fff', padding: '0 14px 0 38px', font: `400 14px ${FF}`, color: '#1B2A4A', outline: 'none' }}
           />
         </div>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-          <button type="button" onClick={() => setFilter('all')}    style={chipStyle(filter === 'all')}>Todos · {count('all')}</button>
+          <button type="button" onClick={() => setFilter('all')}    style={chipStyle(filter === 'all')}>{t('coach_students.filter_all')} · {count('all')}</button>
           <button type="button" onClick={() => setFilter('green')}  style={chipStyle(filter === 'green')}>
-            <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#2b9d5f', display: 'inline-block', marginRight: 6 }} />Engajados · {count('green')}
+            <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#2b9d5f', display: 'inline-block', marginRight: 6 }} />{t('coach_students.filter_engaged')} · {count('green')}
           </button>
           <button type="button" onClick={() => setFilter('yellow')} style={chipStyle(filter === 'yellow')}>
-            <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#E0A93B', display: 'inline-block', marginRight: 6 }} />Alerta · {count('yellow')}
+            <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#E0A93B', display: 'inline-block', marginRight: 6 }} />{t('coach_students.filter_alert')} · {count('yellow')}
           </button>
           <button type="button" onClick={() => setFilter('red')}    style={chipStyle(filter === 'red')}>
-            <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#E0533B', display: 'inline-block', marginRight: 6 }} />Inativos · {count('red')}
+            <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#E0533B', display: 'inline-block', marginRight: 6 }} />{t('coach_students.filter_inactive')} · {count('red')}
           </button>
         </div>
 
@@ -301,7 +306,7 @@ export default function Alunos() {
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M3 6h18"/><path d="M7 12h10"/><path d="M11 18h2"/>
             </svg>
-            {SORT_OPTIONS.find(o => o.key === sort)?.label ?? 'Ordenar'}
+            {SORT_OPTIONS.find(o => o.key === sort)?.label ?? t('coach_students.sort')}
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" style={{ opacity: .7, transform: sortOpen ? 'rotate(180deg)' : 'none', transition: 'transform .15s' }}>
               <path d="M6 9l6 6 6-6"/>
             </svg>
@@ -350,7 +355,7 @@ export default function Alunos() {
       {fetchError && (
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, background: '#fff3f0', border: '1.5px solid #f5c6bc', borderRadius: 12, padding: '14px 18px', marginBottom: 14 }}>
           <div>
-            <div style={{ font: `700 13.5px ${FF}`, color: '#c4421e', marginBottom: 2 }}>Não foi possível carregar os alunos</div>
+            <div style={{ font: `700 13.5px ${FF}`, color: '#c4421e', marginBottom: 2 }}>{t('coach_students.fetch_error_title')}</div>
             <div style={{ font: `400 12.5px ${FF}`, color: '#9a4a38' }}>{fetchError}</div>
           </div>
           <button
@@ -358,7 +363,7 @@ export default function Alunos() {
             onClick={() => { if (user?.id) fetchStudents(user.id) }}
             style={{ flexShrink: 0, height: 38, padding: '0 16px', border: 'none', background: '#E8542A', color: '#fff', borderRadius: 9, font: `700 13px ${FF}`, cursor: 'pointer' }}
           >
-            {loading ? 'Carregando…' : 'Tentar novamente'}
+            {loading ? t('coach_students.loading') : t('coach_students.retry')}
           </button>
         </div>
       )}
@@ -367,22 +372,22 @@ export default function Alunos() {
       <div style={{ background: '#fff', border: '1px solid #ece7d9', borderRadius: 14, overflow: 'hidden' }}>
         {/* Head */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 13, padding: '12px 20px', background: '#fbf8f1', borderBottom: '1px solid #ece7d9' }}>
-          <SortHeader label="Aluno"       sortAsc="name-asc"   sortDesc="name-desc"  current={sort} onSort={setSort} style={{ flex: 1, minWidth: 120 }} />
-          <div className="k-col-plan" style={{ width: 96, ...colLabel }}>Plano</div>
-          <SortHeader label="Pagamento"   sortAsc="pay"        sortDesc="pay"        current={sort} onSort={setSort} style={{ width: 104 }} />
-          <SortHeader label="Engajamento" sortAsc="engagement" sortDesc="engagement" current={sort} onSort={setSort} style={{ width: 120 }} className="k-col-last" />
-          <div className="k-col-next" style={{ width: 96, ...colLabel }}>Avaliação</div>
-          <div className="k-col-app" style={{ width: 96, ...colLabel }}>Liberado app</div>
+          <SortHeader label={t('coach_students.col_student')}    sortAsc="name-asc"   sortDesc="name-desc"  current={sort} onSort={setSort} style={{ flex: 1, minWidth: 120 }} />
+          <div className="k-col-plan" style={{ width: 96, ...colLabel }}>{t('coach_students.col_plan')}</div>
+          <SortHeader label={t('coach_students.col_payment')}   sortAsc="pay"        sortDesc="pay"        current={sort} onSort={setSort} style={{ width: 104 }} />
+          <SortHeader label={t('coach_students.col_engagement')} sortAsc="engagement" sortDesc="engagement" current={sort} onSort={setSort} style={{ width: 120 }} className="k-col-last" />
+          <div className="k-col-next" style={{ width: 96, ...colLabel }}>{t('coach_students.col_assessment')}</div>
+          <div className="k-col-app" style={{ width: 96, ...colLabel }}>{t('coach_students.col_app')}</div>
           <div style={{ width: 20 }} />
         </div>
 
         {shown.length === 0
           ? (
             <div style={{ padding: '48px 20px', textAlign: 'center', borderTop: '1px solid #f1ece0' }}>
-              <div style={{ font: `600 15px ${FF}`, color: '#1B2A4A', marginBottom: 5 }}>Nenhum aluno encontrado</div>
-              <div style={{ font: `400 13px ${FF}`, color: '#9a948a', marginBottom: 16 }}>Ajuste a busca ou os filtros.</div>
+              <div style={{ font: `600 15px ${FF}`, color: '#1B2A4A', marginBottom: 5 }}>{t('coach_students.no_students_title')}</div>
+              <div style={{ font: `400 13px ${FF}`, color: '#9a948a', marginBottom: 16 }}>{t('coach_students.no_students_desc')}</div>
               <button type="button" onClick={() => { setFilter('all'); setQuery('') }} style={{ height: 40, padding: '0 18px', border: '1.5px solid #d9d3c4', background: 'none', color: '#1B2A4A', borderRadius: 10, font: `600 13px ${FF}`, cursor: 'pointer' }}>
-                Limpar filtros
+                {t('coach_students.clear_filters')}
               </button>
             </div>
           )
@@ -404,7 +409,7 @@ export default function Alunos() {
                       <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
                         <div style={{ font: `600 14px ${FF}`, color: '#1B2A4A', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.name}</div>
                         {s.blocked && (
-                          <span style={{ flexShrink: 0, font: `700 10px ${FF}`, color: '#c4421e', background: '#fbe6e1', borderRadius: 4, padding: '2px 6px', letterSpacing: '.2px' }}>Bloqueado</span>
+                          <span style={{ flexShrink: 0, font: `700 10px ${FF}`, color: '#c4421e', background: '#fbe6e1', borderRadius: 4, padding: '2px 6px', letterSpacing: '.2px' }}>{t('coach_students.blocked')}</span>
                         )}
                       </div>
                       <div className="k-col-goal" style={{ font: `400 12px ${FF}`, color: '#9a948a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.goal}</div>
@@ -423,7 +428,7 @@ export default function Alunos() {
                   <div className="k-col-next" style={{ width: 96, font: `500 12.5px ${FF}`, color: '#7c7869' }}>{s.next}</div>
                   <div className="k-col-app" style={{ width: 96 }}>
                     <span style={{ font: `600 11px ${FF}`, color: s.studentUuid ? '#1B7a4a' : '#9a948a', background: s.studentUuid ? '#e7f3ea' : '#f1ece0', borderRadius: 20, padding: '4px 11px', whiteSpace: 'nowrap' }}>
-                      {s.studentUuid ? 'Sim' : 'Não'}
+                      {s.studentUuid ? t('coach_students.app_yes') : t('coach_students.app_no')}
                     </span>
                   </div>
                   <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#c5bfb0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><path d="M9 18l6-6-6-6"/></svg>
@@ -434,7 +439,7 @@ export default function Alunos() {
 
         {shown.length > 0 && (
           <div style={{ padding: '13px 20px', borderTop: '1px solid #f1ece0', background: '#fbf8f1', font: `400 12.5px ${FF}`, color: '#9a948a' }}>
-            Mostrando {shown.length} de {students.length} alunos
+            {t('coach_students.showing', { shown: shown.length, total: students.length })}
           </div>
         )}
       </div>
@@ -445,7 +450,7 @@ export default function Alunos() {
           onAdd={async (name) => {
             if (!user?.id) throw new Error('sem usuário')
             await addStudent({ name }, user.id)
-            showToast(`${name} adicionado com sucesso.`)
+            showToast(t('coach_students.added_toast', { name }))
           }}
         />
       )}

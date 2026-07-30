@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import type { CSSProperties } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import KineaLogo from '../components/KineaLogo'
 import { useAuthStore } from '../store/auth'
 import { useSettingsStore } from '../store/settings'
@@ -34,6 +35,7 @@ const btnPrimary: CSSProperties = {
 type View = 'form' | 'confirm' | 'done'
 
 export default function Register() {
+  const { t } = useTranslation()
   const navigate    = useNavigate()
   const { setUser } = useAuthStore()
   const { coachId } = useParams<{ coachId: string }>()
@@ -73,13 +75,11 @@ export default function Register() {
     return c === parseInt(d[10])
   }
 
-  // If a session already exists (user clicked confirmation link), create profile and redirect
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (!session) return
       const { data: existing } = await supabase.from('profiles').select('id').eq('id', session.user.id).single()
       if (existing) {
-        // Profile already exists — just go to login
         navigate('/login', { replace: true })
       }
     })
@@ -90,11 +90,11 @@ export default function Register() {
     const n = name.trim()
     const em = email.trim().toLowerCase()
 
-    if (!n)                        return setError('Informe seu nome completo.')
-    if (!em || !validEmail(em))    return setError('Digite um e-mail válido.')
-    if (!validCpf(cpf))            return setError('CPF inválido. Verifique e tente novamente.')
-    if (password.length < 6)       return setError('A senha deve ter no mínimo 6 caracteres.')
-    if (password !== confirm)      return setError('As senhas não coincidem.')
+    if (!n)                        return setError(t('register.err_name'))
+    if (!em || !validEmail(em))    return setError(t('register.err_valid_email'))
+    if (!validCpf(cpf))            return setError(t('register.err_cpf'))
+    if (password.length < 6)       return setError(t('register.err_short_password'))
+    if (password !== confirm)      return setError(t('register.err_passwords_match'))
 
     setError(''); setLoading(true)
 
@@ -104,17 +104,16 @@ export default function Register() {
       if (signUpError) {
         setLoading(false)
         if (signUpError.message.toLowerCase().includes('already registered')) {
-          setError('Este e-mail já possui uma conta. Faça login.')
+          setError(t('register.err_email_in_use'))
         } else {
-          setError('Não foi possível criar a conta. Tente novamente.')
+          setError(t('register.err_create_failed'))
         }
         return
       }
 
       const userId = data.user?.id
-      if (!userId) { setLoading(false); setError('Erro inesperado. Tente novamente.'); return }
+      if (!userId) { setLoading(false); setError(t('register.err_unexpected')); return }
 
-      // Insert profile row
       await supabase.from('profiles').insert({
         id:    userId,
         name:  n,
@@ -124,8 +123,6 @@ export default function Register() {
         assessment_completed: false,
       })
 
-      // Link student to coach if coachId is present in the invite URL.
-      // plan is intentionally left as 'Sem plano' — the coach assigns it after registration.
       if (coachId) {
         await supabase.from('students').insert({
           coach_id:   coachId,
@@ -137,7 +134,6 @@ export default function Register() {
         })
       }
 
-      // If Supabase returned a session immediately (email confirmation disabled)
       if (data.session) {
         setUser({
           id:                  userId,
@@ -152,7 +148,6 @@ export default function Register() {
         setView('done')
         setTimeout(() => navigate('/aluno/anamnese', { replace: true }), 1600)
       } else {
-        // Email confirmation required
         pendingEmail.current = em
         setLoading(false)
         setView('confirm')
@@ -160,9 +155,12 @@ export default function Register() {
 
     } catch {
       setLoading(false)
-      setError('Erro de conexão. Tente novamente.')
+      setError(t('register.err_connection'))
     }
   }
+
+  const brandLines = t('register.brand_sub').split('\n')
+  const features = [t('login.feature_1'), t('login.feature_2'), t('login.feature_3')]
 
   return (
     <div className="k-split" style={{ display: 'flex', flexDirection: 'row', minHeight: '100vh', background: '#FAEEDA' }}>
@@ -188,18 +186,20 @@ export default function Register() {
 
         <div className="k-brand-mid" style={{ position: 'relative' }}>
           <h1 className="k-login-head" style={{ font: `800 42px/1.08 ${FF}`, color: '#fff', margin: 0, letterSpacing: '-1px' }}>
-            Treine.<br />Acompanhe.<br />Evolua.
+            {t('login.brand_headline').split('\n').map((line, i, arr) => (
+              <span key={i}>{line}{i < arr.length - 1 && <br />}</span>
+            ))}
           </h1>
           <p className="k-login-sub" style={{ font: `400 15px/1.55 ${FF}`, color: '#9fb0cc', margin: '14px 0 0', maxWidth: 300 }}>
-            Crie sua conta e comece sua jornada com seu coach.
+            {brandLines.join(' ')}
           </p>
         </div>
 
         <div className="k-brand-foot" style={{ position: 'relative', display: 'flex', flexDirection: 'column', gap: 13 }}>
-          {['Treinos montados pelo seu coach', 'Acompanhamento de avaliações e progresso', 'Comunicação direta, sem ruído'].map(t => (
-            <div key={t} style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
+          {features.map(feat => (
+            <div key={feat} style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
               <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#E8542A', flexShrink: 0 }} />
-              <span style={{ font: `400 14px ${FF}`, color: '#c7d2e3' }}>{t}</span>
+              <span style={{ font: `400 14px ${FF}`, color: '#c7d2e3' }}>{feat}</span>
             </div>
           ))}
         </div>
@@ -212,23 +212,23 @@ export default function Register() {
           {/* FORM VIEW */}
           {view === 'form' && (
             <div>
-              <h2 style={{ font: `800 27px ${FF}`, color: '#1B2A4A', margin: '0 0 4px', letterSpacing: '-.5px' }}>Criar conta</h2>
+              <h2 style={{ font: `800 27px ${FF}`, color: '#1B2A4A', margin: '0 0 4px', letterSpacing: '-.5px' }}>{t('register.title')}</h2>
               <p style={{ font: `400 14px ${FF}`, color: '#7c7869', margin: '0 0 26px' }}>
-                Você recebeu um convite do seu coach. Defina seu acesso abaixo.
+                {t('register.subtitle')}
               </p>
 
               <form onSubmit={onSubmit}>
                 <div style={{ marginBottom: 15 }}>
-                  <label style={labelStyle}>Nome completo</label>
+                  <label style={labelStyle}>{t('register.full_name')}</label>
                   <input
-                    type="text" autoComplete="name" placeholder="Seu nome"
+                    type="text" autoComplete="name" placeholder={t('register.full_name_ph')}
                     value={name} onChange={e => { setName(e.target.value); setError('') }}
                     className="k-input" style={inputStyle}
                   />
                 </div>
 
                 <div style={{ marginBottom: 15 }}>
-                  <label style={labelStyle}>E-mail</label>
+                  <label style={labelStyle}>{t('register.email')}</label>
                   <input
                     type="email" autoComplete="email" placeholder="voce@email.com"
                     value={email} onChange={e => { setEmail(e.target.value); setError('') }}
@@ -237,7 +237,7 @@ export default function Register() {
                 </div>
 
                 <div style={{ marginBottom: 15 }}>
-                  <label style={labelStyle}>CPF</label>
+                  <label style={labelStyle}>{t('register.cpf')}</label>
                   <input
                     type="text" autoComplete="off" inputMode="numeric" placeholder="000.000.000-00"
                     value={cpf} onChange={e => { setCpf(formatCpf(e.target.value)); setError('') }}
@@ -246,15 +246,15 @@ export default function Register() {
                 </div>
 
                 <div style={{ marginBottom: 15 }}>
-                  <label style={labelStyle}>Senha</label>
+                  <label style={labelStyle}>{t('register.password')}</label>
                   <div style={{ position: 'relative' }}>
                     <input
-                      type={showPass ? 'text' : 'password'} autoComplete="new-password" placeholder="Mínimo 6 caracteres"
+                      type={showPass ? 'text' : 'password'} autoComplete="new-password" placeholder={t('register.password_ph')}
                       value={password} onChange={e => { setPassword(e.target.value); setError('') }}
                       className="k-input" style={{ ...inputStyle, padding: '0 46px 0 15px' }}
                     />
                     <button
-                      type="button" onClick={() => setShowPass(v => !v)} aria-label="Mostrar senha"
+                      type="button" onClick={() => setShowPass(v => !v)} aria-label={t('register.show_password')}
                       style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)', width: 36, height: 36, border: 'none', background: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9a958a', borderRadius: 8 }}
                     >
                       {showPass ? '🙈' : '👁'}
@@ -263,9 +263,9 @@ export default function Register() {
                 </div>
 
                 <div style={{ marginBottom: 20 }}>
-                  <label style={labelStyle}>Confirmar senha</label>
+                  <label style={labelStyle}>{t('register.confirm_password')}</label>
                   <input
-                    type={showPass ? 'text' : 'password'} autoComplete="new-password" placeholder="Repita a senha"
+                    type={showPass ? 'text' : 'password'} autoComplete="new-password" placeholder={t('register.repeat_ph')}
                     value={confirm} onChange={e => { setConfirm(e.target.value); setError('') }}
                     className="k-input" style={inputStyle}
                   />
@@ -281,15 +281,15 @@ export default function Register() {
                 <button type="submit" disabled={loading} style={{ ...btnPrimary, opacity: loading ? .85 : 1 }}>
                   {loading
                     ? <span style={{ width: 17, height: 17, border: '2.4px solid rgba(255,255,255,.4)', borderTopColor: '#fff', borderRadius: '50%', display: 'inline-block', animation: 'kspin .7s linear infinite' }} />
-                    : 'Criar minha conta →'
+                    : t('register.submit')
                   }
                 </button>
               </form>
 
               <div style={{ textAlign: 'center', marginTop: 22, font: `400 13px ${FF}`, color: '#7c7869' }}>
-                Já tem conta?{' '}
+                {t('register.already_have_account')}{' '}
                 <button type="button" onClick={() => navigate('/login')} style={{ border: 'none', background: 'none', cursor: 'pointer', font: `700 13px ${FF}`, color: '#E8542A', padding: 0 }}>
-                  Fazer login
+                  {t('register.sign_in')}
                 </button>
               </div>
             </div>
@@ -303,14 +303,12 @@ export default function Register() {
                   <path d="M22 7l-10 7L2 7" /><rect x="2" y="5" width="20" height="14" rx="2" />
                 </svg>
               </div>
-              <h2 style={{ font: `800 24px ${FF}`, color: '#1B2A4A', margin: '0 0 8px', letterSpacing: '-.5px' }}>Confirme seu e-mail</h2>
+              <h2 style={{ font: `800 24px ${FF}`, color: '#1B2A4A', margin: '0 0 8px', letterSpacing: '-.5px' }}>{t('register.confirm_email_title')}</h2>
               <p style={{ font: `400 14px/1.55 ${FF}`, color: '#7c7869', margin: '0 0 24px' }}>
-                Enviamos um link de confirmação para{' '}
-                <strong style={{ color: '#1B2A4A' }}>{pendingEmail.current}</strong>.
-                Clique no link para ativar sua conta e depois faça login.
+                {t('register.confirm_email_body').replace('<1>', '').replace('</1>', '')} <strong style={{ color: '#1B2A4A' }}>{pendingEmail.current}</strong>
               </p>
               <button type="button" onClick={() => navigate('/login')} style={{ ...btnPrimary }}>
-                Ir para o login
+                {t('register.go_to_login')}
               </button>
             </div>
           )}
@@ -323,9 +321,9 @@ export default function Register() {
                   <path d="M20 6L9 17l-5-5" />
                 </svg>
               </div>
-              <h2 style={{ font: `800 25px ${FF}`, color: '#1B2A4A', margin: '0 0 8px', letterSpacing: '-.5px' }}>Conta criada!</h2>
+              <h2 style={{ font: `800 25px ${FF}`, color: '#1B2A4A', margin: '0 0 8px', letterSpacing: '-.5px' }}>{t('register.done_title')}</h2>
               <p style={{ font: `400 14px/1.5 ${FF}`, color: '#7c7869', margin: 0 }}>
-                Vamos completar seu perfil. Abrindo o app...
+                {t('register.done_body')}
               </p>
             </div>
           )}

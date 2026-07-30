@@ -3,6 +3,8 @@ import { useSearchParams } from 'react-router-dom'
 import { getInitials, avatarPalette } from '../../data/mock'
 import { supabase } from '../../lib/supabase'
 import { useAuthStore } from '../../store/auth'
+import { useTranslation } from 'react-i18next'
+import { useSettingsStore } from '../../store/settings'
 
 const FN_URL = import.meta.env.VITE_SUPABASE_URL + '/functions/v1'
 
@@ -42,10 +44,10 @@ interface PlanRequest {
 
 
 // ── Constants ───────────────────────────────────────────────
-const STATUS_MAP: Record<Status, { label: string; color: string; bg: string }> = {
-  pago:      { label: 'Em dia',    color: '#1B7a4a', bg: '#e7f3ea' },
-  'a-vencer':{ label: 'A vencer',  color: '#b06a12', bg: '#f7ecd9' },
-  atrasado:  { label: 'Em atraso', color: '#c4421e', bg: '#fbe6e1' },
+const STATUS_MAP: Record<Status, { color: string; bg: string }> = {
+  pago:      { color: '#1B7a4a', bg: '#e7f3ea' },
+  'a-vencer':{ color: '#b06a12', bg: '#f7ecd9' },
+  atrasado:  { color: '#c4421e', bg: '#fbe6e1' },
 }
 
 const PLANS: Record<string, number> = { Mensal: 399, Trimestral: 247 }
@@ -122,16 +124,22 @@ function ChargeDrawer({ charge, onClose, onMarkPaid, onRemind }: {
   onMarkPaid: (id: number) => void
   onRemind:   (id: number) => void
 }) {
+  const { t } = useTranslation()
+  const STATUS_LABELS: Record<Status, string> = {
+    pago:       t('coach_payments.status_pago'),
+    'a-vencer': t('coach_payments.status_a_vencer'),
+    atrasado:   t('coach_payments.status_atrasado'),
+  }
   const sm  = STATUS_MAP[charge.status]
   const pal = avatarPalette(charge.id)
 
   const history: { label: string; date: string; dot: string }[] = []
   if (charge.status === 'pago') {
-    history.push({ label: 'Pagamento confirmado', date: charge.paidOn ?? '—', dot: '#1B7a4a' })
+    history.push({ label: t('coach_payments.history_paid'),     date: charge.paidOn ?? '—', dot: '#1B7a4a' })
   } else if (charge.status === 'a-vencer') {
-    history.push({ label: 'Vencimento previsto',  date: charge.due,          dot: '#b06a12' })
+    history.push({ label: t('coach_payments.history_upcoming'), date: charge.due,            dot: '#b06a12' })
   } else {
-    history.push({ label: 'Vencimento',           date: charge.due,          dot: '#c4421e' })
+    history.push({ label: t('coach_payments.history_overdue'),  date: charge.due,            dot: '#c4421e' })
   }
 
   return (
@@ -154,10 +162,10 @@ function ChargeDrawer({ charge, onClose, onMarkPaid, onRemind }: {
           </div>
           <div style={{ background: 'rgba(255,255,255,.06)', borderRadius: 12, padding: '15px 16px', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
             <div>
-              <div style={{ font: `500 11px ${FF}`, color: '#aeb9cc', marginBottom: 3 }}>Valor da cobrança</div>
+              <div style={{ font: `500 11px ${FF}`, color: '#aeb9cc', marginBottom: 3 }}>{t('coach_payments.charge_value')}</div>
               <div style={{ font: `800 24px ${FF}`, color: '#fff', letterSpacing: '-.5px' }}>{brl(charge.value)}</div>
             </div>
-            <span style={{ font: `700 11px ${FF}`, color: sm.color, background: sm.bg, borderRadius: 20, padding: '5px 12px' }}>{sm.label}</span>
+            <span style={{ font: `700 11px ${FF}`, color: sm.color, background: sm.bg, borderRadius: 20, padding: '5px 12px' }}>{STATUS_LABELS[charge.status]}</span>
           </div>
         </div>
 
@@ -165,18 +173,18 @@ function ChargeDrawer({ charge, onClose, onMarkPaid, onRemind }: {
         <div style={{ padding: '20px 22px', display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
             <div style={{ background: '#fff', border: '1px solid #ece7d9', borderRadius: 12, padding: 14 }}>
-              <div style={{ font: `600 11px ${FF}`, color: '#9a948a', marginBottom: 6 }}>Vencimento</div>
+              <div style={{ font: `600 11px ${FF}`, color: '#9a948a', marginBottom: 6 }}>{t('coach_payments.due_date')}</div>
               <div style={{ font: `700 13.5px ${FF}`, color: charge.status === 'atrasado' ? '#c4421e' : '#1B2A4A' }}>{charge.due}</div>
             </div>
             <div style={{ background: '#fff', border: '1px solid #ece7d9', borderRadius: 12, padding: 14 }}>
-              <div style={{ font: `600 11px ${FF}`, color: '#9a948a', marginBottom: 6 }}>Método</div>
+              <div style={{ font: `600 11px ${FF}`, color: '#9a948a', marginBottom: 6 }}>{t('coach_payments.method')}</div>
               <div style={{ font: `700 13.5px ${FF}`, color: '#1B2A4A' }}>{charge.method}</div>
             </div>
           </div>
 
           {/* History */}
           <div style={{ background: '#fff', border: '1px solid #ece7d9', borderRadius: 12, padding: 16 }}>
-            <div style={{ font: `600 11px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#9a948a', marginBottom: 12 }}>Histórico</div>
+            <div style={{ font: `600 11px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#9a948a', marginBottom: 12 }}>{t('coach_payments.history')}</div>
             {history.map((h, i) => (
               <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '7px 0', borderTop: i > 0 ? '1px solid #f4efe3' : 'none' }}>
                 <div style={{ width: 9, height: 9, borderRadius: '50%', background: h.dot, flexShrink: 0 }} />
@@ -195,7 +203,7 @@ function ChargeDrawer({ charge, onClose, onMarkPaid, onRemind }: {
                 style={{ width: '100%', height: 48, border: 'none', background: '#1B7a4a', color: '#fff', borderRadius: 10, font: `700 14px ${FF}`, cursor: 'pointer', boxShadow: '0 2px 0 #14633c', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
               >
                 <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
-                Marcar como pago
+                {t('coach_payments.mark_paid')}
               </button>
               <button
                 type="button"
@@ -205,14 +213,14 @@ function ChargeDrawer({ charge, onClose, onMarkPaid, onRemind }: {
                 onMouseLeave={e => { e.currentTarget.style.background = '#fff' }}
               >
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#25D366" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7a8.5 8.5 0 0 1-.9-3.8A8.38 8.38 0 0 1 12.5 3a8.38 8.38 0 0 1 8.5 8.5z"/></svg>
-                Enviar lembrete no WhatsApp
+                {t('coach_payments.remind_whatsapp')}
               </button>
             </>
           ) : (
             <>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#e7f3ea', borderRadius: 12, padding: '15px 16px' }}>
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1B7a4a" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 12l3 3 5-6"/></svg>
-                <span style={{ font: `700 13.5px ${FF}`, color: '#1B7a4a' }}>Pagamento confirmado</span>
+                <span style={{ font: `700 13.5px ${FF}`, color: '#1B7a4a' }}>{t('coach_payments.payment_confirmed')}</span>
               </div>
               <button
                 type="button" onClick={() => openRecibo(charge)}
@@ -221,7 +229,7 @@ function ChargeDrawer({ charge, onClose, onMarkPaid, onRemind }: {
                 onMouseLeave={e => { e.currentTarget.style.background = '#fff' }}
               >
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1B2A4A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
-                Baixar recibo
+                {t('coach_payments.download_receipt')}
               </button>
             </>
           )}
@@ -237,6 +245,7 @@ function NewChargeModal({ students, onClose, onAdd }: {
   onClose:  () => void
   onAdd:    (studentId: number, dueDate: string) => void
 }) {
+  const { t } = useTranslation()
   const [studentId, setStudentId] = useState<number | ''>(students[0]?.id ?? '')
   const [dueDate,   setDueDate]   = useState(new Date().toISOString().split('T')[0])
 
@@ -246,36 +255,36 @@ function NewChargeModal({ students, onClose, onAdd }: {
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(20,25,40,.5)', zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
       <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 440, background: '#fff', borderRadius: 16, padding: 26, boxShadow: '0 24px 60px rgba(0,0,0,.3)' }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 16 }}>
-          <h2 style={{ font: `800 20px ${FF}`, color: '#1B2A4A', margin: 0, letterSpacing: '-.4px' }}>Nova cobrança</h2>
+          <h2 style={{ font: `800 20px ${FF}`, color: '#1B2A4A', margin: 0, letterSpacing: '-.4px' }}>{t('coach_payments.modal_title')}</h2>
           <button type="button" onClick={onClose} aria-label="Fechar" style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#9a948a', padding: 2 }}>
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
           </button>
         </div>
 
-        <label style={{ display: 'block', font: `600 11px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#6b6657', marginBottom: 7 }}>Aluno</label>
+        <label style={{ display: 'block', font: `600 11px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#6b6657', marginBottom: 7 }}>{t('coach_payments.student_label')}</label>
         <select
           value={studentId}
           onChange={e => setStudentId(Number(e.target.value))}
           style={{ width: '100%', height: 46, border: '1.5px solid #d9d3c4', borderRadius: 10, background: '#fff', padding: '0 14px', font: `400 14px ${FF}`, color: '#1B2A4A', outline: 'none', marginBottom: 14, cursor: 'pointer' }}
         >
-          <option value="">Selecione um aluno…</option>
+          <option value="">{t('coach_payments.select_student')}</option>
           {students.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
         </select>
 
         {selected && (
           <div style={{ display: 'flex', gap: 10, marginBottom: 14 }}>
             <div style={{ flex: 1, background: '#faf7ee', border: '1px solid #ece7d9', borderRadius: 10, padding: '12px 14px' }}>
-              <div style={{ font: `600 10px ${FF}`, color: '#9a948a', marginBottom: 3, textTransform: 'uppercase', letterSpacing: '.5px' }}>Plano</div>
+              <div style={{ font: `600 10px ${FF}`, color: '#9a948a', marginBottom: 3, textTransform: 'uppercase', letterSpacing: '.5px' }}>{t('coach_payments.plan_label')}</div>
               <div style={{ font: `700 14px ${FF}`, color: '#1B2A4A' }}>{selected.plan}</div>
             </div>
             <div style={{ flex: 1, background: '#faf7ee', border: '1px solid #ece7d9', borderRadius: 10, padding: '12px 14px' }}>
-              <div style={{ font: `600 10px ${FF}`, color: '#9a948a', marginBottom: 3, textTransform: 'uppercase', letterSpacing: '.5px' }}>Valor</div>
-              <div style={{ font: `700 14px ${FF}`, color: '#1B2A4A' }}>{brl(PLANS[selected.plan] ?? 247)}/mês</div>
+              <div style={{ font: `600 10px ${FF}`, color: '#9a948a', marginBottom: 3, textTransform: 'uppercase', letterSpacing: '.5px' }}>{t('coach_payments.value_label')}</div>
+              <div style={{ font: `700 14px ${FF}`, color: '#1B2A4A' }}>{brl(PLANS[selected.plan] ?? 247)}{t('coach_payments.per_month')}</div>
             </div>
           </div>
         )}
 
-        <label style={{ display: 'block', font: `600 11px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#6b6657', marginBottom: 7 }}>Vencimento</label>
+        <label style={{ display: 'block', font: `600 11px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#6b6657', marginBottom: 7 }}>{t('coach_payments.due_date')}</label>
         <input
           type="date" value={dueDate}
           onChange={e => setDueDate(e.target.value)}
@@ -290,7 +299,7 @@ function NewChargeModal({ students, onClose, onAdd }: {
           disabled={!studentId}
           style={{ width: '100%', height: 48, border: 'none', background: studentId ? '#E8542A' : '#d9d3c4', color: '#fff', borderRadius: 10, font: `700 14.5px ${FF}`, cursor: studentId ? 'pointer' : 'not-allowed', boxShadow: studentId ? '0 2px 0 #c4421e' : 'none' }}
         >
-          Gerar cobrança
+          {t('coach_payments.generate_charge')}
         </button>
       </div>
     </div>
@@ -299,14 +308,16 @@ function NewChargeModal({ students, onClose, onAdd }: {
 
 // ── Main ─────────────────────────────────────────────────────
 export default function Pagamentos() {
+  const { t } = useTranslation()
+  const locale = useSettingsStore(s => s.language)
   const { user }   = useAuthStore()
   const [searchParams] = useSearchParams()
   const [charges,   setCharges]   = useState<Charge[]>([])
   const [students,  setStudents]  = useState<Student[]>([])
   const [requests,  setRequests]  = useState<PlanRequest[]>([])
   const [tab,       setTab]       = useState<Tab>(() => {
-    const t = searchParams.get('tab')
-    return (t === 'atrasado' || t === 'a-vencer' || t === 'pago') ? t : 'all'
+    const tabParam = searchParams.get('tab')
+    return (tabParam === 'atrasado' || tabParam === 'a-vencer' || tabParam === 'pago') ? tabParam : 'all'
   })
   const [query,     setQuery]     = useState('')
   const [sortDate,  setSortDate]  = useState<'asc' | 'desc'>('desc')
@@ -387,7 +398,7 @@ export default function Pagamentos() {
     const paidOn = new Date().toLocaleDateString('pt-BR')
     setCharges(prev => prev.map(x => x.id === id ? { ...x, status: 'pago', paidOn } : x))
     setOpenId(null)
-    if (c) showToast(c.name.split(' ')[0] + ' — pagamento confirmado ✓')
+    if (c) showToast(t('coach_payments.payment_confirmed_toast', { name: c.name.split(' ')[0] }))
   }
 
   function handleRemind(id: number) {
@@ -398,7 +409,7 @@ export default function Pagamentos() {
       const msg = encodeURIComponent(`Olá ${c.name.split(' ')[0]}! Passando para lembrar que sua mensalidade vence em ${c.due}. 😊`)
       window.open(`https://wa.me/55${digits}?text=${msg}`, '_blank')
     } else {
-      showToast(`Cadastre o telefone de ${c.name.split(' ')[0]} para enviar o lembrete.`)
+      showToast(t('coach_payments.no_phone_toast', { name: c.name.split(' ')[0] }))
     }
   }
 
@@ -413,8 +424,8 @@ export default function Pagamentos() {
       })
     } catch { /* falha silenciosa — UI já atualizou */ }
     if (req) showToast(action === 'aprovar'
-      ? `Plano ${req.requestedPlan} aprovado para ${req.studentName.split(' ')[0]}.`
-      : `Solicitação de ${req.studentName.split(' ')[0]} recusada.`)
+      ? t('coach_payments.plan_approved_toast', { plan: req.requestedPlan, name: req.studentName.split(' ')[0] })
+      : t('coach_payments.plan_rejected_toast', { name: req.studentName.split(' ')[0] }))
   }
 
   async function handleAddCharge(studentId: number, dueDate: string) {
@@ -426,7 +437,7 @@ export default function Pagamentos() {
       .insert({ student_id: studentId, amount, status: 'overdue', due_date: dueDate, description: `${st.plan} – cobrança manual` })
       .select('id')
       .single()
-    if (error || !data) { showToast('Erro ao gerar cobrança.'); return }
+    if (error || !data) { showToast(t('coach_payments.err_create_charge')); return }
     setCharges(prev => [{
       id:        data.id,
       studentId,
@@ -440,7 +451,7 @@ export default function Pagamentos() {
       paidOn:    null,
     }, ...prev])
     setNewOpen(false)
-    showToast('Cobrança gerada para ' + st.name.split(' ')[0] + '.')
+    showToast(t('coach_payments.charge_created_toast', { name: st.name.split(' ')[0] }))
   }
 
   // Stats
@@ -471,11 +482,17 @@ export default function Pagamentos() {
   const openCharge = openId !== null ? charges.find(c => c.id === openId) ?? null : null
 
   const TABS: { key: Tab; label: string }[] = [
-    { key: 'all',       label: 'Todos' },
-    { key: 'pago',      label: 'Em dia' },
-    { key: 'a-vencer',  label: 'A vencer' },
-    { key: 'atrasado',  label: 'Em atraso' },
+    { key: 'all',       label: t('coach_payments.tab_all') },
+    { key: 'pago',      label: t('coach_payments.tab_pago') },
+    { key: 'a-vencer',  label: t('coach_payments.tab_a_vencer') },
+    { key: 'atrasado',  label: t('coach_payments.tab_atrasado') },
   ]
+
+  const STATUS_LABELS: Record<Status, string> = {
+    pago:       t('coach_payments.status_pago'),
+    'a-vencer': t('coach_payments.status_a_vencer'),
+    atrasado:   t('coach_payments.status_atrasado'),
+  }
 
   const colLabel: React.CSSProperties = { font: `700 10.5px ${FF}`, letterSpacing: '.6px', textTransform: 'uppercase', color: '#9a948a' }
 
@@ -485,15 +502,15 @@ export default function Pagamentos() {
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap', marginBottom: 22 }}>
         <div>
-          <h1 style={{ font: `800 27px ${FF}`, color: '#1B2A4A', margin: 0, letterSpacing: '-.6px' }}>Pagamentos</h1>
-          <p style={{ font: `400 14px ${FF}`, color: '#7c7869', margin: '4px 0 0' }}>{new Date().toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })} · visão geral do financeiro</p>
+          <h1 style={{ font: `800 27px ${FF}`, color: '#1B2A4A', margin: 0, letterSpacing: '-.6px' }}>{t('coach_payments.title')}</h1>
+          <p style={{ font: `400 14px ${FF}`, color: '#7c7869', margin: '4px 0 0' }}>{new Date().toLocaleDateString(locale, { month: 'long', year: 'numeric' })} · {t('coach_payments.header_desc')}</p>
         </div>
         <button
           type="button" onClick={() => setNewOpen(true)}
           style={{ display: 'flex', alignItems: 'center', gap: 8, height: 42, padding: '0 18px', border: 'none', background: '#E8542A', color: '#fff', borderRadius: 10, font: `700 13.5px ${FF}`, cursor: 'pointer', boxShadow: '0 2px 0 #c4421e' }}
         >
           <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
-          Nova cobrança
+          {t('coach_payments.new_charge')}
         </button>
       </div>
 
@@ -502,7 +519,7 @@ export default function Pagamentos() {
         <div style={{ marginBottom: 22 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
             <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#E8542A' }} />
-            <span style={{ font: `700 13px ${FF}`, color: '#1B2A4A' }}>Solicitações de plano pendentes</span>
+            <span style={{ font: `700 13px ${FF}`, color: '#1B2A4A' }}>{t('coach_payments.plan_requests_title')}</span>
             <span style={{ font: `600 11px ${FF}`, color: '#fff', background: '#E8542A', borderRadius: 20, padding: '2px 8px' }}>{requests.length}</span>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -512,7 +529,7 @@ export default function Pagamentos() {
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
                     <span style={{ font: `700 14px ${FF}`, color: '#1B2A4A' }}>{req.studentName}</span>
                     <span style={{ font: `600 10px ${FF}`, color: req.type === 'mudanca' ? '#b06a12' : '#1B7a4a', background: req.type === 'mudanca' ? '#f7ecd9' : '#e7f3ea', borderRadius: 20, padding: '2px 8px' }}>
-                      {req.type === 'mudanca' ? 'Mudança durante vigência' : 'Renovação antecipada'}
+                      {req.type === 'mudanca' ? t('coach_payments.req_change') : t('coach_payments.req_renewal')}
                     </span>
                   </div>
                   <div style={{ font: `400 12px ${FF}`, color: '#9a948a' }}>
@@ -527,13 +544,13 @@ export default function Pagamentos() {
                     type="button" onClick={() => handleRequest(req.id, 'recusar')}
                     style={{ height: 36, padding: '0 16px', border: '1.5px solid #e0d9c8', background: '#fff', borderRadius: 8, font: `600 12.5px ${FF}`, color: '#7c7869', cursor: 'pointer' }}
                   >
-                    Recusar
+                    {t('coach_payments.reject')}
                   </button>
                   <button
                     type="button" onClick={() => handleRequest(req.id, 'aprovar')}
                     style={{ height: 36, padding: '0 16px', border: 'none', background: '#1B2A4A', borderRadius: 8, font: `700 12.5px ${FF}`, color: '#fff', cursor: 'pointer' }}
                   >
-                    Aprovar
+                    {t('coach_payments.approve')}
                   </button>
                 </div>
               </div>
@@ -550,10 +567,10 @@ export default function Pagamentos() {
             <div style={{ width: 30, height: 30, borderRadius: 9, background: 'rgba(232,84,42,.25)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#FAB89E" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 1v22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
             </div>
-            <span style={{ font: `600 11.5px ${FF}`, color: '#aeb9cc' }}>Recebido no mês</span>
+            <span style={{ font: `600 11.5px ${FF}`, color: '#aeb9cc' }}>{t('coach_payments.card_received')}</span>
           </div>
           <div style={{ font: `800 26px ${FF}`, letterSpacing: '-.5px' }}>{brl(sum('pago'))}</div>
-          <div style={{ font: `500 11.5px ${FF}`, color: '#8fd6a8', marginTop: 5 }}>{cnt('pago')} fatura{cnt('pago') !== 1 ? 's' : ''} confirmada{cnt('pago') !== 1 ? 's' : ''}</div>
+          <div style={{ font: `500 11.5px ${FF}`, color: '#8fd6a8', marginTop: 5 }}>{t('coach_payments.confirmed_invoices', { count: cnt('pago') })}</div>
         </div>
 
         {/* A vencer */}
@@ -562,10 +579,10 @@ export default function Pagamentos() {
             <div style={{ width: 30, height: 30, borderRadius: 9, background: '#f7ecd9', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#b06a12" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
             </div>
-            <span style={{ font: `600 11.5px ${FF}`, color: '#7c7869' }}>A vencer</span>
+            <span style={{ font: `600 11.5px ${FF}`, color: '#7c7869' }}>{t('coach_payments.card_upcoming')}</span>
           </div>
           <div style={{ font: `800 26px ${FF}`, color: '#1B2A4A', letterSpacing: '-.5px' }}>{brl(sum('a-vencer'))}</div>
-          <div style={{ font: `500 11.5px ${FF}`, color: '#9a948a', marginTop: 5 }}>{cnt('a-vencer')} cobrança{cnt('a-vencer') !== 1 ? 's' : ''} a vencer</div>
+          <div style={{ font: `500 11.5px ${FF}`, color: '#9a948a', marginTop: 5 }}>{t('coach_payments.upcoming_charges', { count: cnt('a-vencer') })}</div>
         </div>
 
         {/* Em atraso */}
@@ -574,10 +591,10 @@ export default function Pagamentos() {
             <div style={{ width: 30, height: 30, borderRadius: 9, background: '#fbe6e1', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#c4421e" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
             </div>
-            <span style={{ font: `600 11.5px ${FF}`, color: '#7c7869' }}>Vencidas</span>
+            <span style={{ font: `600 11.5px ${FF}`, color: '#7c7869' }}>{t('coach_payments.card_overdue')}</span>
           </div>
           <div style={{ font: `800 26px ${FF}`, color: '#c4421e', letterSpacing: '-.5px' }}>{brl(sum('atrasado'))}</div>
-          <div style={{ font: `500 11.5px ${FF}`, color: '#9a948a', marginTop: 5 }}>{cnt('atrasado')} alunos inadimplentes</div>
+          <div style={{ font: `500 11.5px ${FF}`, color: '#9a948a', marginTop: 5 }}>{t('coach_payments.overdue_students', { count: cnt('atrasado') })}</div>
         </div>
 
         {/* Adimplência */}
@@ -586,10 +603,10 @@ export default function Pagamentos() {
             <div style={{ width: 30, height: 30, borderRadius: 9, background: '#e7f3ea', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1B7a4a" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
             </div>
-            <span style={{ font: `600 11.5px ${FF}`, color: '#7c7869' }}>Adimplência</span>
+            <span style={{ font: `600 11.5px ${FF}`, color: '#7c7869' }}>{t('coach_payments.card_rate')}</span>
           </div>
           <div style={{ font: `800 26px ${FF}`, color: '#1B7a4a', letterSpacing: '-.5px' }}>{payRate}</div>
-          <div style={{ font: `500 11.5px ${FF}`, color: '#9a948a', marginTop: 5 }}>dos alunos em dia</div>
+          <div style={{ font: `500 11.5px ${FF}`, color: '#9a948a', marginTop: 5 }}>{t('coach_payments.card_rate_desc')}</div>
         </div>
       </div>
 
@@ -617,7 +634,7 @@ export default function Pagamentos() {
           <div style={{ position: 'relative', flex: 1, minWidth: 180, maxWidth: 300, marginLeft: 'auto' }}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9a948a" strokeWidth="2" strokeLinecap="round" style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)' }}><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.3-4.3"/></svg>
             <input
-              type="text" placeholder="Buscar aluno…" value={query}
+              type="text" placeholder={t('coach_payments.search_student')} value={query}
               onChange={e => setQuery(e.target.value)}
               style={{ width: '100%', height: 40, border: '1.5px solid #e0d9c8', borderRadius: 10, background: '#fff', padding: '0 14px 0 36px', font: `400 13.5px ${FF}`, color: '#1B2A4A', outline: 'none' }}
               onFocus={e => { e.currentTarget.style.borderColor = '#E8542A'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(232,84,42,.12)' }}
@@ -628,26 +645,26 @@ export default function Pagamentos() {
 
         {/* Table header */}
         <div style={{ display: 'grid', gridTemplateColumns: '2fr 1.1fr 1fr 1.1fr 0.7fr', gap: 12, padding: '11px 20px', background: '#faf7ee', borderBottom: '1px solid #f1ece0' }}>
-          <div style={colLabel}>Aluno</div>
-          <div style={colLabel}>Plano</div>
-          <div style={colLabel}>Valor</div>
+          <div style={colLabel}>{t('coach_payments.col_student')}</div>
+          <div style={colLabel}>{t('coach_payments.col_plan')}</div>
+          <div style={colLabel}>{t('coach_payments.col_value')}</div>
           <button
             type="button"
             onClick={() => setSortDate(s => s === 'asc' ? 'desc' : 'asc')}
             style={{ ...colLabel, display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left' }}
           >
-            Vencimento
+            {t('coach_payments.col_due')}
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: .7, transform: sortDate === 'asc' ? 'rotate(180deg)' : 'none', transition: 'transform .2s' }}>
               <path d="M6 9l6 6 6-6"/>
             </svg>
           </button>
-          <div style={{ ...colLabel, textAlign: 'right' }}>Status</div>
+          <div style={{ ...colLabel, textAlign: 'right' }}>{t('coach_payments.col_status')}</div>
         </div>
 
         {/* Rows */}
         {visible.length === 0 ? (
           <div style={{ padding: '46px 20px', textAlign: 'center', font: `500 14px ${FF}`, color: '#a89f8e' }}>
-            Nenhuma cobrança neste filtro.
+            {t('coach_payments.no_charges')}
           </div>
         ) : visible.map((c, i) => {
           const sm  = STATUS_MAP[c.status]
@@ -673,7 +690,7 @@ export default function Pagamentos() {
               <div style={{ font: `800 14px ${FF}`, color: '#1B2A4A' }}>{brl(c.value)}</div>
               <div style={{ font: `600 12.5px ${FF}`, color: c.status === 'atrasado' ? '#c4421e' : '#6b6657' }}>{c.due}</div>
               <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                <span style={{ font: `700 11px ${FF}`, color: sm.color, background: sm.bg, borderRadius: 20, padding: '5px 11px', whiteSpace: 'nowrap' }}>{sm.label}</span>
+                <span style={{ font: `700 11px ${FF}`, color: sm.color, background: sm.bg, borderRadius: 20, padding: '5px 11px', whiteSpace: 'nowrap' }}>{STATUS_LABELS[c.status]}</span>
               </div>
             </div>
           )

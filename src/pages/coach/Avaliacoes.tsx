@@ -3,6 +3,7 @@ import { useStudentsStore } from '../../store/students'
 import { useAuthStore } from '../../store/auth'
 import { useCoachNotificationsStore } from '../../store/coachNotifications'
 import { supabase } from '../../lib/supabase'
+import { useTranslation } from 'react-i18next'
 
 const FF = '"Libre Franklin",sans-serif'
 
@@ -15,9 +16,9 @@ const AVATAR_PALETTE: [string, string][] = [
   ['#fbe6f3', '#b8338a'],
 ]
 
-const STATUS_MAP: Record<string, { label: string; color: string; bg: string }> = {
-  'em-dia':   { label: 'Em dia',   color: '#1B7a4a', bg: '#e7f3ea' },
-  'pendente': { label: 'Reavaliar', color: '#b06a12', bg: '#f7ecd9' },
+const STATUS_MAP: Record<string, { color: string; bg: string }> = {
+  'em-dia':   { color: '#1B7a4a', bg: '#e7f3ea' },
+  'pendente': { color: '#b06a12', bg: '#f7ecd9' },
 }
 
 interface Assessment {
@@ -66,16 +67,6 @@ function pollockBF(sum: number, age: number, sex: 'M' | 'F'): number {
 
 type SFKey = 'd1' | 'd2' | 'd3' | 'd4' | 'd5' | 'd6' | 'd7'
 
-const SKINFOLDS: { key: SFKey; label: string }[] = [
-  { key: 'd1', label: 'Peito' },
-  { key: 'd2', label: 'Axilar médio' },
-  { key: 'd3', label: 'Tríceps' },
-  { key: 'd4', label: 'Subescapular' },
-  { key: 'd5', label: 'Abdômen' },
-  { key: 'd6', label: 'Supra-ilíaca' },
-  { key: 'd7', label: 'Coxa' },
-]
-
 // ── Toast ──────────────────────────────────────────────────────────────────────
 function Toast({ msg }: { msg: string }) {
   if (!msg) return null
@@ -117,11 +108,19 @@ function StudentDrawer({ student, onClose, onRemind, onRegister }: {
   onRemind: (id: number) => void
   onRegister: (id: number) => void
 }) {
+  const { t } = useTranslation()
+  const MEASURE_LABELS: Record<string, string> = {
+    Peito:    t('coach_assessments.measure_chest'),
+    Cintura:  t('coach_assessments.measure_waist'),
+    Quadril:  t('coach_assessments.measure_hip'),
+    'Braço':  t('coach_assessments.measure_arm'),
+    Coxa:     t('coach_assessments.measure_thigh'),
+  }
   const pal = AVATAR_PALETTE[student.id % AVATAR_PALETTE.length]
   const hist = student.hist
   const last = hist[hist.length - 1]
   const prev = hist.length > 1 ? hist[hist.length - 2] : null
-  const wd = prev ? signed(last.weight - prev.weight, ' kg', student.loss) : { txt: '1ª avaliação', color: '#9a948a' }
+  const wd = prev ? signed(last.weight - prev.weight, ' kg', student.loss) : { txt: t('coach_assessments.first_assessment'), color: '#9a948a' }
 
   const ws = hist.slice(-5)
   const mx = Math.max(...ws.map(h => h.weight))
@@ -136,7 +135,7 @@ function StudentDrawer({ student, onClose, onRemind, onRegister }: {
 
   const measures = Object.keys(last.m).filter(k => last.m[k] > 0).map(k => {
     const dd = prev ? signed(last.m[k] - (prev.m[k] ?? 0), ' cm', student.loss) : { txt: '—', color: '#9a948a' }
-    return { label: k, value: `${last.m[k]} cm`, delta: dd.txt, deltaColor: dd.color }
+    return { label: MEASURE_LABELS[k] ?? k, value: `${last.m[k]} cm`, delta: dd.txt, deltaColor: dd.color }
   })
 
   return (
@@ -154,7 +153,7 @@ function StudentDrawer({ student, onClose, onRemind, onRegister }: {
             </div>
             <div style={{ minWidth: 0 }}>
               <div style={{ font: `800 18px ${FF}`, color: '#fff', letterSpacing: '-.3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{student.name}</div>
-              <div style={{ font: `500 12px ${FF}`, color: '#aeb9cc', marginTop: 2 }}>{student.goal} · avaliado em {last.date}</div>
+              <div style={{ font: `500 12px ${FF}`, color: '#aeb9cc', marginTop: 2 }}>{student.goal} · {t('coach_assessments.assessed_on', { date: last.date })}</div>
             </div>
           </div>
         </div>
@@ -164,7 +163,7 @@ function StudentDrawer({ student, onClose, onRemind, onRegister }: {
           {/* Weight evolution */}
           <div style={{ background: '#fff', border: '1px solid #ece7d9', borderRadius: 14, padding: '16px 18px 13px' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-              <div style={{ font: `700 12.5px ${FF}`, color: '#1B2A4A' }}>Evolução do peso</div>
+              <div style={{ font: `700 12.5px ${FF}`, color: '#1B2A4A' }}>{t('coach_assessments.weight_evolution')}</div>
               <div style={{ font: `700 12.5px ${FF}`, color: wd.color }}>{wd.txt}</div>
             </div>
             <div style={{ display: 'flex', alignItems: 'flex-end', gap: 10, height: 96 }}>
@@ -181,7 +180,7 @@ function StudentDrawer({ student, onClose, onRemind, onRegister }: {
           {/* Measurements */}
           <div style={{ background: '#fff', border: '1px solid #ece7d9', borderRadius: 14, padding: '16px 18px' }}>
             <div style={{ font: `600 11px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#9a948a', marginBottom: 13 }}>
-              Medidas <span style={{ color: '#c9c1b0', textTransform: 'none', letterSpacing: 0, fontWeight: 500 }}>(vs. avaliação anterior)</span>
+              {t('coach_assessments.measures_title')} <span style={{ color: '#c9c1b0', textTransform: 'none', letterSpacing: 0, fontWeight: 500 }}>{t('coach_assessments.measures_vs')}</span>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
               {measures.map(m => (
@@ -199,7 +198,7 @@ function StudentDrawer({ student, onClose, onRemind, onRegister }: {
           {/* Photos */}
           <div style={{ background: '#fff', border: '1px solid #ece7d9', borderRadius: 14, padding: '16px 18px' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 13 }}>
-              <div style={{ font: `600 11px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#9a948a' }}>Fotos corporais</div>
+              <div style={{ font: `600 11px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#9a948a' }}>{t('coach_assessments.photos_title')}</div>
               {[last.photos?.frente, last.photos?.costas, last.photos?.ladoE, last.photos?.ladoD].some(Boolean) && (
                 <button
                   onClick={() => downloadAllPhotos([
@@ -211,16 +210,16 @@ function StudentDrawer({ student, onClose, onRemind, onRegister }: {
                   style={{ display: 'flex', alignItems: 'center', gap: 5, border: '1.5px solid #d9d3c4', background: '#fff', color: '#1B2A4A', borderRadius: 8, padding: '5px 10px', font: `600 11px ${FF}`, cursor: 'pointer' }}
                 >
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                  Baixar todas
+                  {t('coach_assessments.download_all')}
                 </button>
               )}
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 9 }}>
               {([
-                { label: 'Frente', url: last.photos?.frente ?? null },
-                { label: 'Costas', url: last.photos?.costas ?? null },
-                { label: 'Lado E', url: last.photos?.ladoE  ?? null },
-                { label: 'Lado D', url: last.photos?.ladoD  ?? null },
+                { label: t('coach_assessments.photo_front'), url: last.photos?.frente ?? null },
+                { label: t('coach_assessments.photo_back'),  url: last.photos?.costas ?? null },
+                { label: t('coach_assessments.photo_left'),  url: last.photos?.ladoE  ?? null },
+                { label: t('coach_assessments.photo_right'), url: last.photos?.ladoD  ?? null },
               ] as { label: string; url: string | null }[]).map(({ label, url }) => (
                 <div key={label} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
                   {url ? (
@@ -251,11 +250,11 @@ function StudentDrawer({ student, onClose, onRemind, onRegister }: {
         <div style={{ flexShrink: 0, padding: '15px 22px', background: '#fff', borderTop: '1px solid #ece7d9', display: 'flex', gap: 10 }}>
           <button onClick={() => onRemind(student.id)} style={{ flex: 1, height: 46, border: '1.5px solid #d9d3c4', background: '#fff', color: '#1B2A4A', borderRadius: 10, font: `700 13px ${FF}`, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7 }}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#25D366" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7a8.5 8.5 0 0 1-.9-3.8A8.38 8.38 0 0 1 12.5 3a8.38 8.38 0 0 1 8.5 8.5z" /></svg>
-            Solicitar fotos
+            {t('coach_assessments.request_photos')}
           </button>
           <button onClick={() => onRegister(student.id)} style={{ flex: 1.4, height: 46, border: 'none', background: '#E8542A', color: '#fff', borderRadius: 10, font: `700 13px ${FF}`, cursor: 'pointer', boxShadow: '0 2px 0 #c4421e', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7 }}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round"><path d="M12 5v14" /><path d="M5 12h14" /></svg>
-            Registrar avaliação
+            {t('coach_assessments.register_assessment')}
           </button>
         </div>
       </div>
@@ -270,6 +269,7 @@ function StudentPicker({ roster, value, onChange, error }: {
   onChange: (name: string) => void
   error:    boolean
 }) {
+  const { t } = useTranslation()
   const [open,   setOpen]   = useState(false)
   const [query,  setQuery]  = useState('')
   const ref = useRef<HTMLDivElement>(null)
@@ -299,7 +299,7 @@ function StudentPicker({ roster, value, onChange, error }: {
           cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         }}
       >
-        <span>{value || 'Selecionar aluno…'}</span>
+        <span>{value || t('coach_assessments.select_student_ph')}</span>
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9a948a" strokeWidth="2.2" strokeLinecap="round" style={{ flexShrink: 0, transform: open ? 'rotate(180deg)' : 'none', transition: 'transform .15s' }}>
           <path d="M6 9l6 6 6-6"/>
         </svg>
@@ -311,7 +311,7 @@ function StudentPicker({ roster, value, onChange, error }: {
             <input
               autoFocus
               type="text"
-              placeholder="Buscar aluno…"
+              placeholder={t('coach_assessments.search_student_ph')}
               value={query}
               onChange={e => setQuery(e.target.value)}
               style={{ width: '100%', height: 36, border: '1.5px solid #d9d3c4', borderRadius: 8, padding: '0 10px', font: `400 13px ${FF}`, outline: 'none', boxSizing: 'border-box' as const, color: '#1B2A4A' }}
@@ -319,7 +319,7 @@ function StudentPicker({ roster, value, onChange, error }: {
           </div>
           <div style={{ maxHeight: 220, overflowY: 'auto' }}>
             {filtered.length === 0
-              ? <div style={{ padding: 14, font: `400 13px ${FF}`, color: '#9a948a', textAlign: 'center' }}>Nenhum aluno encontrado.</div>
+              ? <div style={{ padding: 14, font: `400 13px ${FF}`, color: '#9a948a', textAlign: 'center' }}>{t('coach_assessments.no_student_found')}</div>
               : filtered.map(s => {
                   const active = value === s.name
                   return (
@@ -360,6 +360,16 @@ function NewAssessmentModal({ roster, initial, onClose, onSave }: {
   onClose: () => void
   onSave:  (name: string, weight: string, bf: number) => void
 }) {
+  const { t } = useTranslation()
+  const SKINFOLDS: { key: SFKey; label: string }[] = [
+    { key: 'd1', label: t('coach_assessments.skinfold_d1') },
+    { key: 'd2', label: t('coach_assessments.skinfold_d2') },
+    { key: 'd3', label: t('coach_assessments.skinfold_d3') },
+    { key: 'd4', label: t('coach_assessments.skinfold_d4') },
+    { key: 'd5', label: t('coach_assessments.skinfold_d5') },
+    { key: 'd6', label: t('coach_assessments.skinfold_d6') },
+    { key: 'd7', label: t('coach_assessments.skinfold_d7') },
+  ]
   const [name,       setName]       = useState(initial)
   const [weight,     setWeight]     = useState('')
   const [sex,        setSex]        = useState<'M' | 'F'>('F')
@@ -416,8 +426,8 @@ function NewAssessmentModal({ roster, initial, onClose, onSave }: {
   }
 
   function handleSave() {
-    if (!name.trim())   { setErr('Informe o aluno.'); return }
-    if (!weight.trim()) { setErr('Informe o peso.'); return }
+    if (!name.trim())   { setErr(t('coach_assessments.err_no_student')); return }
+    if (!weight.trim()) { setErr(t('coach_assessments.err_no_weight')); return }
     onSave(name, weight, bfCalc !== null ? Math.round(bfCalc * 10) / 10 : 0)
   }
 
@@ -429,8 +439,8 @@ function NewAssessmentModal({ roster, initial, onClose, onSave }: {
         <div style={{ padding: '24px 26px 0', flexShrink: 0 }}>
           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 20 }}>
             <div>
-              <h2 style={{ font: `800 20px ${FF}`, color: '#1B2A4A', margin: 0, letterSpacing: '-.4px' }}>Nova avaliação</h2>
-              <p style={{ font: `400 12.5px ${FF}`, color: '#9a948a', margin: '3px 0 0' }}>Peso obrigatório · 7 dobras Pollock opcionais</p>
+              <h2 style={{ font: `800 20px ${FF}`, color: '#1B2A4A', margin: 0, letterSpacing: '-.4px' }}>{t('coach_assessments.modal_title')}</h2>
+              <p style={{ font: `400 12.5px ${FF}`, color: '#9a948a', margin: '3px 0 0' }}>{t('coach_assessments.modal_subtitle')}</p>
             </div>
             <button onClick={onClose} aria-label="Fechar" style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#9a948a', padding: 2 }}>
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6L6 18" /><path d="M6 6l12 12" /></svg>
@@ -442,33 +452,33 @@ function NewAssessmentModal({ roster, initial, onClose, onSave }: {
 
           {/* ─ Dados básicos ─ */}
           <div>
-            <div style={{ font: `700 10.5px ${FF}`, letterSpacing: '.6px', textTransform: 'uppercase', color: '#9a948a', marginBottom: 12 }}>Dados básicos</div>
+            <div style={{ font: `700 10.5px ${FF}`, letterSpacing: '.6px', textTransform: 'uppercase', color: '#9a948a', marginBottom: 12 }}>{t('coach_assessments.basic_data')}</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               <div>
-                <label style={{ display: 'block', font: `600 11px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#6b6657', marginBottom: 7 }}>Aluno</label>
+                <label style={{ display: 'block', font: `600 11px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#6b6657', marginBottom: 7 }}>{t('coach_assessments.student_label')}</label>
                 <StudentPicker roster={roster} value={name} onChange={v => { setName(v); setErr('') }} error={!!err && !name} />
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 90px', gap: 12 }}>
                 <div>
-                  <label style={{ display: 'block', font: `600 11px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#6b6657', marginBottom: 7 }}>Peso (kg)</label>
-                  <input type="text" value={weight} placeholder="Ex: 78,4" onChange={e => { setWeight(e.target.value); setErr('') }} style={inputBase} onFocus={focusOn} onBlur={focusOff} />
+                  <label style={{ display: 'block', font: `600 11px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#6b6657', marginBottom: 7 }}>{t('coach_assessments.weight_label')}</label>
+                  <input type="text" value={weight} placeholder={t('coach_assessments.weight_ph')} onChange={e => { setWeight(e.target.value); setErr('') }} style={inputBase} onFocus={focusOn} onBlur={focusOff} />
                 </div>
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 7 }}>
-                    <label style={{ display: 'block', font: `600 11px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#6b6657' }}>Idade</label>
-                    {ageFromDb && <span style={{ font: `500 10px ${FF}`, color: '#1B7a4a', background: '#e7f3ea', borderRadius: 20, padding: '2px 8px' }}>da anamnese</span>}
+                    <label style={{ display: 'block', font: `600 11px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#6b6657' }}>{t('coach_assessments.age_label')}</label>
+                    {ageFromDb && <span style={{ font: `500 10px ${FF}`, color: '#1B7a4a', background: '#e7f3ea', borderRadius: 20, padding: '2px 8px' }}>{t('coach_assessments.from_anamnesis')}</span>}
                   </div>
                   <input type="text" value={age} placeholder="25" onChange={e => { setAge(e.target.value); setAgeFromDb(false); setErr('') }} style={{ ...inputBase, textAlign: 'center', borderColor: ageFromDb ? '#8ecfad' : '#d9d3c4', background: ageFromDb ? '#f4fbf7' : '#fff' }} onFocus={focusOn} onBlur={focusOff} />
                 </div>
               </div>
               <div>
-                <label style={{ display: 'block', font: `600 11px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#6b6657', marginBottom: 8 }}>Sexo</label>
+                <label style={{ display: 'block', font: `600 11px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#6b6657', marginBottom: 8 }}>{t('coach_assessments.sex_label')}</label>
                 <div style={{ display: 'flex', gap: 8 }}>
                   {(['F', 'M'] as const).map(s => (
                     <button key={s} type="button" onClick={() => setSex(s)}
                       style={{ flex: 1, height: 40, border: `1.5px solid ${sex === s ? '#E8542A' : '#e0d9c8'}`, background: sex === s ? '#fdf3ee' : '#fff', color: sex === s ? '#E8542A' : '#7c7869', font: `700 13px ${FF}`, borderRadius: 9, cursor: 'pointer' }}
                     >
-                      {s === 'F' ? 'Feminino' : 'Masculino'}
+                      {s === 'F' ? t('coach_assessments.female') : t('coach_assessments.male')}
                     </button>
                   ))}
                 </div>
@@ -479,7 +489,7 @@ function NewAssessmentModal({ roster, initial, onClose, onSave }: {
           {/* ─ 7 Dobras ─ */}
           <div>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-              <div style={{ font: `700 10.5px ${FF}`, letterSpacing: '.6px', textTransform: 'uppercase', color: '#9a948a' }}>7 Dobras cutâneas (mm) <span style={{ fontWeight: 500, textTransform: 'none', letterSpacing: 0, fontSize: 10 }}>— opcional</span></div>
+              <div style={{ font: `700 10.5px ${FF}`, letterSpacing: '.6px', textTransform: 'uppercase', color: '#9a948a' }}>{t('coach_assessments.skinfolds_title')} <span style={{ fontWeight: 500, textTransform: 'none', letterSpacing: 0, fontSize: 10 }}>{t('coach_assessments.skinfolds_optional')}</span></div>
               {allFilled && <span style={{ font: `700 12px ${FF}`, color: '#1B2A4A' }}>Σ = {fmt1(sum7)} mm</span>}
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
@@ -502,19 +512,19 @@ function NewAssessmentModal({ roster, initial, onClose, onSave }: {
           {/* ─ Resultado calculado ─ */}
           {bfCalc !== null ? (
             <div style={{ background: '#faf7ee', border: '1px solid #e0d9c8', borderRadius: 12, padding: '14px 18px' }}>
-              <div style={{ font: `600 10.5px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#9a948a', marginBottom: 12 }}>Resultado calculado</div>
+              <div style={{ font: `600 10.5px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#9a948a', marginBottom: 12 }}>{t('coach_assessments.results_title')}</div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 10, textAlign: 'center' }}>
                 <div>
                   <div style={{ font: `800 24px ${FF}`, color: '#E8542A', letterSpacing: '-.5px' }}>{fmt1(bfCalc)}%</div>
-                  <div style={{ font: `500 10.5px ${FF}`, color: '#9a948a', marginTop: 2 }}>% Gordura</div>
+                  <div style={{ font: `500 10.5px ${FF}`, color: '#9a948a', marginTop: 2 }}>{t('coach_assessments.fat_pct')}</div>
                 </div>
                 <div>
                   <div style={{ font: `800 24px ${FF}`, color: '#c4421e', letterSpacing: '-.5px' }}>{massaGorda !== null ? fmt1(massaGorda) + ' kg' : '—'}</div>
-                  <div style={{ font: `500 10.5px ${FF}`, color: '#9a948a', marginTop: 2 }}>Massa gorda</div>
+                  <div style={{ font: `500 10.5px ${FF}`, color: '#9a948a', marginTop: 2 }}>{t('coach_assessments.fat_mass')}</div>
                 </div>
                 <div>
                   <div style={{ font: `800 24px ${FF}`, color: '#1B7a4a', letterSpacing: '-.5px' }}>{massaMagra !== null ? fmt1(massaMagra) + ' kg' : '—'}</div>
-                  <div style={{ font: `500 10.5px ${FF}`, color: '#9a948a', marginTop: 2 }}>Massa magra</div>
+                  <div style={{ font: `500 10.5px ${FF}`, color: '#9a948a', marginTop: 2 }}>{t('coach_assessments.lean_mass')}</div>
                 </div>
               </div>
             </div>
@@ -523,7 +533,7 @@ function NewAssessmentModal({ roster, initial, onClose, onSave }: {
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#b06a12" strokeWidth="2" strokeLinecap="round" style={{ flexShrink: 0 }}>
                 <circle cx="12" cy="12" r="9"/><path d="M12 8v4"/><circle cx="12" cy="16.5" r=".8" fill="#b06a12"/>
               </svg>
-              <span style={{ font: `500 12px ${FF}`, color: '#7c7869' }}>Preencha as 7 dobras e a idade para calcular o % de gordura (opcional).</span>
+              <span style={{ font: `500 12px ${FF}`, color: '#7c7869' }}>{t('coach_assessments.fill_hint')}</span>
             </div>
           )}
 
@@ -532,7 +542,7 @@ function NewAssessmentModal({ roster, initial, onClose, onSave }: {
           <button type="button" onClick={handleSave}
             style={{ width: '100%', height: 48, border: 'none', background: '#E8542A', color: '#fff', borderRadius: 10, font: `700 14.5px ${FF}`, cursor: 'pointer', boxShadow: '0 2px 0 #c4421e' }}
           >
-            Salvar avaliação
+            {t('coach_assessments.save_assessment')}
           </button>
         </div>
       </div>
@@ -544,6 +554,7 @@ function NewAssessmentModal({ roster, initial, onClose, onSave }: {
 type Tab = 'all' | 'em-dia' | 'pendente'
 
 export default function Avaliacoes() {
+  const { t } = useTranslation()
   const { user } = useAuthStore()
   const { students: roster, fetchStudents } = useStudentsStore()
   const { clearAssessments } = useCoachNotificationsStore()
@@ -620,11 +631,16 @@ export default function Avaliacoes() {
     toastRef.current = setTimeout(() => setToast(''), 1900)
   }
 
+  const STATUS_LABELS: Record<string, string> = {
+    'em-dia':   t('coach_assessments.status_ok'),
+    'pendente': t('coach_assessments.status_pending'),
+  }
+
   const enriched = students.map(s => {
     const pal = AVATAR_PALETTE[s.id % AVATAR_PALETTE.length]
     const last = s.hist[s.hist.length - 1]
     const prev = s.hist.length > 1 ? s.hist[s.hist.length - 2] : null
-    const wd  = prev ? signed(last.weight - prev.weight, ' kg', s.loss) : { txt: '1ª avaliação', color: '#9a948a' }
+    const wd  = prev ? signed(last.weight - prev.weight, ' kg', s.loss) : { txt: t('coach_assessments.first_assessment'), color: '#9a948a' }
     const bfd = prev ? signed(last.bf - prev.bf, '%', s.loss) : { txt: '—', color: '#9a948a' }
     const sm  = STATUS_MAP[s.status]
     return {
@@ -636,7 +652,7 @@ export default function Avaliacoes() {
       weightDelta: wd.txt, deltaColor: wd.color,
       bfDelta: bfd.txt, bfDeltaColor: bfd.color,
       lastDate: last.date,
-      statusLabel: sm.label, statusColor: sm.color, statusBg: sm.bg,
+      statusLabel: STATUS_LABELS[s.status] ?? s.status, statusColor: sm.color, statusBg: sm.bg,
     }
   })
 
@@ -657,7 +673,7 @@ export default function Avaliacoes() {
 
   function handleRemind(id: number) {
     const s = students.find(x => x.id === id)
-    if (s) showToast(`Solicitação de fotos enviada a ${s.name.split(' ')[0]}.`)
+    if (s) showToast(t('coach_assessments.photos_requested', { name: s.name.split(' ')[0] }))
   }
 
   function handleRegisterFor(id: number) {
@@ -669,9 +685,9 @@ export default function Avaliacoes() {
 
   async function handleSave(nameRaw: string, weightStr: string, bf: number) {
     const name = nameRaw.trim()
-    if (!name) { showToast('Informe o aluno.'); return }
+    if (!name) { showToast(t('coach_assessments.err_no_student')); return }
     const w = parseFloat(weightStr.replace(',', '.'))
-    if (!w) { showToast('Informe o peso.'); return }
+    if (!w) { showToast(t('coach_assessments.err_no_weight')); return }
 
     const rosterStudent = roster.find(s => s.name.toLowerCase() === name.toLowerCase())
     const emptyPhotos = { frente: null, costas: null, ladoE: null, ladoD: null }
@@ -692,7 +708,7 @@ export default function Avaliacoes() {
       if (!rosterStudent) setNextId(x => x + 1)
     }
     setNewOpen(false)
-    showToast(`Avaliação registrada para ${name.split(' ')[0]}.`)
+    showToast(t('coach_assessments.assessment_saved', { name: name.split(' ')[0] }))
 
     if (rosterStudent) {
       await supabase.from('assessments').insert({
@@ -705,9 +721,9 @@ export default function Avaliacoes() {
   }
 
   const TABS: { key: Tab; label: string }[] = [
-    { key: 'all', label: 'Todos' },
-    { key: 'em-dia', label: 'Em dia' },
-    { key: 'pendente', label: 'Pendentes' },
+    { key: 'all',      label: t('coach_assessments.tab_all') },
+    { key: 'em-dia',   label: t('coach_assessments.tab_ok') },
+    { key: 'pendente', label: t('coach_assessments.tab_pending') },
   ]
 
   return (
@@ -716,15 +732,15 @@ export default function Avaliacoes() {
       <div style={{ padding: '30px 34px 0' }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap', marginBottom: 22 }}>
           <div>
-            <h1 style={{ font: `800 27px ${FF}`, color: '#1B2A4A', margin: 0, letterSpacing: '-.6px' }}>Avaliações físicas</h1>
-            <p style={{ font: `400 14px ${FF}`, color: '#7c7869', margin: '4px 0 0' }}>Acompanhe peso, medidas e evolução corporal dos alunos</p>
+            <h1 style={{ font: `800 27px ${FF}`, color: '#1B2A4A', margin: 0, letterSpacing: '-.6px' }}>{t('coach_assessments.title')}</h1>
+            <p style={{ font: `400 14px ${FF}`, color: '#7c7869', margin: '4px 0 0' }}>{t('coach_assessments.header_desc')}</p>
           </div>
           <button
             onClick={() => { setNewInitial(''); setNewOpen(true) }}
             style={{ display: 'flex', alignItems: 'center', gap: 8, height: 42, padding: '0 18px', border: 'none', background: '#E8542A', color: '#fff', borderRadius: 10, font: `700 13.5px ${FF}`, cursor: 'pointer', boxShadow: '0 2px 0 #c4421e' }}
           >
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round"><path d="M12 5v14" /><path d="M5 12h14" /></svg>
-            Nova avaliação
+            {t('coach_assessments.new_assessment')}
           </button>
         </div>
 
@@ -735,7 +751,7 @@ export default function Avaliacoes() {
               <div style={{ width: 30, height: 30, borderRadius: 9, background: '#eef1f6', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1B2A4A" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" /></svg>
               </div>
-              <span style={{ font: `600 11.5px ${FF}`, color: '#7c7869' }}>Avaliações no mês</span>
+              <span style={{ font: `600 11.5px ${FF}`, color: '#7c7869' }}>{t('coach_assessments.card_monthly')}</span>
             </div>
             <div style={{ font: `800 26px ${FF}`, color: '#1B2A4A', letterSpacing: '-.5px' }}>{monthCount}</div>
           </div>
@@ -744,7 +760,7 @@ export default function Avaliacoes() {
               <div style={{ width: 30, height: 30, borderRadius: 9, background: '#f7ecd9', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#b06a12" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /><path d="M12 8v4l2.5 1.5" /></svg>
               </div>
-              <span style={{ font: `600 11.5px ${FF}`, color: '#7c7869' }}>Reavaliações pendentes</span>
+              <span style={{ font: `600 11.5px ${FF}`, color: '#7c7869' }}>{t('coach_assessments.card_pending')}</span>
             </div>
             <div style={{ font: `800 26px ${FF}`, color: '#b06a12', letterSpacing: '-.5px' }}>{pendingCount}</div>
           </div>
@@ -753,7 +769,7 @@ export default function Avaliacoes() {
               <div style={{ width: 30, height: 30, borderRadius: 9, background: '#e7f3ea', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1B7a4a" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 7l-8.5 8.5-5-5L2 17" /><path d="M16 7h6v6" /></svg>
               </div>
-              <span style={{ font: `600 11.5px ${FF}`, color: '#7c7869' }}>Resultado coletivo</span>
+              <span style={{ font: `600 11.5px ${FF}`, color: '#7c7869' }}>{t('coach_assessments.card_collective')}</span>
             </div>
             <div style={{ font: `800 26px ${FF}`, color: collectiveColor, letterSpacing: '-.5px' }}>{collectiveDelta}</div>
           </div>
@@ -783,7 +799,7 @@ export default function Avaliacoes() {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(330px,1fr))', gap: 16 }}>
           {visible.length === 0 && (
             <div style={{ gridColumn: '1 / -1', padding: '50px 20px', textAlign: 'center', font: `500 14px ${FF}`, color: '#a89f8e', border: '1.5px dashed #d8d1c0', borderRadius: 14 }}>
-              Nenhuma avaliação registrada ainda.
+              {t('coach_assessments.no_assessments_yet')}
             </div>
           )}
           {visible.map(s => (
@@ -806,20 +822,20 @@ export default function Avaliacoes() {
               </div>
               <div style={{ display: 'flex', gap: 10 }}>
                 <div style={{ flex: 1, background: '#faf7ee', borderRadius: 11, padding: '11px 12px' }}>
-                  <div style={{ font: `600 10px ${FF}`, letterSpacing: '.4px', textTransform: 'uppercase', color: '#9a948a', marginBottom: 4 }}>Peso atual</div>
+                  <div style={{ font: `600 10px ${FF}`, letterSpacing: '.4px', textTransform: 'uppercase', color: '#9a948a', marginBottom: 4 }}>{t('coach_assessments.weight_current')}</div>
                   <div style={{ font: `800 17px ${FF}`, color: '#1B2A4A' }}>{s.weightStr}</div>
                   <div style={{ font: `700 11px ${FF}`, color: s.deltaColor, marginTop: 1 }}>{s.weightDelta}</div>
                 </div>
                 <div style={{ flex: 1, background: '#faf7ee', borderRadius: 11, padding: '11px 12px' }}>
-                  <div style={{ font: `600 10px ${FF}`, letterSpacing: '.4px', textTransform: 'uppercase', color: '#9a948a', marginBottom: 4 }}>% Gordura</div>
+                  <div style={{ font: `600 10px ${FF}`, letterSpacing: '.4px', textTransform: 'uppercase', color: '#9a948a', marginBottom: 4 }}>{t('coach_assessments.body_fat_pct')}</div>
                   <div style={{ font: `800 17px ${FF}`, color: '#1B2A4A' }}>{s.bfStr}</div>
                   <div style={{ font: `700 11px ${FF}`, color: s.bfDeltaColor, marginTop: 1 }}>{s.bfDelta}</div>
                 </div>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid #f4efe3', marginTop: 14, paddingTop: 12 }}>
-                <span style={{ font: `500 11.5px ${FF}`, color: '#b0a99c' }}>Última: {s.lastDate}</span>
+                <span style={{ font: `500 11.5px ${FF}`, color: '#b0a99c' }}>{t('coach_assessments.last_date', { date: s.lastDate })}</span>
                 <span style={{ font: `700 12px ${FF}`, color: '#E8542A', display: 'flex', alignItems: 'center', gap: 4 }}>
-                  Ver evolução
+                  {t('coach_assessments.see_evolution')}
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6" /></svg>
                 </span>
               </div>
@@ -828,15 +844,14 @@ export default function Avaliacoes() {
 
           {loadError && (
             <div style={{ gridColumn: '1/-1', background: '#fbe6e1', border: '1px solid #f4c4b8', borderRadius: 12, padding: '14px 16px' }}>
-              <div style={{ font: `700 13px ${FF}`, color: '#c4421e', marginBottom: 4 }}>Erro ao carregar avaliações</div>
+              <div style={{ font: `700 13px ${FF}`, color: '#c4421e', marginBottom: 4 }}>{t('coach_assessments.load_error_title')}</div>
               <div style={{ font: `400 12px ${FF}`, color: '#7c3a2a', fontFamily: 'monospace', wordBreak: 'break-all' }}>{loadError}</div>
-              <div style={{ font: `400 12px ${FF}`, color: '#7c3a2a', marginTop: 6 }}>Verifique se a migração <strong>024_assessments_photo_columns.sql</strong> foi aplicada no banco.</div>
             </div>
           )}
 
           {!loadError && visible.length === 0 && (
             <div style={{ gridColumn: '1/-1', padding: '50px 20px', textAlign: 'center', font: `500 14px ${FF}`, color: '#a89f8e', border: '1.5px dashed #d8d1c0', borderRadius: 14 }}>
-              Nenhum aluno neste filtro.
+              {t('coach_assessments.no_students_filter')}
             </div>
           )}
         </div>

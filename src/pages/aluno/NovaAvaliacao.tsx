@@ -1,7 +1,9 @@
 import { useState } from 'react'
 import type { CSSProperties } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '../../store/auth'
+import { useSettingsStore } from '../../store/settings'
 import { supabase } from '../../lib/supabase'
 
 const FF = '"Libre Franklin",sans-serif'
@@ -28,12 +30,9 @@ function Field({ label, error, children }: { label: string; error?: string; chil
 }
 
 type PhotoKey = 'frente' | 'ladoEsq' | 'ladoDir' | 'costas'
-const PHOTO_SLOTS: { key: PhotoKey; label: string }[] = [
-  { key: 'frente',  label: 'Frente'        },
-  { key: 'ladoEsq', label: 'Lado Esquerdo' },
-  { key: 'ladoDir', label: 'Lado Direito'  },
-  { key: 'costas',  label: 'Costas'        },
-]
+
+const PHOTO_SLOT_KEYS: PhotoKey[] = ['frente', 'ladoEsq', 'ladoDir', 'costas']
+
 const KEY_TO_COL: Record<PhotoKey, string> = {
   frente:  'photo_frente_url',
   ladoEsq: 'photo_lado_esq_url',
@@ -55,15 +54,19 @@ function pickPhoto(key: PhotoKey, onPick: (key: PhotoKey, preview: string, file:
   input.click()
 }
 
-function formatNextDate(from: Date): string {
-  const d = new Date(from)
-  d.setDate(d.getDate() + 30)
-  return d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })
-}
-
 export default function NovaAvaliacao() {
   const navigate = useNavigate()
   const { user } = useAuthStore()
+  const { t } = useTranslation()
+  const { language } = useSettingsStore()
+  const locale = language === 'en-US' ? 'en-US' : 'pt-BR'
+
+  const PHOTO_LABELS: Record<PhotoKey, string> = {
+    frente:  t('nova_avaliacao.photo_front'),
+    ladoEsq: t('nova_avaliacao.photo_left'),
+    ladoDir: t('nova_avaliacao.photo_right'),
+    costas:  t('nova_avaliacao.photo_back'),
+  }
 
   const [peso,    setPeso]    = useState('')
   const [cintura, setCintura] = useState('')
@@ -92,9 +95,9 @@ export default function NovaAvaliacao() {
   async function submit() {
     const errs: Record<string, string> = {}
     const p = parseFloat(peso)
-    if (!peso.trim() || isNaN(p) || p < 20 || p > 400) errs.peso = 'Informe um peso válido (kg).'
-    const missingPhotos = PHOTO_SLOTS.filter(s => !photos[s.key].file)
-    if (missingPhotos.length > 0) errs.fotos = 'Envie as 4 fotos (frente, lados e costas).'
+    if (!peso.trim() || isNaN(p) || p < 20 || p > 400) errs.peso = t('nova_avaliacao.err_weight')
+    const missingPhotos = PHOTO_SLOT_KEYS.filter(s => !photos[s].file)
+    if (missingPhotos.length > 0) errs.fotos = t('nova_avaliacao.err_photos')
     if (Object.keys(errs).length) { setErrors(errs); return }
 
     setLoading(true)
@@ -118,18 +121,17 @@ export default function NovaAvaliacao() {
       }).select().single()
       if (insErr) throw insErr
 
-      // Upload photos
       const urlUpdates: Record<string, string> = {}
-      for (const slot of PHOTO_SLOTS) {
-        const ph = photos[slot.key]
+      for (const key of PHOTO_SLOT_KEYS) {
+        const ph = photos[key]
         if (ph.file) {
           const ext  = ph.file.name.split('.').pop()?.toLowerCase() ?? 'jpg'
-          const path = `${studentRow.id}/${assessRow.id}/${slot.key}.${ext}`
+          const path = `${studentRow.id}/${assessRow.id}/${key}.${ext}`
           const { error: upErr } = await supabase.storage
             .from('assessment-photos').upload(path, ph.file, { upsert: true })
           if (!upErr) {
             const { data: pd } = supabase.storage.from('assessment-photos').getPublicUrl(path)
-            urlUpdates[KEY_TO_COL[slot.key]] = pd.publicUrl
+            urlUpdates[KEY_TO_COL[key]] = pd.publicUrl
           }
         }
       }
@@ -137,7 +139,6 @@ export default function NovaAvaliacao() {
         await supabase.from('assessments').update(urlUpdates).eq('id', assessRow.id)
       }
 
-      // Advance next_assessment by 30 days
       const nextAssessmentDate = new Date()
       nextAssessmentDate.setDate(nextAssessmentDate.getDate() + 30)
       await supabase.from('students')
@@ -145,9 +146,11 @@ export default function NovaAvaliacao() {
         .eq('id', studentRow.id)
 
       localStorage.removeItem('kinea-assessment-snooze')
-      setNextDate(formatNextDate(new Date()))
+      const nd = new Date()
+      nd.setDate(nd.getDate() + 30)
+      setNextDate(nd.toLocaleDateString(locale, { day: '2-digit', month: 'long', year: 'numeric' }))
     } catch {
-      setErrors({ global: 'Erro ao salvar. Tente novamente.' })
+      setErrors({ global: t('nova_avaliacao.err_save') })
       setLoading(false)
       return
     }
@@ -163,9 +166,11 @@ export default function NovaAvaliacao() {
               <path d="M20 6L9 17l-5-5" />
             </svg>
           </div>
-          <h2 style={{ font: `800 24px ${FF}`, color: '#1B2A4A', margin: '0 0 10px', letterSpacing: '-.4px' }}>Avaliação registrada!</h2>
+          <h2 style={{ font: `800 24px ${FF}`, color: '#1B2A4A', margin: '0 0 10px', letterSpacing: '-.4px' }}>
+            {t('nova_avaliacao.success_title')}
+          </h2>
           <p style={{ font: `400 14px/1.6 ${FF}`, color: '#7C7869', margin: '0 0 20px' }}>
-            Sua próxima avaliação está agendada para <strong style={{ color: '#1B2A4A' }}>{nextDate}</strong>.
+            {t('nova_avaliacao.success_body', { date: nextDate })}
           </p>
           <button
             type="button"
@@ -176,7 +181,7 @@ export default function NovaAvaliacao() {
               font: `700 15px ${FF}`, color: '#fff', cursor: 'pointer',
             }}
           >
-            Voltar ao início
+            {t('nova_avaliacao.back_home')}
           </button>
         </div>
       </div>
@@ -188,14 +193,14 @@ export default function NovaAvaliacao() {
 
       {/* Top bar */}
       <div style={{ background: '#fff', borderBottom: '1px solid #EDE8DC', padding: '16px 18px', flexShrink: 0 }}>
-        <div style={{ font: `800 18px ${FF}`, color: '#1B2A4A', letterSpacing: '-.3px' }}>Avaliação Periódica</div>
-        <div style={{ font: `400 12px ${FF}`, color: '#A39E90', marginTop: 2 }}>Registre seu peso, medidas e fotos de hoje</div>
+        <div style={{ font: `800 18px ${FF}`, color: '#1B2A4A', letterSpacing: '-.3px' }}>{t('nova_avaliacao.title')}</div>
+        <div style={{ font: `400 12px ${FF}`, color: '#A39E90', marginTop: 2 }}>{t('nova_avaliacao.subtitle')}</div>
       </div>
 
       {/* Form */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '24px 18px 120px', display: 'flex', flexDirection: 'column', gap: 24 }}>
 
-        <Field label="Peso atual (kg) *" error={errors.peso}>
+        <Field label={t('nova_avaliacao.field_weight')} error={errors.peso}>
           <input
             type="number" inputMode="decimal" step="0.1" min="20" max="400" placeholder="Ex: 75.4"
             value={peso} onChange={e => { setPeso(e.target.value); setErrors(p => ({ ...p, peso: '' })) }}
@@ -205,60 +210,60 @@ export default function NovaAvaliacao() {
 
         <div>
           <p style={{ font: `600 11px ${FF}`, color: '#7C7869', textTransform: 'uppercase', letterSpacing: '.4px', margin: '0 0 12px' }}>
-            Medidas corporais{' '}
-            <span style={{ font: `400 10px ${FF}`, textTransform: 'none', letterSpacing: 0, color: '#A39E90' }}>(opcional)</span>
+            {t('nova_avaliacao.optional_section')}{' '}
+            <span style={{ font: `400 10px ${FF}`, textTransform: 'none', letterSpacing: 0, color: '#A39E90' }}>{t('nova_avaliacao.optional_label')}</span>
           </p>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            <Field label="Cintura (cm)">
+            <Field label={t('nova_avaliacao.field_waist')}>
               <input type="number" inputMode="decimal" step="0.5" placeholder="Ex: 82"
                 value={cintura} onChange={e => setCintura(e.target.value)} style={inputStyle} />
             </Field>
-            <Field label="Quadril (cm)">
+            <Field label={t('nova_avaliacao.field_hip')}>
               <input type="number" inputMode="decimal" step="0.5" placeholder="Ex: 96"
                 value={quadril} onChange={e => setQuadril(e.target.value)} style={inputStyle} />
             </Field>
-            <Field label="Tórax (cm)">
+            <Field label={t('nova_avaliacao.field_chest')}>
               <input type="number" inputMode="decimal" step="0.5" placeholder="Ex: 100"
                 value={torax} onChange={e => setTorax(e.target.value)} style={inputStyle} />
             </Field>
-            <Field label="Braço D (cm)">
+            <Field label={t('nova_avaliacao.field_arm')}>
               <input type="number" inputMode="decimal" step="0.5" placeholder="Ex: 34"
                 value={braco} onChange={e => setBraco(e.target.value)} style={inputStyle} />
             </Field>
           </div>
         </div>
 
-        {/* Fotos de avaliação */}
+        {/* Photos */}
         <div>
           <p style={{ font: `600 11px ${FF}`, color: '#7C7869', textTransform: 'uppercase', letterSpacing: '.4px', margin: '0 0 4px' }}>
-            Fotos de avaliação *
+            {t('nova_avaliacao.photos_section')}
           </p>
           <p style={{ font: `400 12px ${FF}`, color: '#A39E90', margin: '0 0 14px', lineHeight: 1.4 }}>
-            Use roupa de academia. Fotos de corpo inteiro, frente, lado e costas.
+            {t('nova_avaliacao.photos_hint')}
           </p>
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
-            {PHOTO_SLOTS.map(slot => (
-              <div key={slot.key} style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+            {PHOTO_SLOT_KEYS.map(key => (
+              <div key={key} style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
                 <button
                   type="button"
-                  onClick={() => { pickPhoto(slot.key, handlePick); setErrors(p => ({ ...p, fotos: '' })) }}
+                  onClick={() => { pickPhoto(key, handlePick); setErrors(p => ({ ...p, fotos: '' })) }}
                   style={{
                     width: '100%', aspectRatio: '3/4', padding: 0,
                     borderRadius: 12, cursor: 'pointer', overflow: 'hidden', position: 'relative',
-                    border: photos[slot.key].preview ? 'none' : `1.5px dashed ${errors.fotos ? '#D2402A' : '#D6CFBE'}`,
-                    background: photos[slot.key].preview ? 'transparent' : (errors.fotos ? '#fef5f3' : '#fff'),
+                    border: photos[key].preview ? 'none' : `1.5px dashed ${errors.fotos ? '#D2402A' : '#D6CFBE'}`,
+                    background: photos[key].preview ? 'transparent' : (errors.fotos ? '#fef5f3' : '#fff'),
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                   }}
                 >
-                  {photos[slot.key].preview ? (
+                  {photos[key].preview ? (
                     <>
                       <img
-                        src={photos[slot.key].preview} alt={slot.label}
+                        src={photos[key].preview} alt={PHOTO_LABELS[key]}
                         style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
                       />
                       <div
-                        onClick={(e) => removePhoto(slot.key, e)}
+                        onClick={(e) => removePhoto(key, e)}
                         style={{
                           position: 'absolute', top: 5, right: 5,
                           width: 24, height: 24, borderRadius: '50%',
@@ -277,12 +282,14 @@ export default function NovaAvaliacao() {
                         <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
                         <circle cx="12" cy="13" r="4" />
                       </svg>
-                      <span style={{ font: `500 10px ${FF}`, color: errors.fotos ? '#D2402A' : '#A39E90' }}>Adicionar</span>
+                      <span style={{ font: `500 10px ${FF}`, color: errors.fotos ? '#D2402A' : '#A39E90' }}>
+                        {t('nova_avaliacao.photo_add')}
+                      </span>
                     </div>
                   )}
                 </button>
                 <span style={{ font: `600 11px ${FF}`, color: '#7C7869', textAlign: 'center', letterSpacing: '.2px' }}>
-                  {slot.label}
+                  {PHOTO_LABELS[key]}
                 </span>
               </div>
             ))}
@@ -327,11 +334,12 @@ export default function NovaAvaliacao() {
           {loading ? (
             <>
               <span style={{ width: 18, height: 18, border: '2.5px solid rgba(255,255,255,.4)', borderTopColor: '#fff', borderRadius: '50%', display: 'inline-block', animation: 'kspin .7s linear infinite' }} />
-              Salvando...
+              {t('nova_avaliacao.saving')}
             </>
-          ) : 'Registrar avaliação →'}
+          ) : t('nova_avaliacao.submit')}
         </button>
       </div>
+      <style>{`@keyframes kspin { to { transform: rotate(360deg) } }`}</style>
     </div>
   )
 }

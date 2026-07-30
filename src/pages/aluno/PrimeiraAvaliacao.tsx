@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { CSSProperties } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '../../store/auth'
 import { supabase } from '../../lib/supabase'
 
@@ -28,12 +29,7 @@ function Field({ label, error, children }: { label: string; error?: string; chil
 }
 
 type PhotoKey = 'frente' | 'ladoEsq' | 'ladoDir' | 'costas'
-const PHOTO_SLOTS: { key: PhotoKey; label: string }[] = [
-  { key: 'frente',  label: 'Frente'         },
-  { key: 'ladoEsq', label: 'Lado Esquerdo'  },
-  { key: 'ladoDir', label: 'Lado Direito'   },
-  { key: 'costas',  label: 'Costas'         },
-]
+const PHOTO_SLOT_KEYS: PhotoKey[] = ['frente', 'ladoEsq', 'ladoDir', 'costas']
 const KEY_TO_COL: Record<PhotoKey, string> = {
   frente:  'photo_frente_url',
   ladoEsq: 'photo_lado_esq_url',
@@ -57,7 +53,15 @@ function pickPhoto(key: PhotoKey, onPick: (key: PhotoKey, preview: string, file:
 
 export default function PrimeiraAvaliacao() {
   const navigate = useNavigate()
+  const { t } = useTranslation()
   const { user, setUser } = useAuthStore()
+
+  const PHOTO_LABELS: Record<PhotoKey, string> = {
+    frente:  t('primeira_avaliacao.photo_front'),
+    ladoEsq: t('primeira_avaliacao.photo_left'),
+    ladoDir: t('primeira_avaliacao.photo_right'),
+    costas:  t('primeira_avaliacao.photo_back'),
+  }
 
   const [peso,    setPeso]    = useState('')
   const [altura,  setAltura]  = useState('')
@@ -89,10 +93,10 @@ export default function PrimeiraAvaliacao() {
     const errs: Record<string, string> = {}
     const p = parseFloat(peso)
     const a = parseFloat(altura)
-    if (!peso.trim()   || isNaN(p) || p < 20  || p > 400) errs.peso   = 'Informe um peso válido (kg).'
-    if (!altura.trim() || isNaN(a) || a < 100 || a > 250) errs.altura = 'Informe uma altura válida (cm).'
-    const missingPhotos = PHOTO_SLOTS.filter(s => !photos[s.key].preview)
-    if (missingPhotos.length > 0) errs.fotos = 'Envie as 4 fotos (frente, lados e costas).'
+    if (!peso.trim()   || isNaN(p) || p < 20  || p > 400) errs.peso   = t('primeira_avaliacao.err_weight')
+    if (!altura.trim() || isNaN(a) || a < 100 || a > 250) errs.altura = t('primeira_avaliacao.err_height')
+    const missingPhotos = PHOTO_SLOT_KEYS.filter(k => !photos[k].preview)
+    if (missingPhotos.length > 0) errs.fotos = t('primeira_avaliacao.err_photos')
     if (Object.keys(errs).length) { setErrors(errs); return }
 
     setLoading(true)
@@ -118,16 +122,16 @@ export default function PrimeiraAvaliacao() {
 
         if (assessRow) {
           const urlUpdates: Record<string, string> = {}
-          for (const slot of PHOTO_SLOTS) {
-            const ph = photos[slot.key]
+          for (const key of PHOTO_SLOT_KEYS) {
+            const ph = photos[key]
             if (ph.file) {
               const ext  = ph.file.name.split('.').pop()?.toLowerCase() ?? 'jpg'
-              const path = `${studentRow.id}/${assessRow.id}/${slot.key}.${ext}`
+              const path = `${studentRow.id}/${assessRow.id}/${key}.${ext}`
               const { error: upErr } = await supabase.storage
                 .from('assessment-photos').upload(path, ph.file, { upsert: true })
               if (!upErr) {
                 const { data: pd } = supabase.storage.from('assessment-photos').getPublicUrl(path)
-                urlUpdates[KEY_TO_COL[slot.key]] = pd.publicUrl
+                urlUpdates[KEY_TO_COL[key]] = pd.publicUrl
               }
             }
           }
@@ -154,8 +158,8 @@ export default function PrimeiraAvaliacao() {
               <path d="M20 6L9 17l-5-5" />
             </svg>
           </div>
-          <h2 style={{ font: `800 24px ${FF}`, color: '#1B2A4A', margin: '0 0 10px', letterSpacing: '-.4px' }}>Tudo pronto!</h2>
-          <p style={{ font: `400 14px/1.6 ${FF}`, color: '#7C7869', margin: 0 }}>Seu perfil está completo. Abrindo o app...</p>
+          <h2 style={{ font: `800 24px ${FF}`, color: '#1B2A4A', margin: '0 0 10px', letterSpacing: '-.4px' }}>{t('primeira_avaliacao.done_title')}</h2>
+          <p style={{ font: `400 14px/1.6 ${FF}`, color: '#7C7869', margin: 0 }}>{t('primeira_avaliacao.done_body')}</p>
         </div>
       </div>
     )
@@ -168,8 +172,8 @@ export default function PrimeiraAvaliacao() {
       <div style={{ background: '#fff', borderBottom: '1px solid #EDE8DC', padding: '14px 18px 0', flexShrink: 0 }}>
         <div style={{ marginBottom: 14 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6 }}>
-            <span style={{ font: `700 14px ${FF}`, color: '#1B2A4A' }}>Avaliação Inicial</span>
-            <span style={{ font: `500 11px ${FF}`, color: '#A39E90' }}>Etapa 2 de 2</span>
+            <span style={{ font: `700 14px ${FF}`, color: '#1B2A4A' }}>{t('primeira_avaliacao.title')}</span>
+            <span style={{ font: `500 11px ${FF}`, color: '#A39E90' }}>{t('primeira_avaliacao.step_label')}</span>
           </div>
           <div style={{ height: 4, background: '#EDE8DC', borderRadius: 4 }}>
             <div style={{ height: '100%', width: '100%', background: '#E8542A', borderRadius: 4 }} />
@@ -180,9 +184,9 @@ export default function PrimeiraAvaliacao() {
       {/* Intro card */}
       <div style={{ padding: '20px 18px 0' }}>
         <div style={{ background: '#1B2A4A', borderRadius: 16, padding: '18px 18px' }}>
-          <div style={{ font: `800 18px ${FF}`, color: '#FAEEDA', letterSpacing: '-.3px', marginBottom: 6 }}>Quase lá!</div>
+          <div style={{ font: `800 18px ${FF}`, color: '#FAEEDA', letterSpacing: '-.3px', marginBottom: 6 }}>{t('primeira_avaliacao.intro_title')}</div>
           <div style={{ font: `400 13px ${FF}`, color: '#8B97AD', lineHeight: 1.55 }}>
-            Registre suas medidas e envie as fotos iniciais. Elas são a base para o seu coach acompanhar sua evolução.
+            {t('primeira_avaliacao.intro_desc')}
           </div>
         </div>
       </div>
@@ -192,17 +196,17 @@ export default function PrimeiraAvaliacao() {
 
         {/* Medidas obrigatórias */}
         <p style={{ font: `600 11px ${FF}`, color: '#7C7869', textTransform: 'uppercase', letterSpacing: '.4px', margin: '0 0 12px' }}>
-          Medidas obrigatórias
+          {t('primeira_avaliacao.mandatory_section')}
         </p>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 28 }}>
-          <Field label="Peso atual (kg) *" error={errors.peso}>
+          <Field label={t('primeira_avaliacao.field_weight')} error={errors.peso}>
             <input
               type="number" inputMode="decimal" step="0.1" min="20" max="400" placeholder="Ex: 75.4"
               value={peso} onChange={e => { setPeso(e.target.value); setErrors(p => ({ ...p, peso: '' })) }}
               style={{ ...inputStyle, borderColor: errors.peso ? '#D2402A' : '#D6CFBE' }}
             />
           </Field>
-          <Field label="Altura (cm) *" error={errors.altura}>
+          <Field label={t('primeira_avaliacao.field_height')} error={errors.altura}>
             <input
               type="number" inputMode="numeric" step="1" min="100" max="250" placeholder="Ex: 172"
               value={altura} onChange={e => { setAltura(e.target.value); setErrors(p => ({ ...p, altura: '' })) }}
@@ -211,65 +215,65 @@ export default function PrimeiraAvaliacao() {
           </Field>
         </div>
 
-        {/* Medidas corporais */}
+        {/* Optional measures */}
         <p style={{ font: `600 11px ${FF}`, color: '#7C7869', textTransform: 'uppercase', letterSpacing: '.4px', margin: '0 0 4px' }}>
-          Medidas corporais{' '}
-          <span style={{ font: `400 10px ${FF}`, textTransform: 'none', letterSpacing: 0, color: '#A39E90' }}>(opcional)</span>
+          {t('primeira_avaliacao.optional_section')}{' '}
+          <span style={{ font: `400 10px ${FF}`, textTransform: 'none', letterSpacing: 0, color: '#A39E90' }}>{t('primeira_avaliacao.optional_label')}</span>
         </p>
         <p style={{ font: `400 12px ${FF}`, color: '#A39E90', margin: '0 0 12px', lineHeight: 1.4 }}>
-          Preencha o que souber — o coach completará na avaliação presencial.
+          {t('primeira_avaliacao.optional_hint')}
         </p>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 28 }}>
-          <Field label="Cintura (cm)">
+          <Field label={t('primeira_avaliacao.field_waist')}>
             <input type="number" inputMode="decimal" step="0.5" placeholder="Ex: 82"
               value={cintura} onChange={e => setCintura(e.target.value)} style={inputStyle} />
           </Field>
-          <Field label="Quadril (cm)">
+          <Field label={t('primeira_avaliacao.field_hip')}>
             <input type="number" inputMode="decimal" step="0.5" placeholder="Ex: 96"
               value={quadril} onChange={e => setQuadril(e.target.value)} style={inputStyle} />
           </Field>
-          <Field label="Tórax (cm)">
+          <Field label={t('primeira_avaliacao.field_chest')}>
             <input type="number" inputMode="decimal" step="0.5" placeholder="Ex: 100"
               value={torax} onChange={e => setTorax(e.target.value)} style={inputStyle} />
           </Field>
-          <Field label="Braço D (cm)">
+          <Field label={t('primeira_avaliacao.field_arm')}>
             <input type="number" inputMode="decimal" step="0.5" placeholder="Ex: 34"
               value={braco} onChange={e => setBraco(e.target.value)} style={inputStyle} />
           </Field>
         </div>
 
-        {/* Fotos de avaliação */}
+        {/* Photos */}
         <p style={{ font: `600 11px ${FF}`, color: '#7C7869', textTransform: 'uppercase', letterSpacing: '.4px', margin: '0 0 4px' }}>
-          Fotos de avaliação *
+          {t('primeira_avaliacao.photos_section')}
         </p>
         <p style={{ font: `400 12px ${FF}`, color: '#A39E90', margin: '0 0 14px', lineHeight: 1.4 }}>
-          Use roupa de academia. Fotos de corpo inteiro, frente, lado e costas.
+          {t('primeira_avaliacao.photos_hint')}
         </p>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
-          {PHOTO_SLOTS.map(slot => (
-            <div key={slot.key} style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+          {PHOTO_SLOT_KEYS.map(key => (
+            <div key={key} style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
               <button
                 type="button"
-                onClick={() => pickPhoto(slot.key, handlePick)}
+                onClick={() => pickPhoto(key, handlePick)}
                 style={{
                   width: '100%', aspectRatio: '3/4', padding: 0,
                   borderRadius: 12, cursor: 'pointer', overflow: 'hidden', position: 'relative',
-                  border: photos[slot.key].preview
+                  border: photos[key].preview
                     ? 'none'
                     : `1.5px dashed ${errors.fotos ? '#D2402A' : '#D6CFBE'}`,
-                  background: photos[slot.key].preview ? 'transparent' : (errors.fotos ? '#fef5f3' : '#fff'),
+                  background: photos[key].preview ? 'transparent' : (errors.fotos ? '#fef5f3' : '#fff'),
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                 }}
               >
-                {photos[slot.key].preview ? (
+                {photos[key].preview ? (
                   <>
                     <img
-                      src={photos[slot.key].preview} alt={slot.label}
+                      src={photos[key].preview} alt={PHOTO_LABELS[key]}
                       style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
                     />
                     <div
-                      onClick={(e) => removePhoto(slot.key, e)}
+                      onClick={(e) => removePhoto(key, e)}
                       style={{
                         position: 'absolute', top: 5, right: 5,
                         width: 24, height: 24, borderRadius: '50%',
@@ -290,13 +294,13 @@ export default function PrimeiraAvaliacao() {
                       <circle cx="12" cy="13" r="4" />
                     </svg>
                     <span style={{ font: `500 10px ${FF}`, color: errors.fotos ? '#D2402A' : '#A39E90' }}>
-                      Adicionar
+                      {t('primeira_avaliacao.photo_add')}
                     </span>
                   </div>
                 )}
               </button>
               <span style={{ font: `600 11px ${FF}`, color: '#7C7869', textAlign: 'center', letterSpacing: '.2px' }}>
-                {slot.label}
+                {PHOTO_LABELS[key]}
               </span>
             </div>
           ))}
@@ -331,9 +335,9 @@ export default function PrimeiraAvaliacao() {
           {loading ? (
             <>
               <span style={{ width: 18, height: 18, border: '2.5px solid rgba(255,255,255,.4)', borderTopColor: '#fff', borderRadius: '50%', display: 'inline-block', animation: 'kspin .7s linear infinite' }} />
-              Salvando...
+              {t('primeira_avaliacao.saving')}
             </>
-          ) : 'Concluir e acessar o app →'}
+          ) : t('primeira_avaliacao.submit')}
         </button>
       </div>
     </div>

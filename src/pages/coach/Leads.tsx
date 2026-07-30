@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, type DragEvent } from 'react'
 import { getInitials } from '../../data/mock'
 import { useLeadsStore, type Lead, type LeadStage as Stage } from '../../store/leads'
 import { useAuthStore } from '../../store/auth'
+import { useTranslation } from 'react-i18next'
 
 const FF = '"Libre Franklin",sans-serif'
 
@@ -98,6 +99,14 @@ function KanbanColumn({ stage, leads, dragOver, onDragOver, onDragLeave, onDrop,
   onCardClick: (id: number) => void
   onQuickAdd:  (col: Stage) => void
 }) {
+  const { t } = useTranslation()
+  const STAGE_LABELS: Record<Stage, string> = {
+    novo:        t('coach_leads.stage_novo'),
+    contactado:  t('coach_leads.stage_contactado'),
+    interessado: t('coach_leads.stage_interessado'),
+    fechado:     t('coach_leads.stage_fechado'),
+    perdido:     t('coach_leads.stage_perdido'),
+  }
   const total = leads.reduce((a, l) => a + parseValue(l.value), 0)
   const totalLabel = total ? 'R$ ' + total.toLocaleString('pt-BR') : '—'
 
@@ -117,7 +126,7 @@ function KanbanColumn({ stage, leads, dragOver, onDragOver, onDragLeave, onDrop,
       <div style={{ padding: '14px 16px 10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #e2dac8' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
           <span style={{ width: 10, height: 10, borderRadius: '50%', background: stage.color, flexShrink: 0 }} />
-          <span style={{ font: `700 13.5px ${FF}`, color: '#1B2A4A' }}>{stage.title}</span>
+          <span style={{ font: `700 13.5px ${FF}`, color: '#1B2A4A' }}>{STAGE_LABELS[stage.key]}</span>
           <span style={{ font: `600 11px ${FF}`, color: '#7c7869', background: '#fff', borderRadius: 20, padding: '2px 9px' }}>{leads.length}</span>
         </div>
         <span style={{ font: `600 11.5px ${FF}`, color: '#9a948a' }}>{totalLabel}</span>
@@ -130,7 +139,7 @@ function KanbanColumn({ stage, leads, dragOver, onDragOver, onDragLeave, onDrop,
         ))}
         {leads.length === 0 && (
           <div style={{ padding: '18px 10px', textAlign: 'center', font: `400 12px ${FF}`, color: '#a89f8e', border: '1.5px dashed #d8d1c0', borderRadius: 10 }}>
-            Arraste leads para cá
+            {t('coach_leads.drag_here')}
           </div>
         )}
         <button
@@ -140,7 +149,7 @@ function KanbanColumn({ stage, leads, dragOver, onDragOver, onDragLeave, onDrop,
           onMouseEnter={e => { e.currentTarget.style.background = '#e7e0ce'; e.currentTarget.style.color = '#1B2A4A' }}
           onMouseLeave={e => { e.currentTarget.style.background = 'none'; e.currentTarget.style.color = '#9a948a' }}
         >
-          + Adicionar lead
+          {t('coach_leads.add_lead')}
         </button>
       </div>
     </div>
@@ -155,6 +164,14 @@ function LeadDrawer({ lead, onClose, onMoveStage, onConvert, onWarn }: {
   onConvert:   (id: number) => void
   onWarn:      (msg: string) => void
 }) {
+  const { t } = useTranslation()
+  const STAGE_LABELS: Record<Stage, string> = {
+    novo:        t('coach_leads.stage_novo'),
+    contactado:  t('coach_leads.stage_contactado'),
+    interessado: t('coach_leads.stage_interessado'),
+    fechado:     t('coach_leads.stage_fechado'),
+    perdido:     t('coach_leads.stage_perdido'),
+  }
   const [bg, color] = avPalette(lead.id)
   const src = SOURCE_STYLE[lead.source] ?? { color: '#1B2A4A', bg: '#eef1f6' }
 
@@ -182,7 +199,7 @@ function LeadDrawer({ lead, onClose, onMoveStage, onConvert, onWarn }: {
         <div style={{ padding: '20px 22px', display: 'flex', flexDirection: 'column', gap: 14 }}>
           {/* Stage selector */}
           <div>
-            <div style={{ font: `600 11px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#9a948a', marginBottom: 8 }}>Etapa do funil</div>
+            <div style={{ font: `600 11px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#9a948a', marginBottom: 8 }}>{t('coach_leads.funnel_stage')}</div>
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
               {STAGES.map(s => {
                 const active = lead.stage === s.key
@@ -193,7 +210,7 @@ function LeadDrawer({ lead, onClose, onMoveStage, onConvert, onWarn }: {
                     onClick={() => onMoveStage(lead.id, s.key)}
                     style={{ border: `1.5px solid ${active ? s.color : '#e0d9c8'}`, background: active ? s.color : '#fff', color: active ? '#fff' : '#7c7869', font: `600 11.5px ${FF}`, borderRadius: 20, padding: '6px 12px', cursor: 'pointer' }}
                   >
-                    {s.title}
+                    {STAGE_LABELS[s.key]}
                   </button>
                 )
               })}
@@ -203,40 +220,40 @@ function LeadDrawer({ lead, onClose, onMoveStage, onConvert, onWarn }: {
           {/* Info grid */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
             <div style={{ background: '#fff', border: '1px solid #ece7d9', borderRadius: 12, padding: 14 }}>
-              <div style={{ font: `600 11px ${FF}`, color: '#9a948a', marginBottom: 6 }}>Origem</div>
+              <div style={{ font: `600 11px ${FF}`, color: '#9a948a', marginBottom: 6 }}>{t('coach_leads.origin')}</div>
               <span style={{ display: 'inline-block', font: `700 12px ${FF}`, color: src.color, background: src.bg, borderRadius: 20, padding: '3px 10px' }}>{lead.source}</span>
             </div>
             <div style={{ background: '#fff', border: '1px solid #ece7d9', borderRadius: 12, padding: 14 }}>
-              <div style={{ font: `600 11px ${FF}`, color: '#9a948a', marginBottom: 6 }}>Plano de interesse</div>
+              <div style={{ font: `600 11px ${FF}`, color: '#9a948a', marginBottom: 6 }}>{t('coach_leads.plan_of_interest')}</div>
               <div style={{ font: `700 13.5px ${FF}`, color: '#1B2A4A' }}>{lead.plan}</div>
             </div>
             <div style={{ background: '#fff', border: '1px solid #ece7d9', borderRadius: 12, padding: 14 }}>
-              <div style={{ font: `600 11px ${FF}`, color: '#9a948a', marginBottom: 6 }}>Valor estimado</div>
+              <div style={{ font: `600 11px ${FF}`, color: '#9a948a', marginBottom: 6 }}>{t('coach_leads.estimated_value')}</div>
               <div style={{ font: `800 16px ${FF}`, color: '#1B2A4A' }}>{lead.value}</div>
             </div>
             <div style={{ background: '#fff', border: '1px solid #ece7d9', borderRadius: 12, padding: 14 }}>
-              <div style={{ font: `600 11px ${FF}`, color: '#9a948a', marginBottom: 6 }}>Contato</div>
+              <div style={{ font: `600 11px ${FF}`, color: '#9a948a', marginBottom: 6 }}>{t('coach_leads.contact')}</div>
               <div style={{ font: `700 13.5px ${FF}`, color: '#1B2A4A' }}>{lead.contact || '—'}</div>
             </div>
           </div>
 
           {/* Actions */}
           <div style={{ background: '#fff', border: '1px solid #ece7d9', borderRadius: 12, padding: 8 }}>
-            <div style={{ font: `600 11px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#9a948a', padding: '8px 8px 4px' }}>Próximas ações</div>
+            <div style={{ font: `600 11px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#9a948a', padding: '8px 8px 4px' }}>{t('coach_leads.next_actions')}</div>
             {[
               {
                 icon: <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#25D366" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7a8.5 8.5 0 0 1-.9-3.8A8.38 8.38 0 0 1 12.5 3a8.38 8.38 0 0 1 8.5 8.5z"/></svg>,
-                label: 'Enviar WhatsApp', color: '#1B2A4A', hoverBg: '#fbf8f1',
-                action: () => { const d = lead.contact.replace(/\D/g, ''); d ? window.open(`https://wa.me/55${d}`, '_blank') : onWarn('Informe um telefone de contato para este lead.') },
+                label: t('coach_leads.send_whatsapp'), color: '#1B2A4A', hoverBg: '#fbf8f1',
+                action: () => { const d = lead.contact.replace(/\D/g, ''); d ? window.open(`https://wa.me/55${d}`, '_blank') : onWarn(t('coach_leads.no_phone')) },
               },
               {
                 icon: <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#E8542A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"/></svg>,
-                label: 'Ligar', color: '#1B2A4A', hoverBg: '#fbf8f1',
-                action: () => { const d = lead.contact.replace(/\D/g, ''); d ? window.open(`tel:+55${d}`) : onWarn('Informe um telefone de contato para este lead.') },
+                label: t('coach_leads.call'), color: '#1B2A4A', hoverBg: '#fbf8f1',
+                action: () => { const d = lead.contact.replace(/\D/g, ''); d ? window.open(`tel:+55${d}`) : onWarn(t('coach_leads.no_phone')) },
               },
               {
                 icon: <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#1B7a4a" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6"/><path d="M22 11h-6"/></svg>,
-                label: 'Converter em aluno', color: '#1B7a4a', hoverBg: '#eef7f0', action: () => onConvert(lead.id),
+                label: t('coach_leads.convert_student'), color: '#1B7a4a', hoverBg: '#eef7f0', action: () => onConvert(lead.id),
               },
             ].map(({ icon, label, color, hoverBg, action }) => (
               <button
@@ -271,6 +288,14 @@ function NewLeadModal({ initialStage, onClose, onAdd }: {
   onClose: () => void
   onAdd:   (data: Omit<Lead, 'id'>) => void
 }) {
+  const { t } = useTranslation()
+  const STAGE_LABELS: Record<Stage, string> = {
+    novo:        t('coach_leads.stage_novo'),
+    contactado:  t('coach_leads.stage_contactado'),
+    interessado: t('coach_leads.stage_interessado'),
+    fechado:     t('coach_leads.stage_fechado'),
+    perdido:     t('coach_leads.stage_perdido'),
+  }
   const [name,    setName]    = useState('')
   const [goal,    setGoal]    = useState('')
   const [contact, setContact] = useState('')
@@ -286,7 +311,7 @@ function NewLeadModal({ initialStage, onClose, onAdd }: {
   }
 
   function handleSubmit() {
-    if (!name.trim()) { setErr('Informe o nome do lead.'); return }
+    if (!name.trim()) { setErr(t('coach_leads.err_name')); return }
     onAdd({
       name:    name.trim(),
       goal:    goal || 'A definir',
@@ -333,8 +358,8 @@ function NewLeadModal({ initialStage, onClose, onAdd }: {
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 20 }}>
           <div>
-            <h2 style={{ font: `800 20px ${FF}`, color: '#1B2A4A', margin: 0, letterSpacing: '-.4px' }}>Novo lead</h2>
-            <p style={{ font: `400 12.5px ${FF}`, color: '#9a948a', margin: '4px 0 0' }}>Preencha os dados e adicione ao funil</p>
+            <h2 style={{ font: `800 20px ${FF}`, color: '#1B2A4A', margin: 0, letterSpacing: '-.4px' }}>{t('coach_leads.new_lead')}</h2>
+            <p style={{ font: `400 12.5px ${FF}`, color: '#9a948a', margin: '4px 0 0' }}>{t('coach_leads.new_lead_desc')}</p>
           </div>
           <button type="button" onClick={onClose} style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#9a948a', padding: 2, flexShrink: 0 }}>
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
@@ -342,9 +367,9 @@ function NewLeadModal({ initialStage, onClose, onAdd }: {
         </div>
 
         {/* Nome */}
-        <label style={lbl}>Nome *</label>
+        <label style={lbl}>{t('coach_leads.name_label')}</label>
         <input
-          autoFocus type="text" value={name} placeholder="Nome completo do lead"
+          autoFocus type="text" value={name} placeholder={t('coach_leads.name_placeholder')}
           onChange={e => { setName(e.target.value); setErr('') }}
           onFocus={fo} onBlur={fb}
           style={{ ...inp, borderColor: err ? '#c4421e' : '#d9d3c4', marginBottom: err ? 6 : 14 }}
@@ -354,7 +379,7 @@ function NewLeadModal({ initialStage, onClose, onAdd }: {
         {/* Objetivo + Contato */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 18 }}>
           <div>
-            <label style={lbl}>Objetivo</label>
+            <label style={lbl}>{t('coach_leads.goal_label')}</label>
             <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
               {GOALS.map(g => (
                 <button key={g} type="button" onClick={() => setGoal(g)} style={{ ...chipBtn(goal === g), fontSize: 11, padding: '5px 10px', marginBottom: 5 }}>{g}</button>
@@ -362,9 +387,9 @@ function NewLeadModal({ initialStage, onClose, onAdd }: {
             </div>
           </div>
           <div>
-            <label style={lbl}>Contato</label>
+            <label style={lbl}>{t('coach_leads.contact')}</label>
             <input
-              type="text" value={contact} placeholder="Telefone, e-mail ou @"
+              type="text" value={contact} placeholder={t('coach_leads.contact_placeholder')}
               onChange={e => setContact(e.target.value)}
               onFocus={fo} onBlur={fb}
               style={{ ...inp, height: 42 }}
@@ -373,7 +398,7 @@ function NewLeadModal({ initialStage, onClose, onAdd }: {
         </div>
 
         {/* Origem */}
-        <label style={{ ...lbl, marginBottom: 8 }}>Origem</label>
+        <label style={{ ...lbl, marginBottom: 8 }}>{t('coach_leads.origin')}</label>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 18 }}>
           {SOURCES.map(s => {
             const ss = SOURCE_STYLE[s]
@@ -398,7 +423,7 @@ function NewLeadModal({ initialStage, onClose, onAdd }: {
         {/* Plano + Valor */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 12, alignItems: 'end', marginBottom: 18 }}>
           <div>
-            <label style={{ ...lbl, marginBottom: 8 }}>Plano de interesse</label>
+            <label style={{ ...lbl, marginBottom: 8 }}>{t('coach_leads.plan_of_interest')}</label>
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
               {PLANS.map(p => (
                 <button key={p} type="button" onClick={() => handlePlanChange(p)} style={chipBtn(plan === p)}>{p}</button>
@@ -406,7 +431,7 @@ function NewLeadModal({ initialStage, onClose, onAdd }: {
             </div>
           </div>
           <div style={{ minWidth: 120 }}>
-            <label style={lbl}>Valor estimado</label>
+            <label style={lbl}>{t('coach_leads.estimated_value')}</label>
             <input
               type="text" value={value} placeholder="R$ 390"
               onChange={e => setValue(e.target.value)}
@@ -417,7 +442,7 @@ function NewLeadModal({ initialStage, onClose, onAdd }: {
         </div>
 
         {/* Etapa do funil */}
-        <label style={{ ...lbl, marginBottom: 8 }}>Etapa do funil</label>
+        <label style={{ ...lbl, marginBottom: 8 }}>{t('coach_leads.funnel_stage')}</label>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 22 }}>
           {STAGES.map(s => {
             const active = stage === s.key
@@ -432,7 +457,7 @@ function NewLeadModal({ initialStage, onClose, onAdd }: {
                   padding: '7px 14px', cursor: 'pointer',
                 }}
               >
-                {s.title}
+                {STAGE_LABELS[s.key]}
               </button>
             )
           })}
@@ -442,7 +467,7 @@ function NewLeadModal({ initialStage, onClose, onAdd }: {
           type="button" onClick={handleSubmit}
           style={{ width: '100%', height: 48, border: 'none', background: '#E8542A', color: '#fff', borderRadius: 10, font: `700 14.5px ${FF}`, cursor: 'pointer', boxShadow: '0 2px 0 #c4421e' }}
         >
-          Adicionar ao funil
+          {t('coach_leads.add_to_funnel')}
         </button>
       </div>
     </div>
@@ -451,6 +476,7 @@ function NewLeadModal({ initialStage, onClose, onAdd }: {
 
 // ── Main ────────────────────────────────────────────────────
 export default function Leads() {
+  const { t } = useTranslation()
   const { leads, fetchLeads, addLead, updateStage } = useLeadsStore()
   const { user } = useAuthStore()
   const [openId,      setOpenId]      = useState<number | null>(null)
@@ -513,7 +539,7 @@ export default function Leads() {
     if (!lead) return
     updateStage(id, 'fechado')
     setOpenId(null)
-    showToast(lead.name.split(' ')[0] + ' convertido em aluno!')
+    showToast(t('coach_leads.converted_toast', { firstName: lead.name.split(' ')[0] }))
   }
 
   async function handleAddLead(data: Omit<Lead, 'id'>) {
@@ -521,7 +547,7 @@ export default function Leads() {
     const { when: _w, ...rest } = data
     await addLead(rest, user.id)
     setNewOpen(false)
-    showToast('Lead adicionado ao funil.')
+    showToast(t('coach_leads.lead_added_toast'))
   }
 
   function handleQuickAdd(col: Stage) {
@@ -542,10 +568,10 @@ export default function Leads() {
       <div style={{ padding: '30px 34px 18px' }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap', marginBottom: 18 }}>
           <div>
-            <h1 style={{ font: `800 27px ${FF}`, color: '#1B2A4A', margin: 0, letterSpacing: '-.6px' }}>Leads</h1>
+            <h1 style={{ font: `800 27px ${FF}`, color: '#1B2A4A', margin: 0, letterSpacing: '-.6px' }}>{t('coach_leads.title')}</h1>
             <p style={{ font: `400 14px ${FF}`, color: '#7c7869', margin: '4px 0 0' }}>
-              <strong style={{ color: '#1B2A4A' }}>{active}</strong> no funil ·{' '}
-              <strong style={{ color: '#1B7a4a' }}>{won}</strong> fechados este mês · taxa de conversão{' '}
+              <strong style={{ color: '#1B2A4A' }}>{active}</strong> {t('coach_leads.in_funnel')} ·{' '}
+              <strong style={{ color: '#1B7a4a' }}>{won}</strong> {t('coach_leads.closed_month')} · {t('coach_leads.conversion_rate')}{' '}
               <strong style={{ color: '#1B2A4A' }}>{conv}</strong>
             </p>
           </div>
@@ -555,7 +581,7 @@ export default function Leads() {
             style={{ display: 'flex', alignItems: 'center', gap: 8, height: 42, padding: '0 18px', border: 'none', background: '#E8542A', color: '#fff', borderRadius: 10, font: `700 13.5px ${FF}`, cursor: 'pointer', boxShadow: '0 2px 0 #c4421e' }}
           >
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
-            Novo lead
+            {t('coach_leads.new_lead')}
           </button>
         </div>
       </div>

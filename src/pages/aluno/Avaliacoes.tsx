@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '../../store/auth'
+import { useSettingsStore } from '../../store/settings'
 import { supabase } from '../../lib/supabase'
 
 const FF = '"Libre Franklin",sans-serif'
@@ -17,15 +19,10 @@ interface AssessmentRow {
   height_cm: number | null
 }
 
-function fmtDate(iso: string) {
-  const [y, m, d] = iso.split('-')
-  return `${d}/${m}/${y}`
-}
-
 function delta(curr: number | null, prev: number | null, dec = 1): string | null {
   if (curr == null || prev == null) return null
   const d = curr - prev
-  if (d === 0) return '= igual'
+  if (d === 0) return null
   return `${d > 0 ? '+' : '−'}${Math.abs(d).toFixed(dec)}`
 }
 
@@ -40,10 +37,18 @@ function deltaColor(curr: number | null, prev: number | null, lowerIsBetter: boo
 export default function Avaliacoes() {
   const { user } = useAuthStore()
   const navigate = useNavigate()
+  const { t } = useTranslation()
+  const { language } = useSettingsStore()
+  const locale = language === 'en-US' ? 'en-US' : 'pt-BR'
 
   const [assessments,    setAssessments]    = useState<AssessmentRow[]>([])
   const [nextAssessment, setNextAssessment] = useState<string | null>(null)
   const [loading,        setLoading]        = useState(true)
+
+  function fmtDate(iso: string) {
+    const [y, m, d] = iso.split('-')
+    return new Date(+y, +m - 1, +d).toLocaleDateString(locale, { day: '2-digit', month: '2-digit', year: 'numeric' })
+  }
 
   useEffect(() => {
     if (!user?.id) return
@@ -78,7 +83,6 @@ export default function Avaliacoes() {
   const latest = assessments.length > 0 ? assessments[assessments.length - 1] : null
   const prev   = assessments.length > 1 ? assessments[assessments.length - 2] : null
 
-  // Weight chart (last 6 with weight)
   const chartData = assessments.filter(a => a.weight_kg != null).slice(-6)
 
   function buildChartPath() {
@@ -91,7 +95,7 @@ export default function Avaliacoes() {
 
     const pts = chartData.map((a, i) => {
       const x = chartData.length === 1 ? W / 2 : (i / (chartData.length - 1)) * W
-      const y = pad + (1 - (( a.weight_kg as number) - minW) / range) * (H - pad * 2)
+      const y = pad + (1 - ((a.weight_kg as number) - minW) / range) * (H - pad * 2)
       return `${x},${y}`
     })
 
@@ -103,10 +107,9 @@ export default function Avaliacoes() {
   const { line: chartLine, area: chartArea } = buildChartPath()
   const chartMonths = chartData.map(a => {
     const [, m] = a.assessed_at.split('-')
-    return ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'][parseInt(m) - 1]
+    return new Date(2024, parseInt(m) - 1, 1).toLocaleDateString(locale, { month: 'short' })
   })
 
-  // Lean mass
   const leanMass = (latest?.weight_kg != null && latest?.body_fat_pct != null)
     ? latest.weight_kg * (1 - latest.body_fat_pct / 100)
     : null
@@ -114,12 +117,11 @@ export default function Avaliacoes() {
     ? prev.weight_kg * (1 - prev.body_fat_pct / 100)
     : null
 
-  // Circumferences
   const circMeasures = [
-    { label: 'Cintura',   value: latest?.waist_cm ?? null, fill: '#E8542A' },
-    { label: 'Quadril',   value: latest?.hip_cm   ?? null, fill: '#1B2A4A' },
-    { label: 'Tórax',     value: latest?.chest_cm ?? null, fill: '#1B2A4A' },
-    { label: 'Braço (D)', value: latest?.arm_cm   ?? null, fill: '#4CAF8A' },
+    { label: t('assessments.label_waist'),     value: latest?.waist_cm ?? null, fill: '#E8542A' },
+    { label: t('assessments.label_hip'),       value: latest?.hip_cm   ?? null, fill: '#1B2A4A' },
+    { label: t('assessments.label_chest'),     value: latest?.chest_cm ?? null, fill: '#1B2A4A' },
+    { label: t('assessments.label_arm_right'), value: latest?.arm_cm   ?? null, fill: '#4CAF8A' },
   ].filter(m => m.value != null) as { label: string; value: number; fill: string }[]
   const maxCirc = circMeasures.length > 0 ? Math.max(...circMeasures.map(m => m.value)) : 1
 
@@ -136,9 +138,11 @@ export default function Avaliacoes() {
 
       {/* Header */}
       <div style={{ padding: '18px 20px 16px' }}>
-        <h1 style={{ font: `800 24px ${FF}`, color: '#1B2A4A', margin: '0 0 4px', letterSpacing: '-.5px' }}>Avaliações</h1>
+        <h1 style={{ font: `800 24px ${FF}`, color: '#1B2A4A', margin: '0 0 4px', letterSpacing: '-.5px' }}>{t('assessments.title')}</h1>
         <p style={{ font: `400 13px ${FF}`, color: '#7C7869', margin: 0 }}>
-          {latest ? `Última avaliação: ${fmtDate(latest.assessed_at)}` : 'Nenhuma avaliação registrada ainda'}
+          {latest
+            ? t('assessments.last_assessment', { date: fmtDate(latest.assessed_at) })
+            : t('assessments.no_assessments_registered')}
         </p>
       </div>
 
@@ -159,10 +163,12 @@ export default function Avaliacoes() {
             >
               <div style={{ textAlign: 'left' }}>
                 <div style={{ font: `700 15px ${FF}`, color: '#fff' }}>
-                  {daysPastDue === 0 ? 'Sua avaliação é hoje!' : `Avaliação há ${daysPastDue} dia${daysPastDue! > 1 ? 's' : ''}`}
+                  {daysPastDue === 0
+                    ? t('aluno_layout.assessment_today')
+                    : t('aluno_layout.assessment_overdue', { count: daysPastDue })}
                 </div>
                 <div style={{ font: `400 12px ${FF}`, color: 'rgba(255,255,255,.75)', marginTop: 2 }}>
-                  Toque para registrar agora
+                  {t('assessments.tap_to_record')}
                 </div>
               </div>
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -183,10 +189,10 @@ export default function Avaliacoes() {
               </div>
               <div>
                 <div style={{ font: `600 13px ${FF}`, color: '#1B2A4A' }}>
-                  Próxima avaliação em {daysUntil} dia{daysUntil !== 1 ? 's' : ''}
+                  {t('assessments.next_in_days', { count: daysUntil })}
                 </div>
                 <div style={{ font: `400 11px ${FF}`, color: '#A39E90', marginTop: 2 }}>
-                  {new Date(nextAssessment + 'T00:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}
+                  {new Date(nextAssessment + 'T00:00:00').toLocaleDateString(locale, { day: '2-digit', month: 'long', year: 'numeric' })}
                 </div>
               </div>
             </div>
@@ -199,8 +205,8 @@ export default function Avaliacoes() {
         <div style={{ padding: '0 18px' }}>
           <div style={{ background: '#fff', borderRadius: 16, padding: '40px 24px', textAlign: 'center', boxShadow: '0 2px 8px rgba(27,42,74,.07)' }}>
             <div style={{ fontSize: 36, marginBottom: 12 }}>📊</div>
-            <div style={{ font: `700 15px ${FF}`, color: '#1B2A4A', marginBottom: 6 }}>Sem dados ainda</div>
-            <div style={{ font: `400 13px ${FF}`, color: '#9a948a' }}>Sua primeira avaliação ainda não foi registrada.</div>
+            <div style={{ font: `700 15px ${FF}`, color: '#1B2A4A', marginBottom: 6 }}>{t('assessments.no_data')}</div>
+            <div style={{ font: `400 13px ${FF}`, color: '#9a948a' }}>{t('assessments.no_data_desc')}</div>
           </div>
         </div>
       )}
@@ -210,9 +216,9 @@ export default function Avaliacoes() {
         <>
           <div style={{ padding: '0 18px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
 
-            {/* Peso */}
+            {/* Weight */}
             <div style={{ background: '#1B2A4A', borderRadius: 16, padding: 16 }}>
-              <div style={{ font: `500 11px ${FF}`, color: '#8B97AD', marginBottom: 8 }}>Peso</div>
+              <div style={{ font: `500 11px ${FF}`, color: '#8B97AD', marginBottom: 8 }}>{t('assessments.weight')}</div>
               <div style={{ font: `900 26px ${FF}`, color: '#FAEEDA' }}>
                 {latest.weight_kg?.toFixed(1) ?? '—'}
                 <span style={{ font: `500 14px ${FF}`, color: '#8B97AD' }}> kg</span>
@@ -224,9 +230,9 @@ export default function Avaliacoes() {
               )}
             </div>
 
-            {/* % Gordura */}
+            {/* Body fat */}
             <div style={{ background: '#fff', borderRadius: 16, padding: 16, boxShadow: '0 2px 8px rgba(27,42,74,.07)' }}>
-              <div style={{ font: `500 11px ${FF}`, color: '#A39E90', marginBottom: 8 }}>% Gordura</div>
+              <div style={{ font: `500 11px ${FF}`, color: '#A39E90', marginBottom: 8 }}>{t('assessments.body_fat_pct')}</div>
               <div style={{ font: `900 26px ${FF}`, color: '#1B2A4A' }}>
                 {latest.body_fat_pct?.toFixed(1) ?? '—'}
                 <span style={{ font: `500 14px ${FF}`, color: '#A39E90' }}>{latest.body_fat_pct != null ? '%' : ''}</span>
@@ -238,9 +244,9 @@ export default function Avaliacoes() {
               )}
             </div>
 
-            {/* Massa Magra */}
+            {/* Lean mass */}
             <div style={{ background: '#fff', borderRadius: 16, padding: 16, boxShadow: '0 2px 8px rgba(27,42,74,.07)' }}>
-              <div style={{ font: `500 11px ${FF}`, color: '#A39E90', marginBottom: 8 }}>Massa Magra</div>
+              <div style={{ font: `500 11px ${FF}`, color: '#A39E90', marginBottom: 8 }}>{t('assessments.lean_mass')}</div>
               <div style={{ font: `900 26px ${FF}`, color: '#1B2A4A' }}>
                 {leanMass != null ? leanMass.toFixed(1) : '—'}
                 <span style={{ font: `500 14px ${FF}`, color: '#A39E90' }}>{leanMass != null ? ' kg' : ''}</span>
@@ -252,16 +258,16 @@ export default function Avaliacoes() {
               )}
             </div>
 
-            {/* Avaliações */}
+            {/* Assessment count */}
             <div style={{ background: '#fff', borderRadius: 16, padding: 16, boxShadow: '0 2px 8px rgba(27,42,74,.07)' }}>
-              <div style={{ font: `500 11px ${FF}`, color: '#A39E90', marginBottom: 8 }}>Avaliações</div>
+              <div style={{ font: `500 11px ${FF}`, color: '#A39E90', marginBottom: 8 }}>{t('assessments.assessments_label')}</div>
               <div style={{ font: `900 26px ${FF}`, color: '#1B2A4A' }}>
                 {assessments.length}
-                <span style={{ font: `500 14px ${FF}`, color: '#A39E90' }}> {assessments.length === 1 ? 'vez' : 'vezes'}</span>
+                <span style={{ font: `500 14px ${FF}`, color: '#A39E90' }}> {t('assessments.times_unit', { count: assessments.length })}</span>
               </div>
               {prev && (
                 <div style={{ font: `600 11px ${FF}`, color: '#A39E90', marginTop: 4 }}>
-                  Ant: {fmtDate(prev.assessed_at)}
+                  {t('assessments.prev_label')} {fmtDate(prev.assessed_at)}
                 </div>
               )}
             </div>
@@ -271,7 +277,7 @@ export default function Avaliacoes() {
           {chartData.length >= 2 && (
             <div style={{ padding: '0 18px', marginBottom: 10 }}>
               <div style={{ background: '#fff', borderRadius: 16, padding: 18, boxShadow: '0 2px 8px rgba(27,42,74,.07)' }}>
-                <div style={{ font: `700 14px ${FF}`, color: '#1B2A4A', marginBottom: 14 }}>Evolução do Peso</div>
+                <div style={{ font: `700 14px ${FF}`, color: '#1B2A4A', marginBottom: 14 }}>{t('assessments.weight_evolution')}</div>
                 <svg width="100%" height={100} viewBox="0 0 300 100" preserveAspectRatio="none">
                   <defs>
                     <linearGradient id="wgrad" x1="0" y1="0" x2="0" y2="1">
@@ -305,7 +311,7 @@ export default function Avaliacoes() {
           {circMeasures.length > 0 && (
             <div style={{ padding: '0 18px' }}>
               <div style={{ background: '#fff', borderRadius: 16, padding: 18, boxShadow: '0 2px 8px rgba(27,42,74,.07)' }}>
-                <div style={{ font: `700 14px ${FF}`, color: '#1B2A4A', marginBottom: 14 }}>Circunferências</div>
+                <div style={{ font: `700 14px ${FF}`, color: '#1B2A4A', marginBottom: 14 }}>{t('assessments.circumferences')}</div>
                 {circMeasures.map(({ label, value, fill }) => (
                   <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
                     <span style={{ font: `500 13px ${FF}`, color: '#7C7869', width: 80, flexShrink: 0 }}>{label}</span>

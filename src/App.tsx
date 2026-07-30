@@ -1,5 +1,7 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
+import i18n from './i18n'
+import { useSettingsStore } from './store/settings'
 import IntroScreen from './components/IntroScreen'
 import Layout from './components/layout/Layout'
 import Login from './pages/Login'
@@ -33,6 +35,11 @@ import Register from './pages/Register'
 
 export default function App() {
   const [intro, setIntro] = useState(true)
+  const language = useSettingsStore(s => s.language)
+
+  useEffect(() => {
+    i18n.changeLanguage(language)
+  }, [language])
 
   if (intro) return <IntroScreen onDone={() => setIntro(false)} />
 

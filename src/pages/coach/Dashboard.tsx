@@ -1,8 +1,10 @@
 import { useState, useEffect, type CSSProperties } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { useStudentsStore } from '../../store/students'
 import { useAuthStore } from '../../store/auth'
 import { useLeadsStore } from '../../store/leads'
+import { useSettingsStore } from '../../store/settings'
 import { NewStudentModal } from '../../components/coach/NewStudentModal'
 import { supabase } from '../../lib/supabase'
 
@@ -22,29 +24,27 @@ function getInitials(name: string) {
   return ((parts[0]?.[0] ?? '') + (parts[1]?.[0] ?? '')).toUpperCase()
 }
 
-function payInfo(p: PayStatus) {
-  if (p === 'active') return { label: 'Em dia',    color: '#1B7a4a', bg: '#e7f3ea' }
-  return                     { label: 'Em atraso', color: '#D2402A', bg: '#fbe6e1' }
+type TFn = (key: string, opts?: Record<string, unknown>) => string
+
+function payInfo(p: PayStatus, t: TFn) {
+  if (p === 'active') return { label: t('dashboard.pay_active'),  color: '#1B7a4a', bg: '#e7f3ea' }
+  return                     { label: t('dashboard.pay_overdue'), color: '#D2402A', bg: '#fbe6e1' }
 }
 
-function semInfo(s: SemColor) {
-  if (s === 'green')  return { color: '#2b9d5f', label: 'Engajado'  }
-  if (s === 'yellow') return { color: '#E0A93B', label: 'Em alerta' }
-  return                     { color: '#E0533B', label: 'Inativo'   }
+function semInfo(s: SemColor, t: TFn) {
+  if (s === 'green')  return { color: '#2b9d5f', label: t('dashboard.engaged_single')  }
+  if (s === 'yellow') return { color: '#E0A93B', label: t('dashboard.on_alert_single') }
+  return                     { color: '#E0533B', label: t('dashboard.inactive_single') }
 }
 
-function formatDate() {
-  const d = new Date()
-  const days   = ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado']
-  const months = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro']
-  return `${days[d.getDay()]}, ${d.getDate()} de ${months[d.getMonth()]}`
+function formatDate(locale: string) {
+  return new Date().toLocaleDateString(locale, { weekday: 'long', day: 'numeric', month: 'long' })
 }
 
 function fmtShort(iso: string) {
   const [, m, d] = iso.split('-')
   return `${d}/${m}`
 }
-
 
 function diffDays(iso: string) {
   const today = new Date(); today.setHours(0,0,0,0)
@@ -89,6 +89,7 @@ function Chip({ active, children, onClick }: { active: boolean; children: React.
 
 // ── Invite modal ────────────────────────────────────────────
 function InviteModal({ coachId, onClose }: { coachId: string; onClose: () => void }) {
+  const { t } = useTranslation()
   const [inviteEmail, setInviteEmail] = useState('')
   const [link,        setLink]        = useState('')
   const [copied,      setCopied]      = useState(false)
@@ -109,16 +110,16 @@ function InviteModal({ coachId, onClose }: { coachId: string; onClose: () => voi
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(20,25,40,.5)', zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
       <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 420, background: '#fff', borderRadius: 16, padding: '26px 26px 24px', boxShadow: '0 24px 60px rgba(0,0,0,.3)' }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 6 }}>
-          <h2 style={{ font: `800 20px ${FF}`, color: '#1B2A4A', margin: 0, letterSpacing: '-.4px' }}>Convidar aluno</h2>
+          <h2 style={{ font: `800 20px ${FF}`, color: '#1B2A4A', margin: 0, letterSpacing: '-.4px' }}>{t('dashboard.invite_title')}</h2>
           <button type="button" onClick={onClose} style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#9a948a', padding: 2 }}>
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6L6 18" /><path d="M6 6l12 12" /></svg>
           </button>
         </div>
         <p style={{ font: `400 13.5px/1.5 ${FF}`, color: '#7c7869', margin: '0 0 18px' }}>
-          Gere um link de convite. O aluno define a própria senha e o link expira em 7 dias.
+          {t('dashboard.invite_desc')}
         </p>
         <label style={{ display: 'block', font: `600 11px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#6b6657', marginBottom: 7 }}>
-          E-mail do aluno (opcional)
+          {t('dashboard.student_email_optional')}
         </label>
         <input
           type="email" placeholder="aluno@email.com" value={inviteEmail}
@@ -127,18 +128,18 @@ function InviteModal({ coachId, onClose }: { coachId: string; onClose: () => voi
         />
         {!link
           ? <button type="button" onClick={genLink} style={{ width: '100%', height: 48, border: 'none', background: '#E8542A', color: '#fff', borderRadius: 10, font: `700 14.5px ${FF}`, cursor: 'pointer', boxShadow: '0 2px 0 #c4421e' }}>
-              Gerar link de convite
+              {t('dashboard.generate_link')}
             </button>
           : <div>
-              <div style={{ font: `600 11px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#6b6657', marginBottom: 7 }}>Link gerado</div>
+              <div style={{ font: `600 11px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#6b6657', marginBottom: 7 }}>{t('dashboard.generated_link')}</div>
               <div style={{ display: 'flex', gap: 8 }}>
                 <div style={{ flex: 1, minWidth: 0, height: 46, border: '1.5px solid #d9d3c4', borderRadius: 10, background: '#f7f3ea', display: 'flex', alignItems: 'center', padding: '0 13px', font: `500 12.5px ${FF}`, color: '#1B2A4A', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{link}</div>
                 <button type="button" onClick={copyLink} style={{ flexShrink: 0, width: 104, height: 46, border: 'none', borderRadius: 10, background: copied ? '#1B7a4a' : '#1B2A4A', color: '#fff', font: `700 13px ${FF}`, cursor: 'pointer' }}>
-                  {copied ? 'Copiado!' : 'Copiar'}
+                  {copied ? t('common.copied') : t('common.copy')}
                 </button>
               </div>
               <p style={{ font: `400 12px/1.5 ${FF}`, color: '#9a948a', margin: '12px 0 0' }}>
-                Compartilhe por WhatsApp ou e-mail. Você verá o aluno aqui assim que ele concluir o cadastro.
+                {t('dashboard.share_link')}
               </p>
             </div>
         }
@@ -149,6 +150,9 @@ function InviteModal({ coachId, onClose }: { coachId: string; onClose: () => voi
 
 // ── Main Dashboard ──────────────────────────────────────────
 export default function Dashboard() {
+  const { t } = useTranslation()
+  const { language } = useSettingsStore()
+  const locale = language === 'en-US' ? 'en-US' : 'pt-BR'
   const navigate = useNavigate()
   const [filter,    setFilter]    = useState<'all' | SemColor>('all')
   const [inviteOpen, setInviteOpen] = useState(false)
@@ -222,7 +226,6 @@ export default function Dashboard() {
         })))
       })
 
-    // Próximos vencimentos reais da tabela payments (um por aluno, mais próximo)
     supabase
       .from('payments')
       .select('student_id, due_date, students!inner(name, coach_id)')
@@ -247,48 +250,54 @@ export default function Dashboard() {
   const shown = filter === 'all' ? students : students.filter(s => s.sem === filter)
   const count = (c: SemColor) => students.filter(s => s.sem === c).length
 
+  function relativeLabel(diff: number) {
+    if (diff === 0) return t('common.today')
+    if (diff === 1) return t('common.tomorrow')
+    return t('common.in_days', { count: diff })
+  }
+
   return (
     <div className="k-pagepad" style={{ padding: '30px 34px 64px', maxWidth: 1180 }}>
 
       {/* ── Header ─────────────────────────────────────────── */}
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap', marginBottom: 26 }}>
         <div>
-          <div style={{ font: `600 12px ${FF}`, color: '#a39e90', letterSpacing: '.4px', textTransform: 'uppercase', marginBottom: 5 }}>{formatDate()}</div>
-          <h1 style={{ font: `800 27px ${FF}`, color: '#1B2A4A', margin: 0, letterSpacing: '-.6px' }}>Olá, {user?.name?.split(' ')[0] ?? 'Coach'} 👋</h1>
+          <div style={{ font: `600 12px ${FF}`, color: '#a39e90', letterSpacing: '.4px', textTransform: 'uppercase', marginBottom: 5 }}>{formatDate(locale)}</div>
+          <h1 style={{ font: `800 27px ${FF}`, color: '#1B2A4A', margin: 0, letterSpacing: '-.6px' }}>{t('dashboard.greeting', { name: user?.name?.split(' ')[0] ?? 'Coach' })}</h1>
           <p style={{ font: `400 14px ${FF}`, color: '#7c7869', margin: '4px 0 0' }}>
             {count('red') > 0
-              ? <><strong style={{ color: '#1B2A4A' }}>{count('red')} aluno{count('red') > 1 ? 's' : ''}</strong> {count('red') > 1 ? 'precisando' : 'precisando'} de atenção.</>
-              : 'Tudo em ordem por hoje.'}
+              ? t('dashboard.attention', { count: count('red') })
+              : t('dashboard.all_good')}
           </p>
         </div>
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
           <button type="button" onClick={() => setInviteOpen(true)} style={{ display: 'flex', alignItems: 'center', gap: 8, height: 42, padding: '0 16px', border: '1.5px solid #d6cfbe', background: '#fff', color: '#1B2A4A', borderRadius: 10, font: `600 13.5px ${FF}`, cursor: 'pointer' }}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M19 8v6" /><path d="M22 11h-6" /></svg>
-            Convidar
+            {t('dashboard.invite')}
           </button>
           <button type="button" onClick={() => setNewOpen(true)} style={{ display: 'flex', alignItems: 'center', gap: 8, height: 42, padding: '0 18px', border: 'none', background: '#E8542A', color: '#fff', borderRadius: 10, font: `700 13.5px ${FF}`, cursor: 'pointer', boxShadow: '0 2px 0 #c4421e' }}>
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round"><path d="M12 5v14" /><path d="M5 12h14" /></svg>
-            Novo aluno
+            {t('dashboard.new_student')}
           </button>
         </div>
       </div>
 
       {/* ── KPI cards ──────────────────────────────────────── */}
       <div className="k-kpis" style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 14, marginBottom: 16 }}>
-        <KpiCard label="Alunos ativos" value={students.filter(s => s.pay === 'active').length} sub={students.length > 0 ? `${students.length} no total` : 'Nenhum aluno ainda'} subColor="#2b9d5f" iconBg="#eef1f6" iconColor="#1B2A4A"
+        <KpiCard label={t('dashboard.kpi_active_students')} value={students.filter(s => s.pay === 'active').length} sub={students.length > 0 ? t('dashboard.kpi_total', { count: students.length }) : t('dashboard.kpi_no_students')} subColor="#2b9d5f" iconBg="#eef1f6" iconColor="#1B2A4A"
           icon={<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /></svg>}
         />
-        <KpiCard label="Pagam. vencidos" value={students.filter(s => s.pay === 'overdue').length} sub={students.filter(s => s.pay === 'overdue').length > 0 ? 'Ver pagamentos' : 'Sem atrasos'} subColor={students.filter(s => s.pay === 'overdue').length > 0 ? '#D2402A' : '#2b9d5f'} iconBg="#fbe6e1" iconColor="#D2402A"
+        <KpiCard label={t('dashboard.kpi_overdue_payments')} value={students.filter(s => s.pay === 'overdue').length} sub={students.filter(s => s.pay === 'overdue').length > 0 ? t('dashboard.kpi_see_payments') : t('dashboard.kpi_no_delays')} subColor={students.filter(s => s.pay === 'overdue').length > 0 ? '#D2402A' : '#2b9d5f'} iconBg="#fbe6e1" iconColor="#D2402A"
           icon={<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /><path d="M12 8v4" /><path d="M12 16h.01" /></svg>}
           onSubClick={students.filter(s => s.pay === 'overdue').length > 0 ? () => navigate('/coach/pagamentos?tab=atrasado') : undefined}
         />
-        <KpiCard label="Leads novos" value={0} sub="no funil esta semana" subColor="#7c7869" iconBg="#f7ecd9" iconColor="#b06a12"
+        <KpiCard label={t('dashboard.kpi_new_leads')} value={0} sub={t('dashboard.kpi_in_funnel')} subColor="#7c7869" iconBg="#f7ecd9" iconColor="#b06a12"
           icon={<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3v18h18" /><path d="M7 14l4-4 3 3 5-6" /></svg>}
         />
         <KpiCard
-          label="Aval. pendentes"
+          label={t('dashboard.kpi_pending_assessments')}
           value={pendingAssessments.length}
-          sub={pendingAssessments.length > 0 ? 'em atraso' : 'Sem atrasos'}
+          sub={pendingAssessments.length > 0 ? t('dashboard.kpi_overdue') : t('dashboard.kpi_no_delays')}
           subColor={pendingAssessments.length > 0 ? '#D2402A' : '#2b9d5f'}
           iconBg="#eef1f6" iconColor="#1B2A4A"
           icon={<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4" /><path d="M8 2v4" /><path d="M3 10h18" /></svg>}
@@ -299,10 +308,10 @@ export default function Dashboard() {
       <div style={{ background: '#fff', border: '1px solid #ece7d9', borderRadius: 14, padding: '20px 22px', marginBottom: 16 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
           <div>
-            <h2 style={{ font: `700 16px ${FF}`, color: '#1B2A4A', margin: 0 }}>Semáforo de engajamento</h2>
-            <p style={{ font: `400 12.5px ${FF}`, color: '#7c7869', margin: '3px 0 0' }}>Baseado nos check-ins semanais dos alunos</p>
+            <h2 style={{ font: `700 16px ${FF}`, color: '#1B2A4A', margin: 0 }}>{t('dashboard.engagement_title')}</h2>
+            <p style={{ font: `400 12.5px ${FF}`, color: '#7c7869', margin: '3px 0 0' }}>{t('dashboard.engagement_sub')}</p>
           </div>
-          <span className="k-hidesm" style={{ font: `600 12px ${FF}`, color: '#a39e90' }}>{students.length} alunos</span>
+          <span className="k-hidesm" style={{ font: `600 12px ${FF}`, color: '#a39e90' }}>{t('dashboard.students_count', { count: students.length })}</span>
         </div>
         <div style={{ display: 'flex', height: 12, borderRadius: 7, overflow: 'hidden', marginBottom: 16 }}>
           {students.length === 0
@@ -315,7 +324,11 @@ export default function Dashboard() {
           }
         </div>
         <div style={{ display: 'flex', gap: 26, flexWrap: 'wrap' }}>
-          {[{ color: '#2b9d5f', n: count('green'), label: 'engajados' }, { color: '#E0A93B', n: count('yellow'), label: 'em alerta' }, { color: '#E0533B', n: count('red'), label: 'inativos' }].map(({ color, n, label }) => (
+          {[
+            { color: '#2b9d5f', n: count('green'),  label: t('dashboard.engaged')  },
+            { color: '#E0A93B', n: count('yellow'), label: t('dashboard.on_alert') },
+            { color: '#E0533B', n: count('red'),    label: t('dashboard.inactive') },
+          ].map(({ color, n, label }) => (
             <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
               <span style={{ width: 11, height: 11, borderRadius: '50%', background: color }} />
               <span style={{ font: `600 14px ${FF}`, color: '#1B2A4A' }}>{n}</span>
@@ -331,9 +344,9 @@ export default function Dashboard() {
         {/* Students list */}
         <div style={{ flex: 1, minWidth: 0, background: '#fff', border: '1px solid #ece7d9', borderRadius: 14, overflow: 'hidden' }}>
           <div style={{ padding: '18px 20px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-            <h2 style={{ font: `700 16px ${FF}`, color: '#1B2A4A', margin: 0 }}>Seus alunos</h2>
+            <h2 style={{ font: `700 16px ${FF}`, color: '#1B2A4A', margin: 0 }}>{t('dashboard.your_students')}</h2>
             <div style={{ display: 'flex', gap: 6 }}>
-              <Chip active={filter === 'all'}    onClick={() => setFilter('all')}>Todos · {students.length}</Chip>
+              <Chip active={filter === 'all'}    onClick={() => setFilter('all')}>{t('dashboard.filter_all', { count: students.length })}</Chip>
               <Chip active={filter === 'green'}  onClick={() => setFilter('green')}>
                 <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#2b9d5f', display: 'inline-block', marginRight: 5 }} />{count('green')}
               </Chip>
@@ -347,11 +360,11 @@ export default function Dashboard() {
           </div>
 
           {shown.length === 0
-            ? <div style={{ padding: '34px 20px', textAlign: 'center', font: `400 13px ${FF}`, color: '#9a948a', borderTop: '1px solid #f1ece0' }}>Nenhum aluno neste filtro.</div>
+            ? <div style={{ padding: '34px 20px', textAlign: 'center', font: `400 13px ${FF}`, color: '#9a948a', borderTop: '1px solid #f1ece0' }}>{t('dashboard.no_students_filter')}</div>
             : shown.map((s, i) => {
                 const pal = AVATAR_PALETTE[i % AVATAR_PALETTE.length]
-                const pay = payInfo(s.pay)
-                const sem = semInfo(s.sem)
+                const pay = payInfo(s.pay, t)
+                const sem = semInfo(s.sem, t)
                 return (
                   <div key={s.id} onClick={() => navigate(`/coach/alunos/${s.id}`)} style={{ display: 'flex', alignItems: 'center', gap: 13, padding: '12px 20px', borderTop: '1px solid #f1ece0', cursor: 'pointer' }}>
                     <div style={{ width: 38, height: 38, borderRadius: '50%', background: pal[0], color: pal[1], display: 'flex', alignItems: 'center', justifyContent: 'center', font: `700 13px ${FF}`, flexShrink: 0 }}>
@@ -387,7 +400,7 @@ export default function Dashboard() {
             const yesterdayItems = checkIns.filter(c => c.created_at.startsWith(yesterdayStr))
 
             function fmtTime(iso: string) {
-              return new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+              return new Date(iso).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })
             }
 
             function CheckInItem({ c, i }: { c: CheckInFeed; i: number }) {
@@ -416,25 +429,25 @@ export default function Dashboard() {
             return (
               <div style={{ background: '#fff', border: '1px solid #ece7d9', borderRadius: 14, padding: '18px 18px 10px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
-                  <h2 style={{ font: `700 15px ${FF}`, color: '#1B2A4A', margin: 0 }}>Check-ins</h2>
+                  <h2 style={{ font: `700 15px ${FF}`, color: '#1B2A4A', margin: 0 }}>{t('dashboard.checkins_title')}</h2>
                   {checkIns.length > 0 && (
-                    <span style={{ font: `600 11px ${FF}`, color: '#1B7a4a', background: '#e7f3ea', borderRadius: 20, padding: '3px 9px' }}>{checkIns.length} hoje e ontem</span>
+                    <span style={{ font: `600 11px ${FF}`, color: '#1B7a4a', background: '#e7f3ea', borderRadius: 20, padding: '3px 9px' }}>{t('dashboard.checkins_count', { count: checkIns.length })}</span>
                   )}
                 </div>
 
                 {checkIns.length === 0 ? (
-                  <div style={{ padding: '18px 0', borderTop: '1px solid #f1ece0', font: `400 13px ${FF}`, color: '#9a948a', textAlign: 'center' }}>Nenhum check-in recente</div>
+                  <div style={{ padding: '18px 0', borderTop: '1px solid #f1ece0', font: `400 13px ${FF}`, color: '#9a948a', textAlign: 'center' }}>{t('dashboard.no_checkins')}</div>
                 ) : (
                   <>
                     {todayItems.length > 0 && (
                       <div style={{ marginTop: 10 }}>
-                        <div style={{ font: `700 10px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#E8542A', marginBottom: 2 }}>Hoje</div>
+                        <div style={{ font: `700 10px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#E8542A', marginBottom: 2 }}>{t('common.today')}</div>
                         {todayItems.map((c, i) => <CheckInItem key={c.id} c={c} i={i} />)}
                       </div>
                     )}
                     {yesterdayItems.length > 0 && (
                       <div style={{ marginTop: todayItems.length > 0 ? 12 : 10 }}>
-                        <div style={{ font: `700 10px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#9a948a', marginBottom: 2 }}>Ontem</div>
+                        <div style={{ font: `700 10px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#9a948a', marginBottom: 2 }}>{t('common.yesterday')}</div>
                         {yesterdayItems.map((c, i) => <CheckInItem key={c.id} c={c} i={i} />)}
                       </div>
                     )}
@@ -452,22 +465,22 @@ export default function Dashboard() {
             return (
               <div style={{ background: '#fff', border: '1px solid #ece7d9', borderRadius: 14, padding: '18px 18px 8px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-                  <h2 style={{ font: `700 15px ${FF}`, color: '#1B2A4A', margin: 0 }}>Pagamentos</h2>
+                  <h2 style={{ font: `700 15px ${FF}`, color: '#1B2A4A', margin: 0 }}>{t('dashboard.payments_title')}</h2>
                   {overdue.length > 0 && (
-                    <span style={{ font: `600 11px ${FF}`, color: '#D2402A', background: '#fbe6e1', borderRadius: 20, padding: '3px 9px' }}>{overdue.length} vencido{overdue.length > 1 ? 's' : ''}</span>
+                    <span style={{ font: `600 11px ${FF}`, color: '#D2402A', background: '#fbe6e1', borderRadius: 20, padding: '3px 9px' }}>{t('dashboard.overdue_count', { count: overdue.length })}</span>
                   )}
                 </div>
 
                 {/* Overdue */}
                 {overdue.length === 0
-                  ? <div style={{ padding: '14px 0', borderTop: '1px solid #f1ece0', font: `400 13px ${FF}`, color: '#9a948a', textAlign: 'center' }}>Sem pagamentos vencidos</div>
+                  ? <div style={{ padding: '14px 0', borderTop: '1px solid #f1ece0', font: `400 13px ${FF}`, color: '#9a948a', textAlign: 'center' }}>{t('dashboard.no_overdue')}</div>
                   : overdue.map(s => (
                     <div key={s.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '11px 0', borderTop: '1px solid #f1ece0' }}>
                       <div>
                         <div style={{ font: `600 13.5px ${FF}`, color: '#1B2A4A' }}>{s.name}</div>
-                        <div style={{ font: `400 11.5px ${FF}`, color: '#D2402A' }}>pagamento vencido</div>
+                        <div style={{ font: `400 11.5px ${FF}`, color: '#D2402A' }}>{t('dashboard.overdue_pay_label')}</div>
                       </div>
-                      <span style={{ font: `600 11px ${FF}`, color: '#D2402A', background: '#fbe6e1', borderRadius: 20, padding: '3px 9px' }}>Vencido</span>
+                      <span style={{ font: `600 11px ${FF}`, color: '#D2402A', background: '#fbe6e1', borderRadius: 20, padding: '3px 9px' }}>{t('common.overdue')}</span>
                     </div>
                   ))
                 }
@@ -476,16 +489,15 @@ export default function Dashboard() {
                 {upcoming.length > 0 && (
                   <>
                     <div style={{ font: `700 10px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#9a948a', padding: '12px 0 2px', borderTop: overdue.length > 0 ? '1px solid #f1ece0' : 'none', marginTop: overdue.length > 0 ? 4 : 0 }}>
-                      Próximos vencimentos
+                      {t('dashboard.upcoming_due')}
                     </div>
                     {upcoming.map(({ studentId, name, iso }) => {
                       const diff = diffDays(iso)
-                      const label = diff === 0 ? 'hoje' : diff === 1 ? 'amanhã' : `em ${diff} dias`
                       return (
                         <div key={studentId} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0', borderTop: '1px solid #f1ece0' }}>
                           <div>
                             <div style={{ font: `600 13.5px ${FF}`, color: '#1B2A4A' }}>{name}</div>
-                            <div style={{ font: `400 11.5px ${FF}`, color: diff <= 5 ? '#b06a12' : '#9a948a' }}>{label}</div>
+                            <div style={{ font: `400 11.5px ${FF}`, color: diff <= 5 ? '#b06a12' : '#9a948a' }}>{relativeLabel(diff)}</div>
                           </div>
                           <span style={{ font: `600 12px ${FF}`, color: '#7c7869' }}>{fmtShort(iso)}</span>
                         </div>
@@ -495,7 +507,7 @@ export default function Dashboard() {
                 )}
 
                 <button type="button" onClick={() => navigate('/coach/pagamentos')} style={{ width: '100%', border: 'none', background: 'none', color: '#E8542A', font: `600 13px ${FF}`, padding: '12px 0', cursor: 'pointer', borderTop: '1px solid #f1ece0', marginTop: 4 }}>
-                  Ver todos os pagamentos →
+                  {t('dashboard.see_all_payments')}
                 </button>
               </div>
             )
@@ -505,10 +517,10 @@ export default function Dashboard() {
           {(pendingAssessments.length > 0 || upcomingAssessments.length > 0) && (
             <div style={{ background: '#fff', border: '1px solid #ece7d9', borderRadius: 14, padding: '18px 18px 8px' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-                <h2 style={{ font: `700 15px ${FF}`, color: '#1B2A4A', margin: 0 }}>Avaliações</h2>
+                <h2 style={{ font: `700 15px ${FF}`, color: '#1B2A4A', margin: 0 }}>{t('dashboard.assessments_title')}</h2>
                 {pendingAssessments.length > 0 && (
                   <span style={{ font: `600 11px ${FF}`, color: '#D2402A', background: '#fbe6e1', borderRadius: 20, padding: '3px 9px' }}>
-                    {pendingAssessments.length} em atraso
+                    {t('dashboard.overdue_count', { count: pendingAssessments.length })}
                   </span>
                 )}
               </div>
@@ -516,15 +528,16 @@ export default function Dashboard() {
               {pendingAssessments.length > 0 && (
                 <>
                   <div style={{ font: `700 10px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#D2402A', padding: '10px 0 2px', borderTop: '1px solid #f1ece0' }}>
-                    Em atraso
+                    {t('dashboard.overdue_label')}
                   </div>
                   {pendingAssessments.slice(0, 4).map(a => {
                     const late = Math.abs(diffDays(a.next_assessment))
+                    const lateLabel = late === 1 ? t('common.yesterday') : t('common.days_ago', { count: late })
                     return (
                       <div key={a.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0', borderTop: '1px solid #f1ece0' }}>
                         <div>
                           <div style={{ font: `600 13.5px ${FF}`, color: '#1B2A4A' }}>{a.name}</div>
-                          <div style={{ font: `400 11.5px ${FF}`, color: '#D2402A' }}>{late === 1 ? 'ontem' : `há ${late} dias`}</div>
+                          <div style={{ font: `400 11.5px ${FF}`, color: '#D2402A' }}>{lateLabel}</div>
                         </div>
                         <span style={{ font: `600 12px ${FF}`, color: '#D2402A' }}>{fmtShort(a.next_assessment)}</span>
                       </div>
@@ -532,7 +545,7 @@ export default function Dashboard() {
                   })}
                   {pendingAssessments.length > 4 && (
                     <div style={{ font: `500 11.5px ${FF}`, color: '#9a948a', padding: '6px 0 4px', borderTop: '1px solid #f1ece0', textAlign: 'center' }}>
-                      +{pendingAssessments.length - 4} mais em atraso
+                      {t('dashboard.more_overdue', { count: pendingAssessments.length - 4 })}
                     </div>
                   )}
                 </>
@@ -541,16 +554,15 @@ export default function Dashboard() {
               {upcomingAssessments.length > 0 && (
                 <>
                   <div style={{ font: `700 10px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#1B7a4a', padding: '10px 0 2px', borderTop: '1px solid #f1ece0', marginTop: pendingAssessments.length > 0 ? 4 : 0 }}>
-                    Próximas
+                    {t('dashboard.upcoming_label')}
                   </div>
                   {upcomingAssessments.map(a => {
-                    const diff  = diffDays(a.next_assessment)
-                    const label = diff === 0 ? 'hoje' : diff === 1 ? 'amanhã' : `em ${diff} dias`
+                    const diff = diffDays(a.next_assessment)
                     return (
                       <div key={a.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0', borderTop: '1px solid #f1ece0' }}>
                         <div>
                           <div style={{ font: `600 13.5px ${FF}`, color: '#1B2A4A' }}>{a.name}</div>
-                          <div style={{ font: `400 11.5px ${FF}`, color: diff === 0 ? '#1B7a4a' : '#9a948a' }}>{label}</div>
+                          <div style={{ font: `400 11.5px ${FF}`, color: diff === 0 ? '#1B7a4a' : '#9a948a' }}>{relativeLabel(diff)}</div>
                         </div>
                         <span style={{ font: `600 12px ${FF}`, color: '#7c7869' }}>{fmtShort(a.next_assessment)}</span>
                       </div>
@@ -560,7 +572,7 @@ export default function Dashboard() {
               )}
 
               <button type="button" onClick={() => navigate('/coach/alunos')} style={{ width: '100%', border: 'none', background: 'none', color: '#E8542A', font: `600 13px ${FF}`, padding: '12px 0', cursor: 'pointer', borderTop: '1px solid #f1ece0', marginTop: 4 }}>
-                Ver alunos →
+                {t('dashboard.see_students')}
               </button>
             </div>
           )}
@@ -581,14 +593,14 @@ export default function Dashboard() {
             return (
               <div style={{ background: '#fff', border: '1px solid #ece7d9', borderRadius: 14, padding: '18px 18px 10px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
-                  <h2 style={{ font: `700 15px ${FF}`, color: '#1B2A4A', margin: 0 }}>Feedbacks semanais</h2>
+                  <h2 style={{ font: `700 15px ${FF}`, color: '#1B2A4A', margin: 0 }}>{t('dashboard.recent_feedbacks')}</h2>
                   {recentFeedbacks.length > 0 && (
-                    <span style={{ font: `600 11px ${FF}`, color: '#5a4ea0', background: '#ece9f6', borderRadius: 20, padding: '3px 9px' }}>últimos {recentFeedbacks.length}</span>
+                    <span style={{ font: `600 11px ${FF}`, color: '#5a4ea0', background: '#ece9f6', borderRadius: 20, padding: '3px 9px' }}>{t('dashboard.last_feedbacks', { count: recentFeedbacks.length })}</span>
                   )}
                 </div>
 
                 {recentFeedbacks.length === 0 ? (
-                  <div style={{ padding: '18px 0', borderTop: '1px solid #f1ece0', font: `400 13px ${FF}`, color: '#9a948a', textAlign: 'center' }}>Nenhum feedback recente</div>
+                  <div style={{ padding: '18px 0', borderTop: '1px solid #f1ece0', font: `400 13px ${FF}`, color: '#9a948a', textAlign: 'center' }}>{t('dashboard.no_feedbacks')}</div>
                 ) : recentFeedbacks.map((fb, i) => {
                   const pal  = AVATAR_PALETTE[i % AVATAR_PALETTE.length]
                   const name = fb.students?.name ?? '—'
@@ -603,7 +615,7 @@ export default function Dashboard() {
                       <div style={{ minWidth: 0, flex: 1 }}>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
                           <span style={{ font: `600 13px ${FF}`, color: '#1B2A4A', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{name}</span>
-                          <span style={{ font: `500 11px ${FF}`, color: '#b0a99c', flexShrink: 0 }}>sem. {fmtWeek(fb.week_start)}</span>
+                          <span style={{ font: `500 11px ${FF}`, color: '#b0a99c', flexShrink: 0 }}>{t('dashboard.week_prefix')} {fmtWeek(fb.week_start)}</span>
                         </div>
                         <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
                           {metrics.map(([abbr, val]) => (
@@ -628,14 +640,14 @@ export default function Dashboard() {
           {/* Leads pipeline */}
           <div style={{ background: '#fff', border: '1px solid #ece7d9', borderRadius: 14, padding: 18 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-              <h2 style={{ font: `700 15px ${FF}`, color: '#1B2A4A', margin: 0 }}>Funil de leads</h2>
-              <button type="button" onClick={() => navigate('/coach/leads')} style={{ border: 'none', background: 'none', color: '#E8542A', font: `600 12px ${FF}`, cursor: 'pointer', padding: 0 }}>Abrir CRM</button>
+              <h2 style={{ font: `700 15px ${FF}`, color: '#1B2A4A', margin: 0 }}>{t('dashboard.leads_title')}</h2>
+              <button type="button" onClick={() => navigate('/coach/leads')} style={{ border: 'none', background: 'none', color: '#E8542A', font: `600 12px ${FF}`, cursor: 'pointer', padding: 0 }}>{t('dashboard.open_crm')}</button>
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
               {[
-                { n: leads.filter(l => l.stage === 'novo').length,        label: 'Novo',        accent: false },
-                { n: leads.filter(l => l.stage === 'contactado').length,  label: 'Contactado',  accent: false },
-                { n: leads.filter(l => l.stage === 'interessado').length, label: 'Interessado', accent: true  },
+                { n: leads.filter(l => l.stage === 'novo').length,        label: t('leads.new'),        accent: false },
+                { n: leads.filter(l => l.stage === 'contactado').length,  label: t('leads.contacted'),  accent: false },
+                { n: leads.filter(l => l.stage === 'interessado').length, label: t('leads.interested'), accent: true  },
               ].map(({ n, label, accent }) => (
                 <div key={label} style={{ flex: 1, background: '#f7f3ea', borderRadius: 10, padding: '11px 10px', textAlign: 'center' }}>
                   <div style={{ font: `800 19px/1 ${FF}`, color: accent ? '#E8542A' : '#1B2A4A' }}>{n}</div>
@@ -651,19 +663,19 @@ export default function Dashboard() {
       {/* ── Assessments panel ───────────────────────────────── */}
       <div style={{ marginTop: 16, background: '#fff', border: '1px solid #ece7d9', borderRadius: 14, overflow: 'hidden' }}>
         <div style={{ padding: '18px 22px 14px', borderBottom: '1px solid #f1ece0' }}>
-          <h2 style={{ font: `700 16px ${FF}`, color: '#1B2A4A', margin: 0 }}>Avaliações</h2>
+          <h2 style={{ font: `700 16px ${FF}`, color: '#1B2A4A', margin: 0 }}>{t('dashboard.assessments_panel_title')}</h2>
         </div>
 
         <div className="k-aval-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr' }}>
 
-          {/* ─ Últimas 5 ─ */}
+          {/* ─ Last 5 ─ */}
           <div style={{ borderRight: '1px solid #f1ece0' }}>
             <div style={{ padding: '14px 18px 10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span style={{ font: `600 12px ${FF}`, color: '#7c7869', textTransform: 'uppercase', letterSpacing: '.4px' }}>Últimas realizadas</span>
+              <span style={{ font: `600 12px ${FF}`, color: '#7c7869', textTransform: 'uppercase', letterSpacing: '.4px' }}>{t('dashboard.last_done')}</span>
               <span style={{ font: `600 11px ${FF}`, color: '#a39e90', background: '#f7f3ea', borderRadius: 20, padding: '2px 9px' }}>5</span>
             </div>
             {recentAssessments.length === 0
-              ? <div style={{ padding: '20px 18px', font: `400 13px ${FF}`, color: '#b0a898', textAlign: 'center' }}>Nenhuma avaliação ainda</div>
+              ? <div style={{ padding: '20px 18px', font: `400 13px ${FF}`, color: '#b0a898', textAlign: 'center' }}>{t('dashboard.none_assessments')}</div>
               : recentAssessments.map((a, i) => {
                   const pal = AVATAR_PALETTE[i % AVATAR_PALETTE.length]
                   const name = a.students?.name ?? '—'
@@ -685,18 +697,17 @@ export default function Dashboard() {
             }
           </div>
 
-          {/* ─ Próximas 5 ─ */}
+          {/* ─ Upcoming 5 ─ */}
           <div style={{ borderRight: '1px solid #f1ece0' }}>
             <div style={{ padding: '14px 18px 10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span style={{ font: `600 12px ${FF}`, color: '#7c7869', textTransform: 'uppercase', letterSpacing: '.4px' }}>Próximas agendadas</span>
+              <span style={{ font: `600 12px ${FF}`, color: '#7c7869', textTransform: 'uppercase', letterSpacing: '.4px' }}>{t('dashboard.upcoming_scheduled')}</span>
               <span style={{ font: `600 11px ${FF}`, color: '#a39e90', background: '#f7f3ea', borderRadius: 20, padding: '2px 9px' }}>5</span>
             </div>
             {upcomingAssessments.length === 0
-              ? <div style={{ padding: '20px 18px', font: `400 13px ${FF}`, color: '#b0a898', textAlign: 'center' }}>Nenhuma agendada</div>
+              ? <div style={{ padding: '20px 18px', font: `400 13px ${FF}`, color: '#b0a898', textAlign: 'center' }}>{t('dashboard.none_scheduled')}</div>
               : upcomingAssessments.map((s, i) => {
                   const pal = AVATAR_PALETTE[i % AVATAR_PALETTE.length]
                   const diff = diffDays(s.next_assessment)
-                  const label = diff === 0 ? 'hoje' : diff === 1 ? 'amanhã' : `em ${diff} dias`
                   return (
                     <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '10px 18px', borderTop: '1px solid #f7f3ea' }}>
                       <div style={{ width: 34, height: 34, borderRadius: '50%', background: pal[0], color: pal[1], display: 'flex', alignItems: 'center', justifyContent: 'center', font: `700 12px ${FF}`, flexShrink: 0 }}>
@@ -704,7 +715,7 @@ export default function Dashboard() {
                       </div>
                       <div style={{ minWidth: 0, flex: 1 }}>
                         <div style={{ font: `600 13.5px ${FF}`, color: '#1B2A4A', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.name}</div>
-                        <div style={{ font: `400 11.5px ${FF}`, color: diff <= 3 ? '#b06a12' : '#9a948a' }}>{label}</div>
+                        <div style={{ font: `400 11.5px ${FF}`, color: diff <= 3 ? '#b06a12' : '#9a948a' }}>{relativeLabel(diff)}</div>
                       </div>
                       <span style={{ font: `600 12px ${FF}`, color: '#7c7869', flexShrink: 0 }}>{fmtShort(s.next_assessment)}</span>
                     </div>
@@ -713,16 +724,16 @@ export default function Dashboard() {
             }
           </div>
 
-          {/* ─ Pendentes ─ */}
+          {/* ─ Pending ─ */}
           <div>
             <div style={{ padding: '14px 18px 10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span style={{ font: `600 12px ${FF}`, color: '#7c7869', textTransform: 'uppercase', letterSpacing: '.4px' }}>Pendentes / em atraso</span>
+              <span style={{ font: `600 12px ${FF}`, color: '#7c7869', textTransform: 'uppercase', letterSpacing: '.4px' }}>{t('dashboard.pending_overdue')}</span>
               {pendingAssessments.length > 0 && (
                 <span style={{ font: `600 11px ${FF}`, color: '#D2402A', background: '#fbe6e1', borderRadius: 20, padding: '2px 9px' }}>{pendingAssessments.length}</span>
               )}
             </div>
             {pendingAssessments.length === 0
-              ? <div style={{ padding: '20px 18px', font: `400 13px ${FF}`, color: '#b0a898', textAlign: 'center' }}>Nenhum aluno em atraso</div>
+              ? <div style={{ padding: '20px 18px', font: `400 13px ${FF}`, color: '#b0a898', textAlign: 'center' }}>{t('dashboard.none_overdue_students')}</div>
               : pendingAssessments.map((s, i) => {
                   const pal = AVATAR_PALETTE[i % AVATAR_PALETTE.length]
                   const overdue = Math.abs(diffDays(s.next_assessment))
@@ -733,7 +744,7 @@ export default function Dashboard() {
                       </div>
                       <div style={{ minWidth: 0, flex: 1 }}>
                         <div style={{ font: `600 13.5px ${FF}`, color: '#1B2A4A', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.name}</div>
-                        <div style={{ font: `400 11.5px ${FF}`, color: '#D2402A' }}>{overdue} dia{overdue !== 1 ? 's' : ''} em atraso</div>
+                        <div style={{ font: `400 11.5px ${FF}`, color: '#D2402A' }}>{t('dashboard.days_overdue', { count: overdue })}</div>
                       </div>
                       <span style={{ font: `600 12px ${FF}`, color: '#D2402A', flexShrink: 0 }}>{fmtShort(s.next_assessment)}</span>
                     </div>

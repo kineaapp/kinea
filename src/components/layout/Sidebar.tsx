@@ -1,4 +1,5 @@
 import { NavLink, useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import {
   LayoutDashboard, Users, BarChart2, Dumbbell,
   CreditCard, ClipboardCheck, ClipboardList, MessageCircle, Settings, LogOut,
@@ -9,20 +10,10 @@ import { useSettingsStore } from '../../store/settings'
 import { useCoachChatStore } from '../../store/coachChat'
 import { useCoachNotificationsStore } from '../../store/coachNotifications'
 
-const NAV: { to: string; label: string; Icon: React.ElementType; badge?: 'messages' | 'assessments' }[] = [
-  { to: '/coach/dashboard', label: 'Dashboard',    Icon: LayoutDashboard },
-  { to: '/coach/alunos',    label: 'Alunos',       Icon: Users },
-  { to: '/coach/leads',     label: 'Leads',        Icon: BarChart2 },
-  { to: '/coach/treinos',   label: 'Treinos',      Icon: Dumbbell },
-  { to: '/coach/pagamentos',label: 'Pagamentos',   Icon: CreditCard },
-  { to: '/coach/avaliacoes',label: 'Avaliações',   Icon: ClipboardCheck, badge: 'assessments' },
-  { to: '/coach/feedbacks', label: 'Feedbacks',    Icon: ClipboardList },
-  { to: '/coach/mensagens', label: 'Mensagens',    Icon: MessageCircle,  badge: 'messages' },
-]
-
 interface Props { drawerOpen: boolean; onClose: () => void }
 
 export default function Sidebar({ drawerOpen, onClose }: Props) {
+  const { t } = useTranslation()
   const { user, logout } = useAuthStore()
   const { customLogoDataUrl } = useSettingsStore()
   const navigate = useNavigate()
@@ -31,11 +22,22 @@ export default function Sidebar({ drawerOpen, onClose }: Props) {
   const totalUnreadMsgs = Object.values(unreadRecord).reduce((a, n) => a + n, 0)
   const newAssessments = useCoachNotificationsStore(s => s.newAssessments)
 
+  const NAV: { to: string; label: string; Icon: React.ElementType; badge?: 'messages' | 'assessments' }[] = [
+    { to: '/coach/dashboard', label: t('nav.dashboard'),    Icon: LayoutDashboard },
+    { to: '/coach/alunos',    label: t('nav.students'),     Icon: Users },
+    { to: '/coach/leads',     label: t('nav.leads'),        Icon: BarChart2 },
+    { to: '/coach/treinos',   label: t('nav.workouts'),     Icon: Dumbbell },
+    { to: '/coach/pagamentos',label: t('nav.payments'),     Icon: CreditCard },
+    { to: '/coach/avaliacoes',label: t('nav.assessments'),  Icon: ClipboardCheck, badge: 'assessments' },
+    { to: '/coach/feedbacks', label: t('nav.feedbacks'),    Icon: ClipboardList },
+    { to: '/coach/mensagens', label: t('nav.messages'),     Icon: MessageCircle, badge: 'messages' },
+  ]
+
   const name     = user?.name     ?? ''
   const initials = user?.initials ?? ''
-  const roleLabel = user?.role === 'super_admin' ? 'Super Admin'
-                  : user?.role === 'student'      ? 'Aluno'
-                  : 'Coach'
+  const roleLabel = user?.role === 'super_admin' ? t('nav.role_super_admin')
+                  : user?.role === 'student'      ? t('nav.role_student')
+                  : t('nav.role_coach')
 
   function handleLogout() {
     logout()
@@ -108,7 +110,7 @@ export default function Sidebar({ drawerOpen, onClose }: Props) {
           onClick={onClose}
         >
           <Settings size={18} strokeWidth={1.9} />
-          <span>Configurações</span>
+          <span>{t('nav.settings')}</span>
         </NavLink>
 
         {/* User card */}
@@ -127,7 +129,7 @@ export default function Sidebar({ drawerOpen, onClose }: Props) {
           <button
             type="button"
             onClick={handleLogout}
-            title="Sair"
+            title={t('nav.logout')}
             style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', color: '#8b97ad' }}
           >
             <LogOut size={16} strokeWidth={2} />
