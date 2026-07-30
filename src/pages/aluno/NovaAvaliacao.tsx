@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '../../store/auth'
 import { useSettingsStore } from '../../store/settings'
 import { supabase } from '../../lib/supabase'
+import { toMetricWeight, toMetricLength, weightUnit, lengthUnit } from '../../lib/units'
 
 const FF = '"Libre Franklin",sans-serif'
 
@@ -58,8 +59,10 @@ export default function NovaAvaliacao() {
   const navigate = useNavigate()
   const { user } = useAuthStore()
   const { t } = useTranslation()
-  const { language } = useSettingsStore()
+  const { language, unit } = useSettingsStore()
   const locale = language === 'en-US' ? 'en-US' : 'pt-BR'
+  const wUnit = weightUnit(unit)
+  const lUnit = lengthUnit(unit)
 
   const PHOTO_LABELS: Record<PhotoKey, string> = {
     frente:  t('nova_avaliacao.photo_front'),
@@ -95,7 +98,9 @@ export default function NovaAvaliacao() {
   async function submit() {
     const errs: Record<string, string> = {}
     const p = parseFloat(peso)
-    if (!peso.trim() || isNaN(p) || p < 20 || p > 400) errs.peso = t('nova_avaliacao.err_weight')
+    const wMin = unit === 'imperial' ? 44 : 20
+    const wMax = unit === 'imperial' ? 882 : 400
+    if (!peso.trim() || isNaN(p) || p < wMin || p > wMax) errs.peso = t('nova_avaliacao.err_weight')
     const missingPhotos = PHOTO_SLOT_KEYS.filter(s => !photos[s].file)
     if (missingPhotos.length > 0) errs.fotos = t('nova_avaliacao.err_photos')
     if (Object.keys(errs).length) { setErrors(errs); return }
@@ -113,11 +118,11 @@ export default function NovaAvaliacao() {
       const { data: assessRow, error: insErr } = await supabase.from('assessments').insert({
         student_id:  studentRow.id,
         assessed_at: today,
-        weight_kg:   p,
-        waist_cm:    cintura ? parseFloat(cintura) : null,
-        hip_cm:      quadril ? parseFloat(quadril) : null,
-        chest_cm:    torax   ? parseFloat(torax)   : null,
-        arm_cm:      braco   ? parseFloat(braco)   : null,
+        weight_kg:   toMetricWeight(p, unit),
+        waist_cm:    cintura ? toMetricLength(parseFloat(cintura), unit) : null,
+        hip_cm:      quadril ? toMetricLength(parseFloat(quadril), unit) : null,
+        chest_cm:    torax   ? toMetricLength(parseFloat(torax),   unit) : null,
+        arm_cm:      braco   ? toMetricLength(parseFloat(braco),   unit) : null,
       }).select().single()
       if (insErr) throw insErr
 
@@ -200,9 +205,9 @@ export default function NovaAvaliacao() {
       {/* Form */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '24px 18px 120px', display: 'flex', flexDirection: 'column', gap: 24 }}>
 
-        <Field label={t('nova_avaliacao.field_weight')} error={errors.peso}>
+        <Field label={`${t('nova_avaliacao.field_weight').replace(/\(kg\)|\(lbs\)/, `(${wUnit})`)}`} error={errors.peso}>
           <input
-            type="number" inputMode="decimal" step="0.1" min="20" max="400" placeholder="Ex: 75.4"
+            type="number" inputMode="decimal" step="0.1" min={unit === 'imperial' ? 44 : 20} max={unit === 'imperial' ? 882 : 400} placeholder={unit === 'imperial' ? 'Ex: 165.0' : 'Ex: 75.4'}
             value={peso} onChange={e => { setPeso(e.target.value); setErrors(p => ({ ...p, peso: '' })) }}
             style={{ ...inputStyle, borderColor: errors.peso ? '#D2402A' : '#D6CFBE' }}
           />
@@ -214,20 +219,20 @@ export default function NovaAvaliacao() {
             <span style={{ font: `400 10px ${FF}`, textTransform: 'none', letterSpacing: 0, color: '#A39E90' }}>{t('nova_avaliacao.optional_label')}</span>
           </p>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            <Field label={t('nova_avaliacao.field_waist')}>
-              <input type="number" inputMode="decimal" step="0.5" placeholder="Ex: 82"
+            <Field label={`${t('nova_avaliacao.field_waist').replace(/\(cm\)|\(in\)/, `(${lUnit})`)}`}>
+              <input type="number" inputMode="decimal" step="0.5" placeholder={unit === 'imperial' ? 'Ex: 32.0' : 'Ex: 82'}
                 value={cintura} onChange={e => setCintura(e.target.value)} style={inputStyle} />
             </Field>
-            <Field label={t('nova_avaliacao.field_hip')}>
-              <input type="number" inputMode="decimal" step="0.5" placeholder="Ex: 96"
+            <Field label={`${t('nova_avaliacao.field_hip').replace(/\(cm\)|\(in\)/, `(${lUnit})`)}`}>
+              <input type="number" inputMode="decimal" step="0.5" placeholder={unit === 'imperial' ? 'Ex: 38.0' : 'Ex: 96'}
                 value={quadril} onChange={e => setQuadril(e.target.value)} style={inputStyle} />
             </Field>
-            <Field label={t('nova_avaliacao.field_chest')}>
-              <input type="number" inputMode="decimal" step="0.5" placeholder="Ex: 100"
+            <Field label={`${t('nova_avaliacao.field_chest').replace(/\(cm\)|\(in\)/, `(${lUnit})`)}`}>
+              <input type="number" inputMode="decimal" step="0.5" placeholder={unit === 'imperial' ? 'Ex: 39.0' : 'Ex: 100'}
                 value={torax} onChange={e => setTorax(e.target.value)} style={inputStyle} />
             </Field>
-            <Field label={t('nova_avaliacao.field_arm')}>
-              <input type="number" inputMode="decimal" step="0.5" placeholder="Ex: 34"
+            <Field label={`${t('nova_avaliacao.field_arm').replace(/\(cm\)|\(in\)/, `(${lUnit})`)}`}>
+              <input type="number" inputMode="decimal" step="0.5" placeholder={unit === 'imperial' ? 'Ex: 13.5' : 'Ex: 34'}
                 value={braco} onChange={e => setBraco(e.target.value)} style={inputStyle} />
             </Field>
           </div>

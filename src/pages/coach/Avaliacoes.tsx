@@ -4,6 +4,8 @@ import { useAuthStore } from '../../store/auth'
 import { useCoachNotificationsStore } from '../../store/coachNotifications'
 import { supabase } from '../../lib/supabase'
 import { useTranslation } from 'react-i18next'
+import { useSettingsStore } from '../../store/settings'
+import { toDisplayWeight, toDisplayLength, toMetricWeight, weightUnit, lengthUnit } from '../../lib/units'
 
 const FF = '"Libre Franklin",sans-serif'
 
@@ -44,13 +46,13 @@ function getInitials(name: string) {
   return ((p[0]?.[0] ?? '') + (p[1]?.[0] ?? '')).toUpperCase()
 }
 
-function signed(diff: number, unit: string, lossGood: boolean): { txt: string; color: string } {
+function signed(diff: number, suffix: string, lossGood: boolean): { txt: string; color: string } {
   const v = Math.round(diff * 10) / 10
   if (v === 0) return { txt: '—', color: '#9a948a' }
   const arrow = v < 0 ? '▼' : '▲'
   const abs = Math.abs(v).toString().replace('.', ',')
   const good = lossGood ? v < 0 : v > 0
-  return { txt: `${arrow} ${abs}${unit}`, color: good ? '#1B7a4a' : '#c4421e' }
+  return { txt: `${arrow} ${abs}${suffix}`, color: good ? '#1B7a4a' : '#c4421e' }
 }
 
 function kgStr(n: number) {
@@ -109,6 +111,9 @@ function StudentDrawer({ student, onClose, onRemind, onRegister }: {
   onRegister: (id: number) => void
 }) {
   const { t } = useTranslation()
+  const { unit } = useSettingsStore()
+  const wUnit = weightUnit(unit)
+  const lUnit = lengthUnit(unit)
   const MEASURE_LABELS: Record<string, string> = {
     Peito:    t('coach_assessments.measure_chest'),
     Cintura:  t('coach_assessments.measure_waist'),
@@ -120,22 +125,31 @@ function StudentDrawer({ student, onClose, onRemind, onRegister }: {
   const hist = student.hist
   const last = hist[hist.length - 1]
   const prev = hist.length > 1 ? hist[hist.length - 2] : null
-  const wd = prev ? signed(last.weight - prev.weight, ' kg', student.loss) : { txt: t('coach_assessments.first_assessment'), color: '#9a948a' }
+  const wd = prev
+    ? signed(toDisplayWeight(last.weight, unit) - toDisplayWeight(prev.weight, unit), ' ' + wUnit, student.loss)
+    : { txt: t('coach_assessments.first_assessment'), color: '#9a948a' }
 
   const ws = hist.slice(-5)
-  const mx = Math.max(...ws.map(h => h.weight))
-  const mn = Math.min(...ws.map(h => h.weight))
+  const wsDisplay = ws.map(h => toDisplayWeight(h.weight, unit))
+  const mx = Math.max(...wsDisplay)
+  const mn = Math.min(...wsDisplay)
   const span = (mx - mn) || 1
-  const weightSeries = ws.map((h, i) => ({
-    kg: String(h.weight).replace('.', ','),
-    date: h.date,
-    pct: 30 + Math.round((h.weight - mn) / span * 70),
-    fill: i === ws.length - 1 ? '#E8542A' : '#cdd5e0',
-  }))
+  const weightSeries = ws.map((h, i) => {
+    const dw = toDisplayWeight(h.weight, unit)
+    return {
+      kg: String(dw).replace('.', ','),
+      date: h.date,
+      pct: 30 + Math.round((dw - mn) / span * 70),
+      fill: i === ws.length - 1 ? '#E8542A' : '#cdd5e0',
+    }
+  })
 
   const measures = Object.keys(last.m).filter(k => last.m[k] > 0).map(k => {
-    const dd = prev ? signed(last.m[k] - (prev.m[k] ?? 0), ' cm', student.loss) : { txt: '—', color: '#9a948a' }
-    return { label: MEASURE_LABELS[k] ?? k, value: `${last.m[k]} cm`, delta: dd.txt, deltaColor: dd.color }
+    const dv = toDisplayLength(last.m[k], unit)
+    const dd = prev
+      ? signed(toDisplayLength(last.m[k], unit) - toDisplayLength(prev.m[k] ?? 0, unit), ' ' + lUnit, student.loss)
+      : { txt: '—', color: '#9a948a' }
+    return { label: MEASURE_LABELS[k] ?? k, value: `${dv.toFixed(1)} ${lUnit}`, delta: dd.txt, deltaColor: dd.color }
   })
 
   return (
@@ -361,6 +375,8 @@ function NewAssessmentModal({ roster, initial, onClose, onSave }: {
   onSave:  (name: string, weight: string, bf: number) => void
 }) {
   const { t } = useTranslation()
+  const { unit } = useSettingsStore()
+  const wUnit = weightUnit(unit)
   const SKINFOLDS: { key: SFKey; label: string }[] = [
     { key: 'd1', label: t('coach_assessments.skinfold_d1') },
     { key: 'd2', label: t('coach_assessments.skinfold_d2') },
@@ -460,7 +476,7 @@ function NewAssessmentModal({ roster, initial, onClose, onSave }: {
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 90px', gap: 12 }}>
                 <div>
-                  <label style={{ display: 'block', font: `600 11px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#6b6657', marginBottom: 7 }}>{t('coach_assessments.weight_label')}</label>
+                  <label style={{ display: 'block', font: `600 11px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#6b6657', marginBottom: 7 }}>{t('coach_assessments.weight_label')} ({wUnit})</label>
                   <input type="text" value={weight} placeholder={t('coach_assessments.weight_ph')} onChange={e => { setWeight(e.target.value); setErr('') }} style={inputBase} onFocus={focusOn} onBlur={focusOff} />
                 </div>
                 <div>
@@ -519,11 +535,11 @@ function NewAssessmentModal({ roster, initial, onClose, onSave }: {
                   <div style={{ font: `500 10.5px ${FF}`, color: '#9a948a', marginTop: 2 }}>{t('coach_assessments.fat_pct')}</div>
                 </div>
                 <div>
-                  <div style={{ font: `800 24px ${FF}`, color: '#c4421e', letterSpacing: '-.5px' }}>{massaGorda !== null ? fmt1(massaGorda) + ' kg' : '—'}</div>
+                  <div style={{ font: `800 24px ${FF}`, color: '#c4421e', letterSpacing: '-.5px' }}>{massaGorda !== null ? fmt1(massaGorda) + ' ' + wUnit : '—'}</div>
                   <div style={{ font: `500 10.5px ${FF}`, color: '#9a948a', marginTop: 2 }}>{t('coach_assessments.fat_mass')}</div>
                 </div>
                 <div>
-                  <div style={{ font: `800 24px ${FF}`, color: '#1B7a4a', letterSpacing: '-.5px' }}>{massaMagra !== null ? fmt1(massaMagra) + ' kg' : '—'}</div>
+                  <div style={{ font: `800 24px ${FF}`, color: '#1B7a4a', letterSpacing: '-.5px' }}>{massaMagra !== null ? fmt1(massaMagra) + ' ' + wUnit : '—'}</div>
                   <div style={{ font: `500 10.5px ${FF}`, color: '#9a948a', marginTop: 2 }}>{t('coach_assessments.lean_mass')}</div>
                 </div>
               </div>
@@ -555,6 +571,8 @@ type Tab = 'all' | 'em-dia' | 'pendente'
 
 export default function Avaliacoes() {
   const { t } = useTranslation()
+  const { unit } = useSettingsStore()
+  const wUnit = weightUnit(unit)
   const { user } = useAuthStore()
   const { students: roster, fetchStudents } = useStudentsStore()
   const { clearAssessments } = useCoachNotificationsStore()
@@ -640,14 +658,16 @@ export default function Avaliacoes() {
     const pal = AVATAR_PALETTE[s.id % AVATAR_PALETTE.length]
     const last = s.hist[s.hist.length - 1]
     const prev = s.hist.length > 1 ? s.hist[s.hist.length - 2] : null
-    const wd  = prev ? signed(last.weight - prev.weight, ' kg', s.loss) : { txt: t('coach_assessments.first_assessment'), color: '#9a948a' }
+    const wd  = prev
+      ? signed(toDisplayWeight(last.weight, unit) - toDisplayWeight(prev.weight, unit), ' ' + wUnit, s.loss)
+      : { txt: t('coach_assessments.first_assessment'), color: '#9a948a' }
     const bfd = prev ? signed(last.bf - prev.bf, '%', s.loss) : { txt: '—', color: '#9a948a' }
     const sm  = STATUS_MAP[s.status]
     return {
       ...s,
       initials: getInitials(s.name),
       avBg: pal[0], avColor: pal[1],
-      weightStr: kgStr(last.weight),
+      weightStr: toDisplayWeight(last.weight, unit).toFixed(1).replace('.', ',') + ' ' + wUnit,
       bfStr: String(last.bf).replace('.', ',') + '%',
       weightDelta: wd.txt, deltaColor: wd.color,
       bfDelta: bfd.txt, bfDeltaColor: bfd.color,
@@ -666,7 +686,8 @@ export default function Avaliacoes() {
     if (s.hist.length > 1) { totDelta += s.hist[s.hist.length - 1].weight - s.hist[0].weight; n++ }
   })
   const avg = n ? Math.round(totDelta / n * 10) / 10 : 0
-  const collectiveDelta = (avg < 0 ? '▼ ' : '▲ ') + Math.abs(avg).toString().replace('.', ',') + ' kg'
+  const avgDisplay = +(toDisplayWeight(avg, unit)).toFixed(1)
+  const collectiveDelta = (avgDisplay < 0 ? '▼ ' : '▲ ') + Math.abs(avgDisplay).toString().replace('.', ',') + ' ' + wUnit
   const collectiveColor = avg <= 0 ? '#1B7a4a' : '#c4421e'
 
   const openStudent = students.find(s => s.id === openId) ?? null
@@ -692,17 +713,18 @@ export default function Avaliacoes() {
     const rosterStudent = roster.find(s => s.name.toLowerCase() === name.toLowerCase())
     const emptyPhotos = { frente: null, costas: null, ladoE: null, ladoD: null }
 
+    const wKg = toMetricWeight(w, unit)
     const idx = students.findIndex(s => s.name.toLowerCase() === name.toLowerCase())
     if (idx >= 0) {
       const s = students[idx]
-      const entry: Assessment = { date: 'hoje', weight: w, bf, m: { ...s.hist[s.hist.length - 1].m }, photos: emptyPhotos }
+      const entry: Assessment = { date: 'hoje', weight: wKg, bf, m: { ...s.hist[s.hist.length - 1].m }, photos: emptyPhotos }
       const updated = [...students]
       updated[idx] = { ...s, status: 'em-dia', days: 0, hist: [...s.hist, entry] }
       setStudents(updated)
     } else {
       const newS: Student = {
         id: rosterStudent?.id ?? nextId, name, goal: rosterStudent?.goal ?? 'A definir', loss: true, days: 0, status: 'em-dia',
-        hist: [{ date: 'hoje', weight: w, bf, m: { Peito: 0, Cintura: 0, Quadril: 0, 'Braço': 0, Coxa: 0 }, photos: emptyPhotos }],
+        hist: [{ date: 'hoje', weight: wKg, bf, m: { Peito: 0, Cintura: 0, Quadril: 0, 'Braço': 0, Coxa: 0 }, photos: emptyPhotos }],
       }
       setStudents([newS, ...students])
       if (!rosterStudent) setNextId(x => x + 1)
@@ -714,7 +736,7 @@ export default function Avaliacoes() {
       await supabase.from('assessments').insert({
         student_id:  rosterStudent.id,
         assessed_at: new Date().toISOString().split('T')[0],
-        weight_kg:   w,
+        weight_kg:   wKg,
         body_fat_pct: bf > 0 ? bf : null,
       })
     }

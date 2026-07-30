@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
+import { useSettingsStore } from '../../store/settings'
+import { toDisplayWeight, toDisplayLength, toMetricWeight, toMetricLength, weightUnit, lengthUnit } from '../../lib/units'
 
 const FF = '"Libre Franklin",sans-serif'
 
@@ -73,18 +75,21 @@ interface Props {
 }
 
 export function ProfileAssessmentModal({ studentId, studentName, studentUuid, existing, onClose, onSaved }: Props) {
+  const { unit } = useSettingsStore()
+  const wUnit = weightUnit(unit)
+  const lUnit = lengthUnit(unit)
   const [date,      setDate]      = useState(() => existing ? existing.assessed_at.split('T')[0] : (() => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}-${String(n.getDate()).padStart(2,'0')}` })())
-  const [weight,    setWeight]    = useState(existing?.weight_kg?.toFixed(1).replace('.', ',') ?? '')
+  const [weight,    setWeight]    = useState(() => existing?.weight_kg != null ? toDisplayWeight(existing.weight_kg, unit).toFixed(1).replace('.', ',') : '')
   const [sex,       setSex]       = useState<'M' | 'F'>('F')
   const [age,       setAge]       = useState('')
   const [ageFromDb, setAgeFromDb] = useState(false)
   const [dobras,    setDobras]    = useState<Record<SFKey, string>>({ d1:'',d2:'',d3:'',d4:'',d5:'',d6:'',d7:'' })
   const [circ,      setCirc]      = useState<Record<string, string>>({
-    chest_cm:  existing?.chest_cm?.toString()  ?? '',
-    waist_cm:  existing?.waist_cm?.toString()  ?? '',
-    hip_cm:    existing?.hip_cm?.toString()    ?? '',
-    arm_cm:    existing?.arm_cm?.toString()    ?? '',
-    thigh_cm:  existing?.thigh_cm?.toString()  ?? '',
+    chest_cm:  existing?.chest_cm  != null ? toDisplayLength(existing.chest_cm,  unit).toFixed(1) : '',
+    waist_cm:  existing?.waist_cm  != null ? toDisplayLength(existing.waist_cm,  unit).toFixed(1) : '',
+    hip_cm:    existing?.hip_cm    != null ? toDisplayLength(existing.hip_cm,    unit).toFixed(1) : '',
+    arm_cm:    existing?.arm_cm    != null ? toDisplayLength(existing.arm_cm,    unit).toFixed(1) : '',
+    thigh_cm:  existing?.thigh_cm  != null ? toDisplayLength(existing.thigh_cm,  unit).toFixed(1) : '',
   })
   const [notes,     setNotes]     = useState(existing?.notes ?? '')
   const [photos,    setPhotos]    = useState<Record<PhotoKey, { file: File | null; preview: string | null; existingUrl: string | null }>>(() => existing ? ({
@@ -155,13 +160,13 @@ export function ProfileAssessmentModal({ studentId, studentName, studentUuid, ex
     if (existing) {
       const updates: Record<string, unknown> = {
         assessed_at:  date,
-        weight_kg:    weightN || null,
+        weight_kg:    weightN ? toMetricWeight(weightN, unit) : null,
         body_fat_pct: effectiveBf,
         notes:        notes.trim() || null,
       }
       MEASURES.forEach(m => {
         const v = parseFloat(circ[m.key].replace(',', '.'))
-        updates[m.key] = v > 0 ? v : null
+        updates[m.key] = v > 0 ? toMetricLength(v, unit) : null
       })
       const { data, error } = await supabase.from('assessments').update(updates).eq('id', existing.id).select().single()
       if (error) { setSaving(false); setErr('Erro ao salvar. Tente novamente.'); return }
@@ -192,12 +197,12 @@ export function ProfileAssessmentModal({ studentId, studentName, studentUuid, ex
     const insert: Record<string, unknown> = {
       student_id:    studentId,
       assessed_at:   date,
-      weight_kg:     weightN || null,
+      weight_kg:     weightN ? toMetricWeight(weightN, unit) : null,
       body_fat_pct:  effectiveBf,
     }
     MEASURES.forEach(m => {
       const v = parseFloat(circ[m.key].replace(',', '.'))
-      insert[m.key] = v > 0 ? v : null
+      insert[m.key] = v > 0 ? toMetricLength(v, unit) : null
     })
     if (notes.trim()) insert.notes = notes.trim()
 
@@ -267,7 +272,7 @@ export function ProfileAssessmentModal({ studentId, studentName, studentUuid, ex
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 90px', gap: 12 }}>
                 <div>
-                  <label style={{ display: 'block', font: `600 11px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#6b6657', marginBottom: 7 }}>Peso (kg)</label>
+                  <label style={{ display: 'block', font: `600 11px ${FF}`, letterSpacing: '.5px', textTransform: 'uppercase', color: '#6b6657', marginBottom: 7 }}>Peso ({wUnit})</label>
                   <input type="text" value={weight} placeholder="Ex: 78,4" onChange={e => { setWeight(e.target.value); setErr('') }} style={inputBase} onFocus={focusOn} onBlur={focusOff} />
                 </div>
                 <div>
@@ -298,7 +303,7 @@ export function ProfileAssessmentModal({ studentId, studentName, studentUuid, ex
           {/* Circunferências */}
           <div>
             <div style={{ font: `700 10.5px ${FF}`, letterSpacing: '.6px', textTransform: 'uppercase', color: '#9a948a', marginBottom: 12 }}>
-              Medidas (cm) <span style={{ fontWeight: 500, textTransform: 'none', letterSpacing: 0, fontSize: 10 }}>— opcional</span>
+              Medidas ({lUnit}) <span style={{ fontWeight: 500, textTransform: 'none', letterSpacing: 0, fontSize: 10 }}>— opcional</span>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
               {MEASURES.map((m, i) => (
@@ -344,11 +349,11 @@ export function ProfileAssessmentModal({ studentId, studentName, studentUuid, ex
                   <div style={{ font: `500 10.5px ${FF}`, color: '#9a948a', marginTop: 2 }}>% Gordura</div>
                 </div>
                 <div>
-                  <div style={{ font: `800 24px ${FF}`, color: '#c4421e', letterSpacing: '-.5px' }}>{massaGorda !== null ? fmt1(massaGorda) + ' kg' : '—'}</div>
+                  <div style={{ font: `800 24px ${FF}`, color: '#c4421e', letterSpacing: '-.5px' }}>{massaGorda !== null ? fmt1(massaGorda) + ' ' + wUnit : '—'}</div>
                   <div style={{ font: `500 10.5px ${FF}`, color: '#9a948a', marginTop: 2 }}>Massa gorda</div>
                 </div>
                 <div>
-                  <div style={{ font: `800 24px ${FF}`, color: '#1B7a4a', letterSpacing: '-.5px' }}>{massaMagra !== null ? fmt1(massaMagra) + ' kg' : '—'}</div>
+                  <div style={{ font: `800 24px ${FF}`, color: '#1B7a4a', letterSpacing: '-.5px' }}>{massaMagra !== null ? fmt1(massaMagra) + ' ' + wUnit : '—'}</div>
                   <div style={{ font: `500 10.5px ${FF}`, color: '#9a948a', marginTop: 2 }}>Massa magra</div>
                 </div>
               </div>

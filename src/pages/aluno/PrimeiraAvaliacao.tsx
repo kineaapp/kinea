@@ -3,7 +3,9 @@ import type { CSSProperties } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '../../store/auth'
+import { useSettingsStore } from '../../store/settings'
 import { supabase } from '../../lib/supabase'
+import { toMetricWeight, toMetricLength, weightUnit, lengthUnit } from '../../lib/units'
 
 const FF = '"Libre Franklin",sans-serif'
 
@@ -55,6 +57,9 @@ export default function PrimeiraAvaliacao() {
   const navigate = useNavigate()
   const { t } = useTranslation()
   const { user, setUser } = useAuthStore()
+  const { unit } = useSettingsStore()
+  const wUnit = weightUnit(unit)
+  const lUnit = lengthUnit(unit)
 
   const PHOTO_LABELS: Record<PhotoKey, string> = {
     frente:  t('primeira_avaliacao.photo_front'),
@@ -93,8 +98,12 @@ export default function PrimeiraAvaliacao() {
     const errs: Record<string, string> = {}
     const p = parseFloat(peso)
     const a = parseFloat(altura)
-    if (!peso.trim()   || isNaN(p) || p < 20  || p > 400) errs.peso   = t('primeira_avaliacao.err_weight')
-    if (!altura.trim() || isNaN(a) || a < 100 || a > 250) errs.altura = t('primeira_avaliacao.err_height')
+    const wMin = unit === 'imperial' ? 44 : 20
+    const wMax = unit === 'imperial' ? 882 : 400
+    const hMin = unit === 'imperial' ? 39 : 100
+    const hMax = unit === 'imperial' ? 98 : 250
+    if (!peso.trim()   || isNaN(p) || p < wMin || p > wMax) errs.peso   = t('primeira_avaliacao.err_weight')
+    if (!altura.trim() || isNaN(a) || a < hMin || a > hMax) errs.altura = t('primeira_avaliacao.err_height')
     const missingPhotos = PHOTO_SLOT_KEYS.filter(k => !photos[k].preview)
     if (missingPhotos.length > 0) errs.fotos = t('primeira_avaliacao.err_photos')
     if (Object.keys(errs).length) { setErrors(errs); return }
@@ -112,12 +121,12 @@ export default function PrimeiraAvaliacao() {
         const { data: assessRow } = await supabase.from('assessments').insert({
           student_id:  studentRow.id,
           assessed_at: today,
-          weight_kg:   parseFloat(peso),
-          height_cm:   parseFloat(altura),
-          waist_cm:    cintura ? parseFloat(cintura) : null,
-          hip_cm:      quadril ? parseFloat(quadril) : null,
-          chest_cm:    torax   ? parseFloat(torax)   : null,
-          arm_cm:      braco   ? parseFloat(braco)   : null,
+          weight_kg:   toMetricWeight(parseFloat(peso), unit),
+          height_cm:   toMetricLength(parseFloat(altura), unit),
+          waist_cm:    cintura ? toMetricLength(parseFloat(cintura), unit) : null,
+          hip_cm:      quadril ? toMetricLength(parseFloat(quadril), unit) : null,
+          chest_cm:    torax   ? toMetricLength(parseFloat(torax),   unit) : null,
+          arm_cm:      braco   ? toMetricLength(parseFloat(braco),   unit) : null,
         }).select().single()
 
         if (assessRow) {
@@ -199,16 +208,20 @@ export default function PrimeiraAvaliacao() {
           {t('primeira_avaliacao.mandatory_section')}
         </p>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 28 }}>
-          <Field label={t('primeira_avaliacao.field_weight')} error={errors.peso}>
+          <Field label={`${t('primeira_avaliacao.field_weight').replace(/\(kg\)|\(lbs\)/, `(${wUnit})`)}`} error={errors.peso}>
             <input
-              type="number" inputMode="decimal" step="0.1" min="20" max="400" placeholder="Ex: 75.4"
+              type="number" inputMode="decimal" step="0.1"
+              min={unit === 'imperial' ? 44 : 20} max={unit === 'imperial' ? 882 : 400}
+              placeholder={unit === 'imperial' ? 'Ex: 165.0' : 'Ex: 75.4'}
               value={peso} onChange={e => { setPeso(e.target.value); setErrors(p => ({ ...p, peso: '' })) }}
               style={{ ...inputStyle, borderColor: errors.peso ? '#D2402A' : '#D6CFBE' }}
             />
           </Field>
-          <Field label={t('primeira_avaliacao.field_height')} error={errors.altura}>
+          <Field label={`${t('primeira_avaliacao.field_height').replace(/\(cm\)|\(in\)/, `(${lUnit})`)}`} error={errors.altura}>
             <input
-              type="number" inputMode="numeric" step="1" min="100" max="250" placeholder="Ex: 172"
+              type="number" inputMode="numeric" step={unit === 'imperial' ? 0.5 : 1}
+              min={unit === 'imperial' ? 39 : 100} max={unit === 'imperial' ? 98 : 250}
+              placeholder={unit === 'imperial' ? 'Ex: 67.5' : 'Ex: 172'}
               value={altura} onChange={e => { setAltura(e.target.value); setErrors(p => ({ ...p, altura: '' })) }}
               style={{ ...inputStyle, borderColor: errors.altura ? '#D2402A' : '#D6CFBE' }}
             />
@@ -224,20 +237,20 @@ export default function PrimeiraAvaliacao() {
           {t('primeira_avaliacao.optional_hint')}
         </p>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 28 }}>
-          <Field label={t('primeira_avaliacao.field_waist')}>
-            <input type="number" inputMode="decimal" step="0.5" placeholder="Ex: 82"
+          <Field label={`${t('primeira_avaliacao.field_waist').replace(/\(cm\)|\(in\)/, `(${lUnit})`)}`}>
+            <input type="number" inputMode="decimal" step="0.5" placeholder={unit === 'imperial' ? 'Ex: 32.0' : 'Ex: 82'}
               value={cintura} onChange={e => setCintura(e.target.value)} style={inputStyle} />
           </Field>
-          <Field label={t('primeira_avaliacao.field_hip')}>
-            <input type="number" inputMode="decimal" step="0.5" placeholder="Ex: 96"
+          <Field label={`${t('primeira_avaliacao.field_hip').replace(/\(cm\)|\(in\)/, `(${lUnit})`)}`}>
+            <input type="number" inputMode="decimal" step="0.5" placeholder={unit === 'imperial' ? 'Ex: 38.0' : 'Ex: 96'}
               value={quadril} onChange={e => setQuadril(e.target.value)} style={inputStyle} />
           </Field>
-          <Field label={t('primeira_avaliacao.field_chest')}>
-            <input type="number" inputMode="decimal" step="0.5" placeholder="Ex: 100"
+          <Field label={`${t('primeira_avaliacao.field_chest').replace(/\(cm\)|\(in\)/, `(${lUnit})`)}`}>
+            <input type="number" inputMode="decimal" step="0.5" placeholder={unit === 'imperial' ? 'Ex: 39.0' : 'Ex: 100'}
               value={torax} onChange={e => setTorax(e.target.value)} style={inputStyle} />
           </Field>
-          <Field label={t('primeira_avaliacao.field_arm')}>
-            <input type="number" inputMode="decimal" step="0.5" placeholder="Ex: 34"
+          <Field label={`${t('primeira_avaliacao.field_arm').replace(/\(cm\)|\(in\)/, `(${lUnit})`)}`}>
+            <input type="number" inputMode="decimal" step="0.5" placeholder={unit === 'imperial' ? 'Ex: 13.5' : 'Ex: 34'}
               value={braco} onChange={e => setBraco(e.target.value)} style={inputStyle} />
           </Field>
         </div>

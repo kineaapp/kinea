@@ -6,6 +6,8 @@ import { useAuthStore } from '../../store/auth'
 import { supabase } from '../../lib/supabase'
 import { ProfileAssessmentModal } from '../../components/coach/ProfileAssessmentModal'
 import type { SavedAssessmentRow } from '../../components/coach/ProfileAssessmentModal'
+import { useSettingsStore } from '../../store/settings'
+import { toDisplayWeight, toDisplayLength, weightUnit, lengthUnit } from '../../lib/units'
 
 const FF = '"Libre Franklin",sans-serif'
 
@@ -642,6 +644,9 @@ function AssessmentDetailDrawer({
   onPhotoUpload:  (assId: number, col: string, file: File) => void
   onEdit:         (a: AssessmentRow) => void
 }) {
+  const { unit } = useSettingsStore()
+  const wUnit = weightUnit(unit)
+  const lUnit = lengthUnit(unit)
   const photoRef   = useRef<HTMLInputElement>(null)
   const pendingRef = useRef<string | null>(null)
 
@@ -691,7 +696,7 @@ function AssessmentDetailDrawer({
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
               {[
-                { label: 'Peso',      curr: assessment.weight_kg,    prev: prevAssessment?.weight_kg    ?? null, betterLower: true as boolean | null, dec: 1, unit: 'kg' },
+                { label: 'Peso',      curr: assessment.weight_kg != null ? toDisplayWeight(assessment.weight_kg, unit) : null,    prev: prevAssessment?.weight_kg != null ? toDisplayWeight(prevAssessment.weight_kg, unit) : null,    betterLower: true as boolean | null, dec: 1, unit: wUnit },
                 { label: '% Gordura', curr: assessment.body_fat_pct, prev: prevAssessment?.body_fat_pct ?? null, betterLower: true as boolean | null, dec: 1, unit: '%'  },
               ].map(m => {
                 const d = metricDelta(m.curr, m.prev, m.betterLower, m.dec, m.unit)
@@ -722,12 +727,14 @@ function AssessmentDetailDrawer({
                   { label: 'Braço',   curr: assessment.arm_cm,    prev: prevAssessment?.arm_cm    ?? null },
                   { label: 'Coxa',    curr: assessment.thigh_cm,  prev: prevAssessment?.thigh_cm  ?? null },
                 ] as { label: string; curr: number | null; prev: number | null }[]).filter(m => m.curr != null).map(m => {
-                  const d = metricDelta(m.curr, m.prev, null, 0, 'cm')
+                  const dv = toDisplayLength(m.curr as number, unit)
+                  const dp = m.prev != null ? toDisplayLength(m.prev, unit) : null
+                  const d = metricDelta(dv, dp, null, 1, lUnit)
                   return (
                     <div key={m.label} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#faf7ee', borderRadius: 10, padding: '11px 13px' }}>
                       <div>
                         <div style={{ font: `600 11px ${FF}`, color: '#7c7869' }}>{m.label}</div>
-                        <div style={{ font: `800 15px ${FF}`, color: '#1B2A4A', marginTop: 2 }}>{(m.curr as number).toFixed(0)} cm</div>
+                        <div style={{ font: `800 15px ${FF}`, color: '#1B2A4A', marginTop: 2 }}>{dv.toFixed(1)} {lUnit}</div>
                       </div>
                       {d && <span style={{ font: `700 11.5px ${FF}`, color: d.color }}>{d.txt}</span>}
                     </div>

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '../../store/auth'
 import { useSettingsStore } from '../../store/settings'
-import type { Language } from '../../store/settings'
+import type { Language, UnitSystem } from '../../store/settings'
 import KineaLogo from '../../components/KineaLogo'
 import { supabase } from '../../lib/supabase'
 import i18n from '../../i18n'
@@ -76,7 +76,7 @@ function Toast({ msg }: { msg: string }) {
 export default function Configuracoes() {
   const { t } = useTranslation()
   const { user, setUser, updateUser, logout } = useAuthStore()
-  const { customLogoDataUrl, setCustomLogo, language, setLanguage } = useSettingsStore()
+  const { customLogoDataUrl, setCustomLogo, language, setLanguage, unit, setUnit } = useSettingsStore()
   const navigate = useNavigate()
   const [toast, setToast] = useState('')
   const toastRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
@@ -297,6 +297,29 @@ export default function Configuracoes() {
                 <Toggle on={notif[item.key]} onChange={v => setNotif(n => ({ ...n, [item.key]: v }))} />
               </div>
             ))}
+          </div>
+        </Card>
+
+        {/* ── Unidade de medida ── */}
+        <Card title={t('settings.unit_system')}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+            {(['metric', 'imperial'] as UnitSystem[]).map(u => {
+              const active = unit === u
+              return (
+                <button
+                  key={u}
+                  onClick={() => setUnit(u)}
+                  style={{ padding: '12px 8px', borderRadius: 12, border: `2px solid ${active ? '#1B2A4A' : '#E0D9CC'}`, background: active ? '#1B2A4A' : '#FAFAF8', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, transition: 'all .15s' }}
+                >
+                  <span style={{ font: `700 13px ${FF}`, color: active ? '#FAEEDA' : '#1B2A4A' }}>
+                    {u === 'metric' ? t('common.metric') : t('common.imperial')}
+                  </span>
+                  <span style={{ font: `400 11px ${FF}`, color: active ? '#8B97AD' : '#A39E90' }}>
+                    {u === 'metric' ? t('common.kg_cm') : t('common.lbs_in')}
+                  </span>
+                </button>
+              )
+            })}
           </div>
         </Card>
 

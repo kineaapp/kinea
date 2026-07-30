@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '../../store/auth'
 import { useSettingsStore } from '../../store/settings'
 import { supabase } from '../../lib/supabase'
+import { toDisplayWeight, toDisplayLength, weightUnit, lengthUnit } from '../../lib/units'
 
 const FF = '"Libre Franklin",sans-serif'
 
@@ -38,8 +39,10 @@ export default function Avaliacoes() {
   const { user } = useAuthStore()
   const navigate = useNavigate()
   const { t } = useTranslation()
-  const { language } = useSettingsStore()
+  const { language, unit } = useSettingsStore()
   const locale = language === 'en-US' ? 'en-US' : 'pt-BR'
+  const wUnit = weightUnit(unit)
+  const lUnit = lengthUnit(unit)
 
   const [assessments,    setAssessments]    = useState<AssessmentRow[]>([])
   const [nextAssessment, setNextAssessment] = useState<string | null>(null)
@@ -217,18 +220,25 @@ export default function Avaliacoes() {
           <div style={{ padding: '0 18px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
 
             {/* Weight */}
-            <div style={{ background: '#1B2A4A', borderRadius: 16, padding: 16 }}>
-              <div style={{ font: `500 11px ${FF}`, color: '#8B97AD', marginBottom: 8 }}>{t('assessments.weight')}</div>
-              <div style={{ font: `900 26px ${FF}`, color: '#FAEEDA' }}>
-                {latest.weight_kg?.toFixed(1) ?? '—'}
-                <span style={{ font: `500 14px ${FF}`, color: '#8B97AD' }}> kg</span>
-              </div>
-              {delta(latest.weight_kg, prev?.weight_kg ?? null) && (
-                <div style={{ font: `600 11px ${FF}`, color: deltaColor(latest.weight_kg, prev?.weight_kg ?? null, true), marginTop: 4 }}>
-                  {delta(latest.weight_kg, prev?.weight_kg ?? null)} kg
+            {(() => {
+              const wD = latest.weight_kg != null ? toDisplayWeight(latest.weight_kg, unit) : null
+              const wPD = prev?.weight_kg != null ? toDisplayWeight(prev.weight_kg, unit) : null
+              const d = delta(wD, wPD)
+              return (
+                <div style={{ background: '#1B2A4A', borderRadius: 16, padding: 16 }}>
+                  <div style={{ font: `500 11px ${FF}`, color: '#8B97AD', marginBottom: 8 }}>{t('assessments.weight')}</div>
+                  <div style={{ font: `900 26px ${FF}`, color: '#FAEEDA' }}>
+                    {wD?.toFixed(1) ?? '—'}
+                    <span style={{ font: `500 14px ${FF}`, color: '#8B97AD' }}> {wUnit}</span>
+                  </div>
+                  {d && (
+                    <div style={{ font: `600 11px ${FF}`, color: deltaColor(latest.weight_kg, prev?.weight_kg ?? null, true), marginTop: 4 }}>
+                      {d} {wUnit}
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
+              )
+            })()}
 
             {/* Body fat */}
             <div style={{ background: '#fff', borderRadius: 16, padding: 16, boxShadow: '0 2px 8px rgba(27,42,74,.07)' }}>
@@ -245,18 +255,25 @@ export default function Avaliacoes() {
             </div>
 
             {/* Lean mass */}
-            <div style={{ background: '#fff', borderRadius: 16, padding: 16, boxShadow: '0 2px 8px rgba(27,42,74,.07)' }}>
-              <div style={{ font: `500 11px ${FF}`, color: '#A39E90', marginBottom: 8 }}>{t('assessments.lean_mass')}</div>
-              <div style={{ font: `900 26px ${FF}`, color: '#1B2A4A' }}>
-                {leanMass != null ? leanMass.toFixed(1) : '—'}
-                <span style={{ font: `500 14px ${FF}`, color: '#A39E90' }}>{leanMass != null ? ' kg' : ''}</span>
-              </div>
-              {delta(leanMass, prevLeanMass, 1) && (
-                <div style={{ font: `600 11px ${FF}`, color: deltaColor(leanMass, prevLeanMass, false), marginTop: 4 }}>
-                  {delta(leanMass, prevLeanMass, 1)} kg
+            {(() => {
+              const lmD = leanMass != null ? toDisplayWeight(leanMass, unit) : null
+              const lmPD = prevLeanMass != null ? toDisplayWeight(prevLeanMass, unit) : null
+              const d = delta(lmD, lmPD, 1)
+              return (
+                <div style={{ background: '#fff', borderRadius: 16, padding: 16, boxShadow: '0 2px 8px rgba(27,42,74,.07)' }}>
+                  <div style={{ font: `500 11px ${FF}`, color: '#A39E90', marginBottom: 8 }}>{t('assessments.lean_mass')}</div>
+                  <div style={{ font: `900 26px ${FF}`, color: '#1B2A4A' }}>
+                    {lmD != null ? lmD.toFixed(1) : '—'}
+                    <span style={{ font: `500 14px ${FF}`, color: '#A39E90' }}>{lmD != null ? ` ${wUnit}` : ''}</span>
+                  </div>
+                  {d && (
+                    <div style={{ font: `600 11px ${FF}`, color: deltaColor(leanMass, prevLeanMass, false), marginTop: 4 }}>
+                      {d} {wUnit}
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
+              )
+            })()}
 
             {/* Assessment count */}
             <div style={{ background: '#fff', borderRadius: 16, padding: 16, boxShadow: '0 2px 8px rgba(27,42,74,.07)' }}>
@@ -318,7 +335,7 @@ export default function Avaliacoes() {
                     <div style={{ flex: 1, height: 6, background: '#F4EFE3', borderRadius: 4 }}>
                       <div style={{ width: `${(value / maxCirc) * 100}%`, height: '100%', background: fill, borderRadius: 4 }} />
                     </div>
-                    <span style={{ font: `700 13px ${FF}`, color: '#1B2A4A', minWidth: 52, textAlign: 'right' }}>{value.toFixed(0)} cm</span>
+                    <span style={{ font: `700 13px ${FF}`, color: '#1B2A4A', minWidth: 52, textAlign: 'right' }}>{toDisplayLength(value, unit).toFixed(1)} {lUnit}</span>
                   </div>
                 ))}
               </div>
