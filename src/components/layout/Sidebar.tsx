@@ -2,7 +2,7 @@ import { NavLink, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import {
   LayoutDashboard, Users, BarChart2, Dumbbell,
-  CreditCard, ClipboardCheck, ClipboardList, MessageCircle, Settings, LogOut,
+  CreditCard, ClipboardCheck, ClipboardList, MessageCircle, Settings, LogOut, Activity,
 } from 'lucide-react'
 import KineaLogo from '../KineaLogo'
 import { useAuthStore } from '../../store/auth'
@@ -30,6 +30,7 @@ export default function Sidebar({ drawerOpen, onClose }: Props) {
     { to: '/coach/pagamentos',label: t('nav.payments'),     Icon: CreditCard },
     { to: '/coach/avaliacoes',label: t('nav.assessments'),  Icon: ClipboardCheck, badge: 'assessments' },
     { to: '/coach/feedbacks', label: t('nav.feedbacks'),    Icon: ClipboardList },
+    { to: '/coach/checkins',  label: t('nav.checkins'),     Icon: Activity },
     { to: '/coach/mensagens', label: t('nav.messages'),     Icon: MessageCircle, badge: 'messages' },
   ]
 

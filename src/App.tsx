@@ -13,6 +13,7 @@ import Treinos from './pages/coach/Treinos'
 import Pagamentos from './pages/coach/Pagamentos'
 import Avaliacoes from './pages/coach/Avaliacoes'
 import FeedbacksCoach from './pages/coach/FeedbacksCoach'
+import CheckinsCoach from './pages/coach/CheckinsCoach'
 import Mensagens from './pages/coach/Mensagens'
 import Configuracoes from './pages/coach/Configuracoes'
 import AlunoLayout from './components/layout/AlunoLayout'
@@ -58,6 +59,7 @@ export default function App() {
         <Route path="pagamentos"   element={<Pagamentos />} />
         <Route path="avaliacoes"   element={<Avaliacoes />} />
         <Route path="feedbacks"    element={<FeedbacksCoach />} />
+        <Route path="checkins"     element={<CheckinsCoach />} />
         <Route path="mensagens"    element={<Mensagens />} />
         <Route path="configuracoes" element={<Configuracoes />} />
       </Route>

@@ -36,6 +36,7 @@
     "payments": "Payments",
     "assessments": "Assessments",
     "feedbacks": "Feedbacks",
+    "checkins": "Check-ins",
     "messages": "Messages",
     "settings": "Settings",
     "logout": "Logout",
@@ -807,6 +808,9 @@
     "measure_hip": "Hip",
     "measure_arm": "Arm",
     "measure_thigh": "Thigh"
+  },
+  "coach_checkins": {
+    "unknown_workout": "Unnamed workout"
   },
   "coach_feedbacks": {
     "title": "Feedbacks",

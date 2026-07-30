@@ -36,6 +36,7 @@
     "payments": "Pagamentos",
     "assessments": "Avaliações",
     "feedbacks": "Feedbacks",
+    "checkins": "Check-ins",
     "messages": "Mensagens",
     "settings": "Configurações",
     "logout": "Sair",
@@ -807,6 +808,9 @@
     "measure_hip": "Quadril",
     "measure_arm": "Braço",
     "measure_thigh": "Coxa"
+  },
+  "coach_checkins": {
+    "unknown_workout": "Treino sem nome"
   },
   "coach_feedbacks": {
     "title": "Feedbacks",
