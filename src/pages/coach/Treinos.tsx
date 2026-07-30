@@ -48,7 +48,6 @@ const GOAL_STYLE: Record<Goal, { color: string; bg: string }> = {
 }
 const GOALS = Object.keys(GOAL_STYLE) as Goal[]
 const MUSCLE_CHIPS = ['Peito','Dorsal','Ombros','Bíceps','Tríceps','Quadríceps','Posterior','Glúteos','Panturrilha','Core','Corpo todo']
-const DAYS = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb']
 const slotLabel = (pos: number) => String.fromCharCode(64 + pos)
 
 // ── Toast ─────────────────────────────────────────────────────
@@ -622,9 +621,6 @@ function ProgramBuilderDrawer({ program, workouts, library, onClose, onUpdate, o
 }
 
 // ── New Program Modal (2-step wizard) ─────────────────────────
-const GOAL_SHORT: Record<Goal, string> = {
-  Hipertrofia: 'Hip', Emagrecimento: 'Ema', Força: 'For', Condicionamento: 'Con', Mobilidade: 'Mob',
-}
 
 function NewProgramModal({ onClose, onAdd }: {
   onClose: () => void
