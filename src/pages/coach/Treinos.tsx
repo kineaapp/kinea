@@ -5,6 +5,7 @@ import { useAuthStore } from '../../store/auth'
 import { supabase } from '../../lib/supabase'
 import { EXERCISE_LIBRARY } from '../../data/exercicios'
 import { useTranslation } from 'react-i18next'
+import { CriarTreinoWizard } from '../../components/coach/CriarTreinoWizard'
 
 const FF = '"Libre Franklin",sans-serif'
 
@@ -1670,7 +1671,6 @@ export default function Treinos() {
   // Programas tab state
   const [programs,       setPrograms]       = useState<Program[]>([])
   const [openProgramId,  setOpenProgramId]  = useState<number | null>(null)
-  const [newProgramOpen, setNewProgramOpen] = useState(false)
   const [applyOpen,      setApplyOpen]      = useState(false)
 
   // Biblioteca tab state
@@ -1681,7 +1681,9 @@ export default function Treinos() {
   const [query,       setQuery]       = useState('')
   const [filter,      setFilter]      = useState<Goal | 'all'>('all')
   const [openId,      setOpenId]      = useState<number | null>(null)
-  const [newOpen,     setNewOpen]     = useState(false)
+
+  // Wizard
+  const [wizardOpen, setWizardOpen] = useState(false)
 
   const [tab,   setTab]   = useState<'programas' | 'biblioteca'>('programas')
   const [toast, setToast] = useState('')
@@ -1965,20 +1967,11 @@ export default function Treinos() {
           </p>
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
-          {tab === 'programas' && (
-            <button onClick={() => setNewProgramOpen(true)}
-              style={{ display: 'flex', alignItems: 'center', gap: 8, height: 42, padding: '0 18px', border: 'none', background: '#E8542A', color: '#fff', borderRadius: 10, font: `700 13.5px ${FF}`, cursor: 'pointer', boxShadow: '0 2px 0 #c4421e' }}>
-              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
-              {t('coach_workouts.new_program')}
-            </button>
-          )}
-          {tab === 'biblioteca' && (
-            <button onClick={() => setNewOpen(true)}
-              style={{ display: 'flex', alignItems: 'center', gap: 8, height: 42, padding: '0 18px', border: '1.5px solid #d9d3c4', background: '#fff', color: '#1B2A4A', borderRadius: 10, font: `700 13.5px ${FF}`, cursor: 'pointer' }}>
-              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
-              {t('coach_workouts.new_workout')}
-            </button>
-          )}
+          <button onClick={() => setWizardOpen(true)}
+            style={{ display: 'flex', alignItems: 'center', gap: 8, height: 42, padding: '0 18px', border: 'none', background: '#E8542A', color: '#fff', borderRadius: 10, font: `700 13.5px ${FF}`, cursor: 'pointer', boxShadow: '0 2px 0 #c4421e' }}>
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+            Criar Treino
+          </button>
         </div>
       </div>
 
@@ -2004,7 +1997,7 @@ export default function Treinos() {
             <div style={{ gridColumn: '1 / -1', padding: '60px 20px', textAlign: 'center', border: '1.5px dashed #d8d1c0', borderRadius: 16 }}>
               <div style={{ font: `700 15px ${FF}`, color: '#1B2A4A', marginBottom: 6 }}>{t('coach_workouts.no_programs_title')}</div>
               <div style={{ font: `400 13px ${FF}`, color: '#a89f8e', marginBottom: 18 }}>{t('coach_workouts.no_programs_hint')}</div>
-              <button onClick={() => setNewProgramOpen(true)}
+              <button onClick={() => setWizardOpen(true)}
                 style={{ height: 40, padding: '0 20px', border: 'none', background: '#E8542A', color: '#fff', borderRadius: 10, font: `700 13px ${FF}`, cursor: 'pointer', boxShadow: '0 2px 0 #c4421e' }}>
                 {t('coach_workouts.create_first_program')}
               </button>
@@ -2108,14 +2101,11 @@ export default function Treinos() {
         />
       )}
 
-      {newProgramOpen && <NewProgramModal onClose={() => setNewProgramOpen(false)} onAdd={(n, d, t, s) => void handleCreateProgram(n, d, t, s)} />}
-      {newOpen && (
-        <NewTreinoModal
-          onClose={() => setNewOpen(false)}
-          onAdd={handleAddTreino}
-          onAddBlock={handleAddBlock}
-          onAddCircuito={handleAddCircuito}
-          library={library}
+      {wizardOpen && (
+        <CriarTreinoWizard
+          students={students}
+          onClose={() => setWizardOpen(false)}
+          onCreated={() => { void fetchPrograms(); void fetchTreinos() }}
         />
       )}
 
