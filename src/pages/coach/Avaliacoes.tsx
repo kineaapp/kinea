@@ -55,10 +55,6 @@ function signed(diff: number, suffix: string, lossGood: boolean): { txt: string;
   return { txt: `${arrow} ${abs}${suffix}`, color: good ? '#1B7a4a' : '#c4421e' }
 }
 
-function kgStr(n: number) {
-  return String(n).replace('.', ',') + ' kg'
-}
-
 // ── Pollock 7-skinfold ─────────────────────────────────────────────────────────
 function pollockBF(sum: number, age: number, sex: 'M' | 'F'): number {
   const d = sex === 'M'

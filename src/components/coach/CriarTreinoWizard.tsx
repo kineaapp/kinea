@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useAuthStore } from '../../store/auth'
 import { EXERCISE_LIBRARY } from '../../data/exercicios'
@@ -63,8 +63,6 @@ const STEP_LABELS = [
 // ── Helpers ──────────────────────────────────────────────────────
 let _k = Date.now()
 const nextK = () => ++_k
-
-function parseReps(r: string): number { return parseInt(r) || 0 }
 
 // ── Exercise Picker Modal ────────────────────────────────────────
 function ExPickerModal({ onAdd, onClose }: {
