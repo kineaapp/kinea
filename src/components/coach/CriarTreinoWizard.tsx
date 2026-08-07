@@ -430,7 +430,6 @@ export function CriarTreinoWizard({ students, onClose, onCreated }: {
 
   // Avança etapa
   async function goNext() {
-    if (step === 1 && !studentId) { showToast('Selecione um aluno para continuar'); return }
     if (step === 4 && slots.length === 0) { showToast('Adicione pelo menos um dia de treino'); return }
     if (step === 5 && slots.some(s => s.exercises.length === 0)) { showToast('Adicione pelo menos 1 exercício por dia'); return }
     if (step === 5) { await loadSuggestions(); setStep(6); return }
@@ -445,16 +444,18 @@ export function CriarTreinoWizard({ students, onClose, onCreated }: {
 
   // Step 7 — publicar
   async function handlePublish() {
-    if (!user?.id || !studentId) return
+    if (!user?.id) return
     setSaving(true)
     try {
       const student = students.find(s => s.id === studentId)
-      const programName = `${student?.name ?? 'Aluno'} — ${goal} (${phase})`
+      const programName = studentId
+        ? `${student?.name ?? 'Aluno'} — ${goal} (${phase})`
+        : `Template — ${goal} (${phase})`
 
       // 1. Criar programa
       const { data: prog, error: pErr } = await supabase
         .from('programs')
-        .insert({ coach_id: user.id, name: programName, days_per_week: slots.length, is_template: false })
+        .insert({ coach_id: user.id, name: programName, days_per_week: slots.length, is_template: !studentId })
         .select().single()
       if (pErr || !prog) throw new Error(pErr?.message ?? 'Erro ao criar programa')
 
@@ -501,18 +502,20 @@ export function CriarTreinoWizard({ students, onClose, onCreated }: {
       }))
       await supabase.from('program_slots').insert(slotRows)
 
-      // 5. Desativar programa anterior do aluno e criar nova atribuição
-      await supabase.from('program_assignments').update({ active: false }).eq('student_id', studentId)
-      await supabase.from('program_assignments').insert({ program_id: (prog as any).id, student_id: studentId, active: true })
+      if (studentId) {
+        // 5. Desativar programa anterior do aluno e criar nova atribuição
+        await supabase.from('program_assignments').update({ active: false }).eq('student_id', studentId)
+        await supabase.from('program_assignments').insert({ program_id: (prog as any).id, student_id: studentId, active: true })
 
-      // 6. Registrar notificação para o aluno
-      await supabase.from('notifications').insert({
-        student_id: studentId,
-        coach_id:   user.id,
-        type:       'workout_published',
-        message:    `Novo treino disponível: ${programName}`,
-        read:       false,
-      })
+        // 6. Registrar notificação para o aluno
+        await supabase.from('notifications').insert({
+          student_id: studentId,
+          coach_id:   user.id,
+          type:       'workout_published',
+          message:    `Novo treino disponível: ${programName}`,
+          read:       false,
+        })
+      }
 
       setSaved(true)
       onCreated()
@@ -583,7 +586,7 @@ export function CriarTreinoWizard({ students, onClose, onCreated }: {
           {step === 1 && (
             <div>
               <h2 style={{ font: `800 22px ${FF}`, color: '#1B2A4A', margin: '0 0 4px', letterSpacing: '-.4px' }}>Selecionar aluno</h2>
-              <p style={{ font: `400 13.5px ${FF}`, color: '#7c7869', margin: '0 0 18px' }}>Escolha o aluno para quem este treino será criado.</p>
+              <p style={{ font: `400 13.5px ${FF}`, color: '#7c7869', margin: '0 0 18px' }}>Escolha o aluno ou crie como template para atribuir depois.</p>
               <div style={{ position: 'relative', marginBottom: 14 }}>
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#9a948a" strokeWidth="2" strokeLinecap="round" style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)' }}><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.3-4.3"/></svg>
                 <input type="text" placeholder="Buscar aluno..." value={studentQuery} onChange={e => setStudentQuery(e.target.value)}
@@ -591,6 +594,21 @@ export function CriarTreinoWizard({ students, onClose, onCreated }: {
                   onFocus={e => { e.currentTarget.style.borderColor = '#E8542A' }} onBlur={e => { e.currentTarget.style.borderColor = '#d9d3c4' }} />
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {/* Template option */}
+                <button type="button" onClick={() => { setStudentId(null); setStep(2) }}
+                  style={{ display: 'flex', alignItems: 'center', gap: 12, border: '1.5px dashed #b0a99c', background: '#faf7ee', borderRadius: 12, padding: '11px 14px', cursor: 'pointer', textAlign: 'left', width: '100%', transition: 'all .12s', marginBottom: 4 }}
+                  onMouseEnter={e => { e.currentTarget.style.borderColor = '#E8542A'; e.currentTarget.style.background = '#fdf3ee' }}
+                  onMouseLeave={e => { e.currentTarget.style.borderColor = '#b0a99c'; e.currentTarget.style.background = '#faf7ee' }}>
+                  <div style={{ width: 40, height: 40, borderRadius: 11, background: '#f0ebe0', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6b6657" strokeWidth="1.8" strokeLinecap="round"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M9 9h6M9 12h6M9 15h4"/></svg>
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ font: `700 14px ${FF}`, color: '#1B2A4A' }}>Criar como template</div>
+                    <div style={{ font: `400 12px ${FF}`, color: '#9a948a' }}>Sem aluno — atribuir depois</div>
+                  </div>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#b0a99c" strokeWidth="2" strokeLinecap="round"><path d="M9 18l6-6-6-6"/></svg>
+                </button>
+
                 {visibleStudents.map((s, idx) => {
                   const [bg, fg] = avatarPalette(idx)
                   const selected = s.id === studentId
@@ -795,7 +813,11 @@ export function CriarTreinoWizard({ students, onClose, onCreated }: {
           {step === 6 && (
             <div>
               <h2 style={{ font: `800 22px ${FF}`, color: '#1B2A4A', margin: '0 0 4px', letterSpacing: '-.4px' }}>Revisar e ajustar</h2>
-              <p style={{ font: `400 13.5px ${FF}`, color: '#7c7869', margin: '0 0 16px' }}>Defina a carga prescrita. Sugestões calculadas automaticamente com base no histórico do aluno.</p>
+              <p style={{ font: `400 13.5px ${FF}`, color: '#7c7869', margin: '0 0 16px' }}>
+                {studentId
+                  ? 'Defina a carga prescrita. Sugestões calculadas automaticamente com base no histórico do aluno.'
+                  : 'Defina a carga padrão para o template. Poderá ser ajustada ao atribuir para um aluno.'}
+              </p>
 
               {loadingSuggestions ? (
                 <div style={{ padding: '40px 0', textAlign: 'center', font: `500 13px ${FF}`, color: '#9a948a' }}>
@@ -841,12 +863,14 @@ export function CriarTreinoWizard({ students, onClose, onCreated }: {
             <div>
               {!saved ? (
                 <>
-                  <h2 style={{ font: `800 22px ${FF}`, color: '#1B2A4A', margin: '0 0 4px', letterSpacing: '-.4px' }}>Publicar treino</h2>
-                  <p style={{ font: `400 13.5px ${FF}`, color: '#7c7869', margin: '0 0 22px' }}>Revise o resumo e publique. O aluno receberá uma notificação.</p>
+                  <h2 style={{ font: `800 22px ${FF}`, color: '#1B2A4A', margin: '0 0 4px', letterSpacing: '-.4px' }}>{studentId ? 'Publicar treino' : 'Salvar template'}</h2>
+                  <p style={{ font: `400 13.5px ${FF}`, color: '#7c7869', margin: '0 0 22px' }}>
+                    {studentId ? 'Revise o resumo e publique. O aluno receberá uma notificação.' : 'Revise o resumo e salve o template. Você poderá atribuir para um aluno depois.'}
+                  </p>
 
                   {/* Summary */}
                   <div style={{ background: '#fff', border: '1.5px solid #e0d9c8', borderRadius: 14, padding: 20, display: 'flex', flexDirection: 'column', gap: 14, marginBottom: 24 }}>
-                    <Row label="Aluno" value={selectedStudent?.name ?? '—'} />
+                    <Row label="Aluno" value={selectedStudent?.name ?? 'Nenhum (template)'} />
                     <Row label="Objetivo" value={goal} />
                     <Row label="Fase" value={phase} />
                     <Row label="Tipo" value={workoutType === 'circuito' ? `Circuito · ${rounds} rounds` : 'Padrão'} />
@@ -865,7 +889,7 @@ export function CriarTreinoWizard({ students, onClose, onCreated }: {
 
                   <button onClick={() => void handlePublish()} disabled={saving}
                     style={{ width: '100%', height: 50, border: 'none', background: saving ? '#d9d3c4' : '#E8542A', color: '#fff', borderRadius: 12, font: `800 15px ${FF}`, cursor: saving ? 'not-allowed' : 'pointer', boxShadow: saving ? 'none' : '0 3px 0 #c4421e', letterSpacing: '-.2px' }}>
-                    {saving ? 'Publicando...' : 'Publicar treino'}
+                    {saving ? (studentId ? 'Publicando...' : 'Salvando...') : (studentId ? 'Publicar treino' : 'Salvar template')}
                   </button>
                 </>
               ) : (
@@ -874,9 +898,13 @@ export function CriarTreinoWizard({ students, onClose, onCreated }: {
                   <div style={{ width: 72, height: 72, borderRadius: 20, background: '#e7f3ea', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 18 }}>
                     <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#1B7a4a" strokeWidth="2.2" strokeLinecap="round"><path d="M20 6L9 17l-5-5"/></svg>
                   </div>
-                  <h2 style={{ font: `800 22px ${FF}`, color: '#1B2A4A', margin: '0 0 8px', letterSpacing: '-.4px' }}>Treino publicado!</h2>
+                  <h2 style={{ font: `800 22px ${FF}`, color: '#1B2A4A', margin: '0 0 8px', letterSpacing: '-.4px' }}>
+                    {studentId ? 'Treino publicado!' : 'Template salvo!'}
+                  </h2>
                   <p style={{ font: `400 14px ${FF}`, color: '#7c7869', margin: '0 0 28px', maxWidth: 320 }}>
-                    {selectedStudent?.name} foi notificado e já pode acessar o treino no app.
+                    {studentId
+                      ? `${selectedStudent?.name} foi notificado e já pode acessar o treino no app.`
+                      : 'Template criado com sucesso. Atribua para um aluno quando quiser.'}
                   </p>
                   <button onClick={onClose} style={{ height: 44, padding: '0 28px', border: 'none', background: '#E8542A', color: '#fff', borderRadius: 10, font: `700 14px ${FF}`, cursor: 'pointer', boxShadow: '0 2px 0 #c4421e' }}>
                     Concluir
